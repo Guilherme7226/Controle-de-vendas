@@ -55,7 +55,11 @@ function doPost(e) {
     }
 
     SpreadsheetApp.flush();
-    return json({ok:true, data:readAll()});
+
+    // Não recarrega toda a planilha depois de cada gravação.
+    // Isso deixa o POST muito mais rápido; o site atualiza os dados
+    // em segundo plano através do GET.
+    return json({ok:true});
   } catch (err) {
     console.error(err);
     return json({ok:false, error:String(err.message || err)});
