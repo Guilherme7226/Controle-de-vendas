@@ -229,6 +229,25 @@ function appendSale(ss, d) {
 /*
  * Insere custos antes da linha TOTAL/TOTAL GERAL.
  */
+
+/*
+ * Aplica somente a formatação numérica/data de uma linha de venda.
+ * Não altera valores, fórmulas ou conteúdo.
+ */
+function aplicarFormatoVenda(sh, rowNumber) {
+  if (!sh || !rowNumber || rowNumber < 1) return;
+
+  sh.getRange(rowNumber, 1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(rowNumber, 4).setNumberFormat('0');
+  sh.getRange(rowNumber, 5, 1, 2).setNumberFormat('R$ #,##0.00');
+  sh.getRange(rowNumber, 10, 1, 2).setNumberFormat('R$ #,##0.00');
+
+  if (sh.getLastColumn() >= 11) {
+    sh.getRange(rowNumber, 7).setNumberFormat('dd/MM/yyyy');
+  }
+}
+
+
 function appendCost(ss, d) {
   const sh = ss.getSheetByName(SHEET_CUSTOS);
   if (!sh) throw new Error('Aba Custos não encontrada');
