@@ -37,9 +37,9 @@ th,td{text-align:left;padding:9px 8px;border-bottom:1px solid var(--line);white-
 th{font-size:11px;color:var(--muted);text-transform:uppercase;letter-spacing:.04em}
 tbody tr:hover{background:rgba(37,99,235,.045)}
 /* Histórico de vendas: colunas compactas, sem o vão exagerado entre Data e Cliente */
-#salesTable{width:max-content;min-width:0}
-#salesTable td:first-child,#salesTable th:first-child{width:96px}
-#salesTable td:nth-child(2),#salesTable th:nth-child(2){width:150px}
+#salesTable{display:inline-table;width:max-content;min-width:0;table-layout:auto}
+#salesTable td:first-child,#salesTable th:first-child{width:82px;min-width:82px;max-width:82px}
+#salesTable td:nth-child(2),#salesTable th:nth-child(2){width:130px;min-width:130px;max-width:130px}
 #salesTable td:nth-child(3),#salesTable th:nth-child(3){width:120px}
 #salesTable td:nth-child(4),#salesTable th:nth-child(4){width:55px;text-align:center}
 #salesTable td:nth-child(5),#salesTable th:nth-child(5){width:105px}
