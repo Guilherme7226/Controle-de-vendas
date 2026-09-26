@@ -44,6 +44,12 @@ function doPost(e) {
       case 'pagamento':
         updatePayment(ss, d);
         break;
+      case 'editar_venda':
+        updateSale(ss, d);
+        break;
+      case 'excluir_venda':
+        deleteSale(ss, d);
+        break;
       default:
         throw new Error('Ação desconhecida');
     }
@@ -209,6 +215,77 @@ function updatePayment(ss, d) {
     pago,
     saldo
   ]]);
+}
+
+/*
+ * EDITAR VENDA
+ */
+function updateSale(ss, d) {
+  const sh = ss.getSheetByName(SHEET_VENDAS);
+  if (!sh) throw new Error('Aba Vendas não encontrada');
+
+  const rowNumber = Number(d.row);
+
+  if (!rowNumber || rowNumber < 2 || rowNumber > sh.getLastRow()) {
+    throw new Error('Linha da venda inválida');
+  }
+
+  if (isTotalRow(sh, rowNumber)) {
+    throw new Error('A linha TOTAL não é uma venda');
+  }
+
+  const quantidade = Math.max(0, Number(d.quantidade) || 0);
+  const unit = Math.max(0, Number(d.valorUnitario) || 0);
+  const total = quantidade * unit;
+
+  const pago = Math.min(
+    Math.max(Number(d.pago) || 0, 0),
+    total
+  );
+
+  const saldo = Math.max(0, total - pago);
+
+  sh.getRange(rowNumber, 1, 1, 11).setValues([[
+    d.data || '',
+    d.cliente || '',
+    d.contatoEmpresa || '',
+    quantidade,
+    unit,
+    total,
+    pago > 0 ? (d.dataPagamento || d.data || '') : '',
+    saldo <= 0 && total > 0,
+    pago > 0 && saldo > 0 ? 'Sim' : 'Não',
+    pago,
+    saldo
+  ]]);
+
+  return true;
+}
+
+/*
+ * EXCLUIR VENDA
+ */
+function deleteSale(ss, d) {
+  const sh = ss.getSheetByName(SHEET_VENDAS);
+  if (!sh) throw new Error('Aba Vendas não encontrada');
+
+  const rowNumber = Number(d.row);
+
+  if (!rowNumber || rowNumber < 2 || rowNumber > sh.getLastRow()) {
+    throw new Error('Linha da venda inválida');
+  }
+
+  if (isTotalRow(sh, rowNumber)) {
+    throw new Error('A linha TOTAL não pode ser excluída');
+  }
+
+  const cliente = String(sh.getRange(rowNumber, 2).getDisplayValue() || '').trim();
+
+  sh.deleteRow(rowNumber);
+
+  SpreadsheetApp.flush();
+
+  return 'Venda de ' + cliente + ' excluída com sucesso.';
 }
 
 /*
