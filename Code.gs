@@ -73,6 +73,185 @@ function setup() {
   }
 }
 
+
+/*
+ * PADRONIZA A FORMATAÇÃO DA PLANILHA
+ *
+ * Usa a primeira linha de dados de cada aba como modelo,
+ * preservando cabeçalhos e linhas TOTAL/TOTAL GERAL.
+ * Execute esta função uma vez no Apps Script para aplicar
+ * o padrão atual a toda a planilha.
+ */
+function padronizarPlanilha() {
+  const ss = getSS();
+
+  padronizarVendas(ss);
+  padronizarCustos(ss);
+  padronizarResumoPessoa(ss);
+
+  SpreadsheetApp.flush();
+  return 'Planilha padronizada com sucesso.';
+}
+
+function padronizarVendas(ss) {
+  const sh = ss.getSheetByName(SHEET_VENDAS);
+  if (!sh || sh.getLastRow() < 2) return;
+
+  const lastRow = sh.getLastRow();
+  let modelo = 0;
+
+  for (let row = 2; row <= lastRow; row++) {
+    if (isTotalRow(sh, row)) break;
+
+    const values = sh.getRange(row, 1, 1, 11).getValues()[0];
+
+    if (values.some(v => v !== '' && v !== null)) {
+      modelo = row;
+      break;
+    }
+  }
+
+  if (!modelo) return;
+
+  for (let row = 2; row <= lastRow; row++) {
+    if (isTotalRow(sh, row)) continue;
+
+    const values = sh.getRange(row, 1, 1, 11).getValues()[0];
+
+    if (!values.some(v => v !== '' && v !== null)) continue;
+
+    if (row !== modelo) {
+      sh.getRange(modelo, 1, 1, 11).copyTo(
+        sh.getRange(row, 1, 1, 11),
+        SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+        false
+      );
+    }
+  }
+
+  aplicarFormatoVendaTodas(sh);
+}
+
+function aplicarFormatoVendaTodas(sh) {
+  const lastRow = sh.getLastRow();
+  if (lastRow < 2) return;
+
+  const quantidadeRows = Math.max(lastRow - 1, 1);
+
+  sh.getRange(2, 1, quantidadeRows, 1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(2, 4, quantidadeRows, 1).setNumberFormat('0');
+  sh.getRange(2, 5, quantidadeRows, 2).setNumberFormat('R$ #,##0.00');
+  sh.getRange(2, 7, quantidadeRows, 1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(2, 10, quantidadeRows, 2).setNumberFormat('R$ #,##0.00');
+}
+
+function padronizarCustos(ss) {
+  const sh = ss.getSheetByName(SHEET_CUSTOS);
+  if (!sh || sh.getLastRow() < 1) return;
+
+  const lastRow = sh.getLastRow();
+  let modelo = 0;
+
+  for (let row = 1; row <= lastRow; row++) {
+    const a = normalize(sh.getRange(row, 1).getDisplayValue());
+    const b = normalize(sh.getRange(row, 2).getDisplayValue());
+
+    if (
+      a === 'DATA' || b === 'DESCRICAO' ||
+      a === 'TOTAL' || a === 'TOTAL GERAL' ||
+      b === 'TOTAL' || b === 'TOTAL GERAL'
+    ) continue;
+
+    const values = sh.getRange(row, 1, 1, 3).getValues()[0];
+
+    if (values.some(v => v !== '' && v !== null)) {
+      modelo = row;
+      break;
+    }
+  }
+
+  if (!modelo) return;
+
+  for (let row = 1; row <= lastRow; row++) {
+    const a = normalize(sh.getRange(row, 1).getDisplayValue());
+    const b = normalize(sh.getRange(row, 2).getDisplayValue());
+
+    if (
+      a === 'DATA' || b === 'DESCRICAO' ||
+      a === 'TOTAL' || a === 'TOTAL GERAL' ||
+      b === 'TOTAL' || b === 'TOTAL GERAL'
+    ) continue;
+
+    const values = sh.getRange(row, 1, 1, 3).getValues()[0];
+
+    if (!values.some(v => v !== '' && v !== null)) continue;
+
+    if (row !== modelo) {
+      sh.getRange(modelo, 1, 1, 3).copyTo(
+        sh.getRange(row, 1, 1, 3),
+        SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+        false
+      );
+    }
+  }
+
+  sh.getRange(1, 1, lastRow, 1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(1, 3, lastRow, 1).setNumberFormat('R$ #,##0.00');
+}
+
+function padronizarResumoPessoa(ss) {
+  const sh = ss.getSheetByName(SHEET_RESUMO_PESSOA);
+  if (!sh || sh.getLastRow() < 1) return;
+
+  const lastRow = sh.getLastRow();
+  const rows = sh.getRange(1, 1, lastRow, 6).getDisplayValues();
+
+  let header = -1;
+
+  for (let i = 0; i < Math.min(rows.length, 20); i++) {
+    if (
+      normalize(rows[i][0]) === 'CLIENTE' &&
+      normalize(rows[i][1]).includes('QTD')
+    ) {
+      header = i + 1;
+      break;
+    }
+  }
+
+  if (header < 0) return;
+
+  let modelo = 0;
+
+  for (let row = header + 1; row <= lastRow; row++) {
+    const cliente = normalize(sh.getRange(row, 1).getDisplayValue());
+
+    if (!cliente || cliente === 'TOTAL' || cliente === 'TOTAL GERAL') continue;
+
+    modelo = row;
+    break;
+  }
+
+  if (!modelo) return;
+
+  for (let row = header + 1; row <= lastRow; row++) {
+    const cliente = normalize(sh.getRange(row, 1).getDisplayValue());
+
+    if (!cliente || cliente === 'TOTAL' || cliente === 'TOTAL GERAL') continue;
+
+    if (row !== modelo) {
+      sh.getRange(modelo, 1, 1, 6).copyTo(
+        sh.getRange(row, 1, 1, 6),
+        SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+        false
+      );
+    }
+  }
+
+  const qtdRows = Math.max(lastRow - header, 1);
+  sh.getRange(header + 1, 2, qtdRows, 2).setNumberFormat('0');
+  sh.getRange(header + 1, 4, qtdRows, 3).setNumberFormat('R$ #,##0.00');
+}
+
 /*
  * Remove APENAS as vendas de teste:
  * - Cliente GUILHERME ou TESTE
@@ -158,6 +337,8 @@ function appendSale(ss, d) {
     const rowNumber = Math.max(sh.getLastRow() + 1, 2);
     sh.getRange(rowNumber,1,1,11).setValues([row]);
   }
+
+  aplicarFormatoVenda(sh, totalRow > 0 ? totalRow : sh.getLastRow());
 }
 
 /*
@@ -186,6 +367,10 @@ function appendCost(ss, d) {
   } else {
     sh.appendRow(row);
   }
+
+  const targetRow = totalRow > 0 ? totalRow : sh.getLastRow();
+  sh.getRange(targetRow, 1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(targetRow, 3).setNumberFormat('R$ #,##0.00');
 }
 
 function updatePayment(ss, d) {
@@ -215,6 +400,8 @@ function updatePayment(ss, d) {
     pago,
     saldo
   ]]);
+
+  aplicarFormatoVenda(sh, row);
 }
 
 /*
@@ -258,6 +445,8 @@ function updateSale(ss, d) {
     pago,
     saldo
   ]]);
+
+  aplicarFormatoVenda(sh, rowNumber);
 
   return true;
 }
