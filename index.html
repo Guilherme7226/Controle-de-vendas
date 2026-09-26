@@ -10,7 +10,7 @@
 header{background:#111827;color:white;padding:18px}.wrap{max-width:1180px;margin:auto;padding:0 16px}header .wrap{display:flex;justify-content:space-between;align-items:center;gap:12px}
 h1{font-size:22px;margin:0}header small{color:#cbd5e1}nav{display:flex;gap:8px;overflow:auto;padding:14px 0}.tab,button{border:0;border-radius:9px;padding:10px 14px;cursor:pointer;font:inherit}.tab{background:#fff;border:1px solid var(--line)}.tab.active,.primary{background:var(--primary);color:#fff}
 main{padding-bottom:30px}.view{display:none}.view.active{display:block}.cards{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin:10px 0 18px}.card,.panel{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:16px}.label{color:var(--muted);font-size:13px}.value{font-size:24px;font-weight:750;margin-top:5px}.panel{margin-bottom:16px}.panel h2{font-size:17px;margin:0 0 14px}
-.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;color:var(--muted)}input,select{width:100%;padding:10px;border:1px solid #d8dee9;border-radius:9px;background:white;font:inherit}.secondary{background:#eef2f7}.actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{font-size:12px;color:var(--muted);text-transform:uppercase}
+.grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;color:var(--muted)}input,select{width:100%;padding:10px;border:1px solid #d8dee9;border-radius:9px;background:white;font:inherit}.secondary{background:#eef2f7}.danger-btn{background:#fee2e2;color:#991b1b;border:0;border-radius:9px;padding:10px 14px;cursor:pointer;font:inherit}.actions{display:flex;gap:8px;margin-top:16px;flex-wrap:wrap}.table-wrap{overflow:auto}table{width:100%;border-collapse:collapse;min-width:760px}th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line);white-space:nowrap}th{font-size:12px;color:var(--muted);text-transform:uppercase}
 .badge{border-radius:999px;padding:4px 8px;font-size:12px}.paid{background:#dcfce7;color:#166534}.partial{background:#fef3c7;color:#92400e}.pending{background:#fee2e2;color:#991b1b}.notice{padding:10px 12px;border-radius:9px;background:#eff6ff;color:#1e40af;margin-bottom:12px;font-size:13px}.success{background:#f0fdf4;color:#166534}.error{background:#fef2f2;color:#991b1b}
 @media(max-width:850px){.cards{grid-template-columns:repeat(2,1fr)}.grid{grid-template-columns:repeat(2,1fr)}}@media(max-width:520px){.cards,.grid{grid-template-columns:1fr}.value{font-size:21px}}
 </style>
@@ -29,7 +29,7 @@ main{padding-bottom:30px}.view{display:none}.view.active{display:block}.cards{di
 <div class="field"><label>Cliente</label><input id="cliente" required></div><div class="field"><label>Contato/Empresa</label><input id="contatoEmpresa"></div><div class="field"><label>Quantidade</label><input id="quantidade" type="number" min="1" value="1" required></div><div class="field"><label>Valor unitário</label><input id="valor" type="number" min="0" step=".01" value="8.00" required></div><div class="field"><label>Data</label><input id="data" type="date" required></div><div class="field"><label>Valor pago</label><input id="pago" type="number" min="0" step=".01" value="0"></div>
 </div><div class="actions"><button class="primary">Registrar venda</button><button type="reset" class="secondary">Limpar</button></div></form></div></section>
 
-<section id="vendas" class="view"><div class="panel"><h2>Histórico de vendas</h2><div class="grid"><div class="field"><label>Pesquisar</label><input id="buscaVenda" placeholder="Cliente"></div><div class="field"><label>Status</label><select id="filtroStatus"><option value="">Todos</option><option>Pago</option><option>Parcial</option><option>Pendente</option></select></div></div><div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
+<section id="vendas" class="view"><div class="panel"><h2>Histórico de vendas</h2><div class="grid"><div class="field"><label>Pesquisar</label><input id="buscaVenda" placeholder="Cliente"></div><div class="field"><label>Status</label><select id="filtroStatus"><option value="">Todos</option><option>Pago</option><option>Parcial</option><option>Pendente</option></select></div></div><div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
 
 <section id="clientes" class="view"><div class="panel"><h2>Clientes</h2><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Qtd. Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ação</th></tr></thead><tbody id="clientsTable"></tbody></table></div></div><div id="clienteDetalhe" class="panel" hidden><h2 id="clienteDetalheTitulo"></h2><div class="cards" id="clienteResumo"></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Pagamento</th><th>Status</th><th>Ação</th></tr></thead><tbody id="clienteHistorico"></tbody></table></div></div></section>
 
@@ -49,7 +49,7 @@ function render(){
 const fat=Number(summary?.totalVendido)||sales.reduce((a,x)=>a+x.total,0),cu=Number(summary?.custoTotal)||costs.reduce((a,x)=>a+x.valor,0),rec=Number(summary?.totalAReceber)||sales.reduce((a,x)=>a+x.deve,0),q=Number(summary?.qtdPaes)||sales.reduce((a,x)=>a+x.quantidade,0),nv=Number(summary?.qtdVendas)||sales.length,tk=Number(summary?.ticketMedio)||(nv?fat/nv:0);
 $('fat').textContent=brl(fat);$('cust').textContent=brl(cu);$('lucro').textContent=brl(Number(summary?.lucro)||fat-cu);$('receber').textContent=brl(rec);$('qtd').textContent=q;$('nvendas').textContent=nv;$('nclientes').textContent=clientSummary.length||new Set(sales.map(x=>String(x.cliente).toLowerCase())).size;$('ticket').textContent=brl(tk);
 const term=$('buscaVenda').value.toLowerCase(),fs=$('filtroStatus').value;
-$('salesTable').innerHTML=sales.filter(x=>(!term||String(x.cliente).toLowerCase().includes(term))&&(!fs||x.status===fs)).map(x=>'<tr><td>'+esc(x.data)+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td></tr>').join('')||'<tr><td colspan="9">Nenhuma venda.</td></tr>';
+$('salesTable').innerHTML=sales.filter(x=>(!term||String(x.cliente).toLowerCase().includes(term))&&(!fs||x.status===fs)).map(x=>'<tr><td>'+esc(x.data)+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td><td><button class="secondary edit-sale" data-row="'+x.row+'">Editar</button> <button class="danger-btn delete-sale" data-row="'+x.row+'">Excluir</button></td></tr>').join('')||'<tr><td colspan="10">Nenhuma venda.</td></tr>';
 $('receberTable').innerHTML=sales.filter(x=>x.deve>0).map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td><button class="secondary pay" data-row="'+x.row+'">Registrar pagamento</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
 const list=clientSummary.length?clientSummary:buildClients();
 $('clientsTable').innerHTML=list.map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+x.qtdPaes+'</td><td>'+x.qtdVendas+'</td><td>'+brl(x.totalVendido)+'</td><td>'+brl(x.totalPago)+'</td><td>'+brl(x.saldoDevedor)+'</td><td><button class="secondary client" data-client="'+esc(x.cliente)+'">Ver histórico</button></td></tr>').join('')||'<tr><td colspan="7">Nenhum cliente.</td></tr>';
@@ -57,12 +57,78 @@ $('costTable').innerHTML=costs.map(x=>'<tr><td>'+esc(x.data)+'</td><td>'+esc(x.d
 }
 function buildClients(){const m={};sales.forEach(x=>{const k=x.cliente||'';if(!m[k])m[k]={cliente:k,qtdPaes:0,qtdVendas:0,totalVendido:0,totalPago:0,saldoDevedor:0};m[k].qtdPaes+=x.quantidade;m[k].qtdVendas++;m[k].totalVendido+=x.total;m[k].totalPago+=x.valorPago;m[k].saldoDevedor+=x.deve});return Object.values(m)}
 async function pay(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const v=prompt('Informe o valor total já pago:',Number(x.valorPago||0).toFixed(2));if(v===null)return;const j=await api('pagamento',{row:x.row,pago:Number(v)||0,dataPagamento:today()});if(!j){alert('Não foi possível salvar o pagamento na planilha.');return}await load()}
+async function editSale(row){
+const x=sales.find(v=>String(v.row)===String(row));
+if(!x)return;
+
+const cliente=prompt('Cliente:',x.cliente);
+if(cliente===null)return;
+
+const contato=prompt('Contato/Empresa:',x.contatoEmpresa||'');
+if(contato===null)return;
+
+const data=prompt('Data (AAAA-MM-DD):',x.data);
+if(data===null)return;
+
+const quantidade=prompt('Quantidade:',x.quantidade);
+if(quantidade===null)return;
+
+const valor=prompt('Valor unitário:',Number(x.valorUnitario||0).toFixed(2));
+if(valor===null)return;
+
+const pago=prompt('Valor pago:',Number(x.valorPago||0).toFixed(2));
+if(pago===null)return;
+
+const q=Number(quantidade)||0;
+const u=Number(valor)||0;
+const total=q*u;
+const p=Math.min(Math.max(Number(pago)||0,0),total);
+
+const j=await api('editar_venda',{
+row:x.row,
+data:data.trim(),
+cliente:cliente.trim(),
+contatoEmpresa:contato.trim(),
+quantidade:q,
+valorUnitario:u,
+pago:p,
+dataPagamento:p?(x.dataPagamento||data.trim()):''
+});
+
+if(!j){
+alert('Não foi possível editar a venda.');
+return;
+}
+
+await load();
+showMsg('Venda editada com sucesso.','success');
+}
+
+async function deleteSale(row){
+const x=sales.find(v=>String(v.row)===String(row));
+if(!x)return;
+
+const ok=confirm('Excluir esta venda?\\n\\nCliente: '+x.cliente+'\\nData: '+x.data+'\\nTotal: '+brl(x.total)+'\\n\\nEssa ação não pode ser desfeita.');
+
+if(!ok)return;
+
+const j=await api('excluir_venda',{row:x.row});
+
+if(!j){
+alert('Não foi possível excluir a venda.');
+return;
+}
+
+await load();
+showMsg('Venda excluída com sucesso.','success');
+}
+
 function clientHistory(name){const itens=sales.filter(x=>String(x.cliente).trim().toLowerCase()===String(name).trim().toLowerCase());const s=clientSummary.find(x=>String(x.cliente).trim().toLowerCase()===String(name).trim().toLowerCase())||buildClients().find(x=>String(x.cliente).trim().toLowerCase()===String(name).trim().toLowerCase());$('clienteDetalhe').hidden=false;$('clienteDetalheTitulo').textContent='Histórico — '+name;$('clienteResumo').innerHTML='<div class="card"><div class="label">Pães</div><div class="value">'+(s?.qtdPaes||0)+'</div></div><div class="card"><div class="label">Vendas</div><div class="value">'+(s?.qtdVendas||0)+'</div></div><div class="card"><div class="label">Total</div><div class="value">'+brl(s?.totalVendido)+'</div></div><div class="card"><div class="label">Saldo</div><div class="value">'+brl(s?.saldoDevedor)+'</div></div>';$('clienteHistorico').innerHTML=itens.map(x=>'<tr><td>'+esc(x.data)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+esc(x.dataPagamento||'-')+'</td><td>'+statusBadge(x.status)+'</td><td>'+(x.deve>0?'<button class="secondary pay" data-row="'+x.row+'">Pagar</button>':'-')+'</td></tr>').join('');$('clienteDetalhe').scrollIntoView({behavior:'smooth'})}
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===b.dataset.view));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));render()});
 $('saleForm').onsubmit=async e=>{e.preventDefault();const q=+$('quantidade').value,u=+$('valor').value,t=q*u,p=Math.min(Math.max(+$('pago').value||0,0),t);const j=await api('venda',{data:$('data').value,cliente:$('cliente').value.trim(),contatoEmpresa:$('contatoEmpresa').value.trim(),quantidade:q,valorUnitario:u,pago:p,dataPagamento:p?$('data').value:''});if(!j){alert('Não foi possível salvar a venda.');return}e.target.reset();setDates();await load();document.querySelector('[data-view="dashboard"]').click();alert('Venda registrada!')};
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:$('cdata').value,descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();await load();alert('Custo registrado!')};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.client'))clientHistory(e.target.dataset.client)});
+document.addEventListener('click',e=>{if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.client'))clientHistory(e.target.dataset.client);if(e.target.matches('.edit-sale'))editSale(e.target.dataset.row);if(e.target.matches('.delete-sale'))deleteSale(e.target.dataset.row)});
 $('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};
 setDates();load();
 </script>
