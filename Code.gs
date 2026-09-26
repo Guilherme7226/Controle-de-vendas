@@ -191,11 +191,12 @@ function appendSale(ss, d) {
   for (let rowNumber = 4; rowNumber <= limite; rowNumber++) {
     const values = sh.getRange(rowNumber, 1, 1, 11).getValues()[0];
 
+    // Uma venda real precisa ter DATA e CLIENTE preenchidos.
+    // As linhas vazias abaixo das vendas possuem fórmulas em outras
+    // colunas (como Valor Total), então não podem ser usadas como venda.
     if (
-      values[0] !== '' ||
-      values[1] !== '' ||
-      values[3] !== '' ||
-      values[5] !== ''
+      String(values[0] || '').trim() !== '' &&
+      String(values[1] || '').trim() !== ''
     ) {
       ultimaVenda = rowNumber;
     }
