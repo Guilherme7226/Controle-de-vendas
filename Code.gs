@@ -18,7 +18,7 @@ function doPost(e) {
   try {
     const body = JSON.parse(e?.postData?.contents || '{}');
     if (API_KEY && body.apiKey !== API_KEY) throw new Error('Chave inválida');
-    const ss = getSS(), d = body.data || {};
+    const ss = getSS(), d = body.data || body || {};
     if (body.action === 'venda') appendSale(ss,d);
     else if (body.action === 'custo') appendCost(ss,d);
     else if (body.action === 'pagamento') updatePayment(ss,d);
