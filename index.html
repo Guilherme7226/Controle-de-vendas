@@ -47,6 +47,11 @@ tbody tr:hover{background:rgba(37,99,235,.045)}
 #salesTable td:nth-child(8),#salesTable th:nth-child(8){width:85px}
 #salesTable td:nth-child(9),#salesTable th:nth-child(9){width:105px}
 #salesTable td:last-child,#salesTable th:last-child{width:170px}
+#clientsTable td:last-child,#clientsTable th:last-child{width:190px}
+.client-filters{display:grid;grid-template-columns:minmax(220px,1fr) 180px;gap:12px;margin-bottom:16px}
+.pay-client{background:var(--ok);color:#fff;border:0;border-radius:9px;padding:9px 12px;cursor:pointer;font:inherit}
+[data-theme="dark"] .pay-client{background:#15803d}
+@media(max-width:520px){.client-filters{grid-template-columns:1fr}}
 .badge{border-radius:999px;padding:4px 8px;font-size:12px}.paid{background:#dcfce7;color:#166534}.partial{background:#fef3c7;color:#92400e}.pending{background:#fee2e2;color:#991b1b}
 [data-theme="dark"] .paid{background:#12351f;color:#86efac}[data-theme="dark"] .partial{background:#422f0c;color:#fcd34d}[data-theme="dark"] .pending{background:#451a1a;color:#fecaca}
 .notice{padding:10px 12px;border-radius:10px;background:#eff6ff;color:#1e40af;margin-bottom:12px;font-size:13px}
@@ -74,7 +79,7 @@ tbody tr:hover{background:rgba(37,99,235,.045)}
 
 <section id="vendas" class="view"><div class="panel"><h2>Histórico de vendas</h2><div class="grid"><div class="field"><label>Pesquisar</label><input id="buscaVenda" placeholder="Cliente"></div><div class="field"><label>Status</label><select id="filtroStatus"><option value="">Todos</option><option>Pago</option><option>Parcial</option><option>Pendente</option></select></div></div><div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
 
-<section id="clientes" class="view"><div class="panel"><h2>Clientes</h2><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Qtd. Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ação</th></tr></thead><tbody id="clientsTable"></tbody></table></div></div><div id="clienteDetalhe" class="panel" hidden><h2 id="clienteDetalheTitulo"></h2><div class="cards" id="clienteResumo"></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Pagamento</th><th>Status</th><th>Ação</th></tr></thead><tbody id="clienteHistorico"></tbody></table></div></div></section>
+<section id="clientes" class="view"><div class="panel"><h2>Clientes</h2><div class="client-filters"><div class="field"><label>Filtrar cliente</label><input id="buscaCliente" placeholder="Digite o nome do cliente"></div><div class="field"><label>Situação</label><select id="filtroClienteStatus"><option value="">Todos</option><option value="devedor">Com saldo</option><option value="pago">Sem saldo</option></select></div></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Qtd. Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ações</th></tr></thead><tbody id="clientsTable"></tbody></table></div></div><div id="clienteDetalhe" class="panel" hidden><h2 id="clienteDetalheTitulo"></h2><div class="cards" id="clienteResumo"></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Pagamento</th><th>Status</th><th>Ação</th></tr></thead><tbody id="clienteHistorico"></tbody></table></div></div></section>
 
 <section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><input id="cdata" type="date" required></div></div><div class="actions"><button class="primary">Registrar custo</button></div></form></div><div class="panel"><h2>Histórico de custos</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
 </main></div>
@@ -142,12 +147,72 @@ $('fat').textContent=brl(fat);$('cust').textContent=brl(cu);$('lucro').textConte
 const term=$('buscaVenda').value.toLowerCase(),fs=$('filtroStatus').value;
 $('salesTable').innerHTML=[...sales].reverse().filter(x=>(!term||String(x.cliente).toLowerCase().includes(term))&&(!fs||x.status===fs)).map(x=>'<tr><td>'+esc(x.data)+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td><td><button class="secondary edit-sale" data-row="'+x.row+'">Editar</button> <button class="danger-btn delete-sale" data-row="'+x.row+'">Excluir</button></td></tr>').join('')||'<tr><td colspan="10">Nenhuma venda.</td></tr>';
 $('receberTable').innerHTML=sales.filter(x=>x.deve>0).map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td><button class="secondary pay" data-row="'+x.row+'">Registrar pagamento</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
-const list=clientSummary.length?clientSummary:buildClients();
-$('clientsTable').innerHTML=list.map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+x.qtdPaes+'</td><td>'+x.qtdVendas+'</td><td>'+brl(x.totalVendido)+'</td><td>'+brl(x.totalPago)+'</td><td>'+brl(x.saldoDevedor)+'</td><td><button class="secondary client" data-client="'+esc(x.cliente)+'">Ver histórico</button></td></tr>').join('')||'<tr><td colspan="7">Nenhum cliente.</td></tr>';
+const clientTerm=String($('buscaCliente')?.value||'').trim().toLowerCase();
+const clientFilter=$('filtroClienteStatus')?.value||'';
+const list=(clientSummary.length?clientSummary:buildClients())
+  .filter(x=>!clientTerm||String(x.cliente).toLowerCase().includes(clientTerm))
+  .filter(x=>!clientFilter||(clientFilter==='devedor'?Number(x.saldoDevedor)>0:Number(x.saldoDevedor)<=0));
+
+$('clientsTable').innerHTML=list.map(x=>{
+  const saldo=Number(x.saldoDevedor)||0;
+  return '<tr><td>'+esc(x.cliente)+'</td><td>'+x.qtdPaes+'</td><td>'+x.qtdVendas+'</td><td>'+brl(x.totalVendido)+'</td><td>'+brl(x.totalPago)+'</td><td>'+brl(saldo)+'</td><td><button class="secondary client" data-client="'+esc(x.cliente)+'">Ver histórico</button> '+(saldo>0?'<button class="pay-client" data-client="'+esc(x.cliente)+'">Pagar</button>':'')+'</td></tr>'
+}).join('')||'<tr><td colspan="7">Nenhum cliente encontrado.</td></tr>';
 $('costTable').innerHTML=[...costs].reverse().map(x=>'<tr><td>'+esc(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo.</td></tr>';
 }
 function buildClients(){const m={};sales.forEach(x=>{const k=x.cliente||'';if(!m[k])m[k]={cliente:k,qtdPaes:0,qtdVendas:0,totalVendido:0,totalPago:0,saldoDevedor:0};m[k].qtdPaes+=x.quantidade;m[k].qtdVendas++;m[k].totalVendido+=x.total;m[k].totalPago+=x.valorPago;m[k].saldoDevedor+=x.deve});return Object.values(m)}
-async function pay(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const v=prompt('Informe o valor total já pago:',Number(x.valorPago||0).toFixed(2));if(v===null)return;const j=await api('pagamento',{row:x.row,pago:Number(v)||0,dataPagamento:today()});if(!j){alert('Não foi possível salvar o pagamento na planilha.');return}await load()}
+async function pay(row){
+  const x=sales.find(v=>String(v.row)===String(row));
+  if(!x)return;
+  const v=prompt('Informe o valor total já pago nesta venda:',Number(x.valorPago||0).toFixed(2));
+  if(v===null)return;
+  const valorTotal=Math.max(0,Number(v)||0);
+  const j=await api('pagamento',{row:x.row,pago:valorTotal,dataPagamento:today()});
+  if(!j){alert('Não foi possível salvar o pagamento na planilha.');return}
+  await load();
+}
+
+async function payClient(name){
+  const itens=sales
+    .filter(x=>String(x.cliente).trim().toLowerCase()===String(name).trim().toLowerCase() && Number(x.deve)>0)
+    .sort((a,b)=>Number(a.row)-Number(b.row));
+
+  if(!itens.length){
+    alert('Este cliente não possui saldo pendente.');
+    return;
+  }
+
+  const saldo=itens.reduce((a,x)=>a+Number(x.deve||0),0);
+  const v=prompt('Saldo de '+name+': '+brl(saldo)+'\n\nInforme quanto o cliente pagou agora:',saldo.toFixed(2));
+  if(v===null)return;
+
+  let valor=Math.max(0,Number(v)||0);
+  if(!valor){
+    alert('Informe um valor de pagamento maior que zero.');
+    return;
+  }
+
+  if(valor>saldo)valor=saldo;
+
+  for(const x of itens){
+    if(valor<=0)break;
+    const atualPago=Number(x.valorPago)||0;
+    const pagarAgora=Math.min(valor,Number(x.deve)||0);
+    const j=await api('pagamento',{
+      row:x.row,
+      pago:atualPago+pagarAgora,
+      dataPagamento:today()
+    });
+    if(!j){
+      alert('O pagamento foi interrompido porque uma das vendas não pôde ser atualizada.');
+      await load();
+      return;
+    }
+    valor-=pagarAgora;
+  }
+
+  await load();
+  showMsg('Pagamento de '+brl(Number(v)||0)+' registrado para '+name+'.','success');
+}
 async function editSale(row){
 const x=sales.find(v=>String(v.row)===String(row));
 if(!x)return;
@@ -219,7 +284,8 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelect
 $('saleForm').onsubmit=async e=>{e.preventDefault();const q=+$('quantidade').value,u=+$('valor').value,t=q*u,p=Math.min(Math.max(+$('pago').value||0,0),t);const j=await api('venda',{data:$('data').value,cliente:$('cliente').value.trim(),contatoEmpresa:$('contatoEmpresa').value.trim(),quantidade:q,valorUnitario:u,pago:p,dataPagamento:p?$('data').value:''});if(!j){alert('Não foi possível salvar a venda.');return}e.target.reset();setDates();await load();document.querySelector('[data-view="dashboard"]').click();alert('Venda registrada!')};
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:$('cdata').value,descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();await load();alert('Custo registrado!')};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.client'))clientHistory(e.target.dataset.client);if(e.target.matches('.edit-sale'))editSale(e.target.dataset.row);if(e.target.matches('.delete-sale'))deleteSale(e.target.dataset.row)});
+$('buscaCliente').oninput=render;$('filtroClienteStatus').onchange=render;
+document.addEventListener('click',e=>{if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.pay-client'))payClient(e.target.dataset.client);if(e.target.matches('.client'))clientHistory(e.target.dataset.client);if(e.target.matches('.edit-sale'))editSale(e.target.dataset.row);if(e.target.matches('.delete-sale'))deleteSale(e.target.dataset.row)});
 $('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};
 function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}
 $('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};
