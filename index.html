@@ -143,8 +143,27 @@ async function api(action,data){
 }
 async function load(){try{const r=await fetch(API_URL,{cache:'no-store'});if(!r.ok)throw Error('HTTP '+r.status);const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');sales=j.data.sales||[];costs=j.data.costs||[];summary=j.data.summary||{};clientSummary=j.data.clientSummary||[];showMsg('Conectado à planilha Google Sheets.','success');render();return true}catch(e){console.error(e);showMsg('API não conectada. Publique o Code.gs como aplicativo da Web e confira a URL.','error');render();return false}}
 function render(){
-const fat=Number(summary?.totalVendido)||sales.reduce((a,x)=>a+x.total,0),cu=Number(summary?.custoTotal)||costs.reduce((a,x)=>a+x.valor,0),rec=Number(summary?.totalAReceber)||sales.reduce((a,x)=>a+x.deve,0),q=Number(summary?.qtdPaes)||sales.reduce((a,x)=>a+x.quantidade,0),nv=Number(summary?.qtdVendas)||sales.length,tk=Number(summary?.ticketMedio)||(nv?fat/nv:0);
-$('fat').textContent=brl(fat);$('cust').textContent=brl(cu);$('lucro').textContent=brl(Number(summary?.lucro)||fat-cu);$('receber').textContent=brl(rec);$('qtd').textContent=q;$('nvendas').textContent=nv;$('nclientes').textContent=clientSummary.length||new Set(sales.map(x=>String(x.cliente).toLowerCase())).size;$('ticket').textContent=brl(tk);
+/*
+ * O Dashboard usa os dados que o site acabou de receber da API.
+ * Assim ele não depende da aba "Resumo" estar atualizada ou formatada.
+ * Se houver dados em vendas/custos, os indicadores são calculados
+ * diretamente deles.
+ */
+const fat=sales.reduce((a,x)=>a+(Number(x.total)||0),0);
+const cu=costs.reduce((a,x)=>a+(Number(x.valor)||0),0);
+const rec=sales.reduce((a,x)=>a+(Number(x.deve)||0),0);
+const q=sales.reduce((a,x)=>a+(Number(x.quantidade)||0),0);
+const nv=sales.length;
+const tk=nv?fat/nv:0;
+const lucro=fat-cu;
+$('fat').textContent=brl(fat);
+$('cust').textContent=brl(cu);
+$('lucro').textContent=brl(lucro);
+$('receber').textContent=brl(rec);
+$('qtd').textContent=q;
+$('nvendas').textContent=nv;
+$('nclientes').textContent=new Set(sales.map(x=>String(x.cliente).trim().toLowerCase()).filter(Boolean)).size;
+$('ticket').textContent=brl(tk);
 const term=$('buscaVenda').value.toLowerCase(),fs=$('filtroStatus').value;
 $('salesTable').innerHTML=[...sales].reverse().filter(x=>(!term||String(x.cliente).toLowerCase().includes(term))&&(!fs||x.status===fs)).map(x=>'<tr><td>'+esc(x.data)+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td><td><button class="secondary edit-sale" data-row="'+x.row+'">Editar</button> <button class="danger-btn delete-sale" data-row="'+x.row+'">Excluir</button></td></tr>').join('')||'<tr><td colspan="10">Nenhuma venda.</td></tr>';
 $('receberTable').innerHTML=sales.filter(x=>x.deve>0).map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td><button class="secondary pay" data-row="'+x.row+'">Registrar pagamento</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
