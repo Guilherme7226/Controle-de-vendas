@@ -46,20 +46,20 @@ main{padding:6px 0 35px}.view{display:none}.view.active{display:block}
 <div class="field"><label>Valor unitário</label><input id="valor" type="number" min="0" step=".01" value="8.00" required></div>
 <div class="field"><label>Data da venda</label><input id="data" type="date" required></div>
 <div class="field"><label>Valor pago</label><input id="pago" type="number" min="0" step=".01" value="0"></div>
-<div class="field"><label>Data prevista para pagamento</label><input id="vencimento" type="date"></div>
-<div class="field"><label>Observação</label><input id="obs" placeholder="Opcional"></div>
+
 </div><div class="actions"><button class="primary" type="submit">Registrar venda</button><button class="secondary" type="reset" onclick="setDefaults()">Limpar</button></div></form></div></section>
 
 <section id="vendas" class="view"><div class="panel"><h2>Histórico de vendas</h2><div class="grid"><div class="field"><label>Pesquisar</label><input id="buscaVenda" oninput="render()" placeholder="Cliente"></div><div class="field"><label>Status</label><select id="filtroStatus" onchange="render()"><option value="">Todos</option><option>Pago</option><option>Parcial</option><option>Pendente</option></select></div></div><div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Data pagamento</th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
 
-<section id="clientes" class="view"><div class="panel"><h2>Clientes e débitos</h2><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Compras</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Deve</th><th>Próximo vencimento</th></tr></thead><tbody id="clientsTable"></tbody></table></div></div></section>
+<section id="clientes" class="view"><div class="panel"><h2>Resumo por pessoa</h2><div class="notice">Dados lidos diretamente da aba "Resumo por pessoa" da planilha.</div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Qtd. Pães</th><th>Qtd. Vendas</th><th>Total Vendido</th><th>Total Pago</th><th>Saldo Devedor</th><th>Ação</th></tr></thead><tbody id="clientsTable"></tbody></table></div></div><div id="clienteDetalhe" class="panel" style="display:none"><h2 id="clienteDetalheTitulo">Histórico do cliente</h2><div id="clienteDetalheResumo" class="cards"></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Data pagamento</th><th>Status</th><th>Ação</th></tr></thead><tbody id="clienteHistorico"></tbody></table></div></div></section>
 
-<section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required placeholder="Frango, pão, embalagem..."></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><input id="cdata" type="date" required></div><div class="field"><label>Categoria</label><input id="ccat" placeholder="Ingredientes, transporte..."></div></div><div class="actions"><button class="primary">Registrar custo</button></div></form></div>
-<div class="panel"><h2>Histórico de custos</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
+<section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required placeholder="Frango, pão, embalagem..."></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><input id="cdata" type="date" required></div></div><div class="actions"><button class="primary">Registrar custo</button></div></form></div>
+<div class="panel"><h2>Histórico de custos</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
 </main></div>
 <script>
 const API_KEY=''; const API_URL=localStorage.getItem('vendas_api_url')||'https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec';
 let sales=JSON.parse(localStorage.getItem('vendas_local')||'[]'), costs=JSON.parse(localStorage.getItem('custos_local')||'[]');
+let businessSummary=null, clientSummary=[];
 let usingRemote=false;
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>new Date().toISOString().slice(0,10);
@@ -68,18 +68,61 @@ function show(v){document.querySelectorAll('.view').forEach(x=>x.classList.toggl
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>show(b.dataset.view));
 function save(){localStorage.setItem('vendas_local',JSON.stringify(sales));localStorage.setItem('custos_local',JSON.stringify(costs))}
 async function api(action,data){if(!API_URL)return false;try{const r=await fetch(API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=utf-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const j=await r.json();if(!j.ok)throw Error(j.error||'Erro na API');return true}catch(e){console.warn(e);return false}}
-document.querySelector('#saleForm').onsubmit=async e=>{e.preventDefault();const q=+quantidade.value,u=+valor.value,t=q*u,p=Math.min(Math.max(+pago.value||0,0),t);const s={id:Date.now().toString(),cliente:cliente.value.trim(),contatoEmpresa:contatoEmpresa.value.trim(),quantidade:q,valorUnitario:u,total:t,data:data.value,pago:p,valorPago:p,deve:Math.max(0,t-p),vencimento:vencimento.value,obs:obs.value,dataPagamento:p>0?data.value:''};const ok=await api('venda',s);if(!ok){sales.unshift({...s,row:null,status:s.deve<=0?'Pago':(p>0?'Parcial':'Pendente'),parcial:p>0&&p<t?'Sim':'Não'});save()}else{await loadRemote()}alert('Venda registrada!');e.target.reset();setDefaults();show('dashboard')};
-document.querySelector('#costForm').onsubmit=async e=>{e.preventDefault();const c={id:Date.now().toString(),descricao:cdesc.value,valor:+cvalor.value,data:cdata.value,categoria:ccat.value};costs.unshift(c);save();await api('custo',c);alert('Custo registrado!');e.target.reset();cdata.value=today();render()};
-function render(){const fat=sales.reduce((a,x)=>a+x.total,0),cu=costs.reduce((a,x)=>a+x.valor,0),rec=sales.reduce((a,x)=>a+x.deve,0),q=sales.reduce((a,x)=>a+x.quantidade,0);fatEl.textContent=brl(fat);cust.textContent=brl(cu);lucro.textContent=brl(fat-cu);receber.textContent=brl(rec);qtd.textContent=q;nvendas.textContent=sales.length;nclientes.textContent=new Set(sales.map(x=>x.cliente.toLowerCase())).size;ticket.textContent=brl(sales.length?fat/sales.length:0);
+document.querySelector('#saleForm').onsubmit=async e=>{e.preventDefault();const q=+quantidade.value,u=+valor.value,t=q*u,p=Math.min(Math.max(+pago.value||0,0),t);const s={id:Date.now().toString(),cliente:cliente.value.trim(),contatoEmpresa:contatoEmpresa.value.trim(),quantidade:q,valorUnitario:u,total:t,data:data.value,pago:p,valorPago:p,deve:Math.max(0,t-p),dataPagamento:p>0?data.value:''};const ok=await api('venda',s);if(!ok){sales.unshift({...s,row:null,status:s.deve<=0?'Pago':(p>0?'Parcial':'Pendente'),parcial:p>0&&p<t?'Sim':'Não'});save()}else{await loadRemote()}alert('Venda registrada!');e.target.reset();setDefaults();show('dashboard')};
+document.querySelector('#costForm').onsubmit=async e=>{e.preventDefault();const c={id:Date.now().toString(),descricao:cdesc.value,valor:+cvalor.value,data:cdata.value};costs.unshift(c);save();await api('custo',c);alert('Custo registrado!');e.target.reset();cdata.value=today();render()};
+function render(){
+const fallbackFat=sales.reduce((a,x)=>a+x.total,0),fallbackCu=costs.reduce((a,x)=>a+x.valor,0),fallbackRec=sales.reduce((a,x)=>a+x.deve,0),fallbackQtd=sales.reduce((a,x)=>a+x.quantidade,0);
+const sum=businessSummary||{};
+const fat=Number(sum.totalVendido)||fallbackFat;
+const cu=Number(sum.custoTotal)||fallbackCu;
+const rec=Number(sum.totalAReceber)||fallbackRec;
+const q=Number(sum.qtdPaes)||fallbackQtd;
+const nv=Number(sum.qtdVendas)||sales.length;
+const tk=Number(sum.ticketMedio)|| (nv?fat/nv:0);
+fatEl.textContent=brl(fat);
+cust.textContent=brl(cu);
+lucro.textContent=brl(Number(sum.lucro)||Math.max(0,fat-cu));
+receber.textContent=brl(rec);
+qtd.textContent=q;
+nvendas.textContent=nv;
+nclientes.textContent=clientSummary.length || new Set(sales.map(x=>x.cliente.toLowerCase())).size;
+ticket.textContent=brl(tk);
+
 const search=(document.querySelector('#buscaVenda')?.value||'').toLowerCase(), fs=document.querySelector('#filtroStatus')?.value||'';
-salesTable.innerHTML=sales.filter(x=>(!search||x.cliente.toLowerCase().includes(search))&&(!fs||x.status===fs)).map(x=>'<tr><td>'+x.data+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago??x.pagoValor??0)+'</td><td>'+brl(x.deve)+'</td><td>'+badge(x.status)+'</td><td>'+(x.dataPagamento||'-')+'</td></tr>').join('')||'<tr><td colspan="9">Nenhuma venda.</td></tr>';
-const debt=sales.filter(x=>x.deve>0);receberTable.innerHTML=debt.map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago??0)+'</td><td>'+brl(x.deve)+'</td><td><button class="secondary" onclick="quitar(\''+x.row+'\')">Registrar pagamento</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
-const map={};sales.forEach(x=>{const k=x.cliente.trim();if(!map[k])map[k]={empresa:x.contatoEmpresa||'',compras:0,qtd:0,total:0,pago:0,deve:0,venc:[]};map[k].compras++;map[k].qtd+=x.quantidade;map[k].total+=x.total;map[k].pago+=x.valorPago??0;map[k].deve+=x.deve;if(x.vencimento&&x.deve>0)map[k].venc.push(x.vencimento)});clientsTable.innerHTML=Object.entries(map).sort((a,b)=>b[1].deve-a[1].deve).map(([k,x])=>'<tr><td>'+esc(k)+'</td><td>'+x.compras+'</td><td>'+x.qtd+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.deve)+'</td><td>'+((x.venc.sort()[0])||'-')+'</td></tr>').join('')||'<tr><td colspan="7">Nenhum cliente.</td></tr>';
-costTable.innerHTML=costs.map(x=>'<tr><td>'+x.data+'</td><td>'+esc(x.descricao)+'</td><td>'+esc(x.categoria||'-')+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="4">Nenhum custo.</td></tr>'}
+salesTable.innerHTML=sales.filter(x=>(!search||x.cliente.toLowerCase().includes(search))&&(!fs||x.status===fs)).map(x=>'<tr><td>'+x.data+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago??0)+'</td><td>'+brl(x.deve)+'</td><td>'+badge(x.status)+'</td><td>'+(x.dataPagamento||'-')+'</td></tr>').join('')||'<tr><td colspan="9">Nenhuma venda.</td></tr>';
+
+const debt=sales.filter(x=>x.deve>0);
+receberTable.innerHTML=debt.map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago??0)+'</td><td>'+brl(x.deve)+'</td><td><button class="secondary" onclick="quitar(\\''+x.row+'\\')">Registrar pagamento</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
+
+if(clientSummary.length){
+  clientsTable.innerHTML=clientSummary.map(x=>'<tr><td>'+esc(x.cliente)+'</td><td>'+x.qtdPaes+'</td><td>'+x.qtdVendas+'</td><td>'+brl(x.totalVendido)+'</td><td>'+brl(x.totalPago)+'</td><td>'+brl(x.saldoDevedor)+'</td><td><button class="secondary" onclick="verCliente(\\''+esc(x.cliente).replace(/'/g,"\\\\'")+ '\\')">Ver histórico</button></td></tr>').join('');
+}else{
+  const map={};
+  sales.forEach(x=>{const k=x.cliente.trim();if(!k)return;if(!map[k])map[k]={qtd:0,compras:0,total:0,pago:0,deve:0};map[k].compras++;map[k].qtd+=x.quantidade;map[k].total+=x.total;map[k].pago+=Number(x.valorPago)||0;map[k].deve+=x.deve});
+  clientsTable.innerHTML=Object.entries(map).sort((a,b)=>b[1].deve-a[1].deve).map(([k,x])=>'<tr><td>'+esc(k)+'</td><td>'+x.qtd+'</td><td>'+x.compras+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.deve)+'</td><td><button class="secondary" onclick="verCliente(\\''+esc(k).replace(/'/g,"\\\\'")+ '\\')">Ver histórico</button></td></tr>').join('')||'<tr><td colspan="7">Nenhum cliente.</td></tr>';
+}
+
+costTable.innerHTML=costs.map(x=>'<tr><td>'+x.data+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo.</td></tr>';
+}
 function badge(s){return '<span class="badge '+(s==='Pago'?'paid':s==='Parcial'?'partial':'pending')+'">'+s+'</span>'}
-async function loadRemote(){if(!API_URL)return false;try{const r=await fetch(API_URL);const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');sales=(j.data.sales||[]).map(x=>({...x,pago:x.valorPago||0}));costs=j.data.costs||[];usingRemote=true;save();render();return true}catch(e){console.warn('API:',e);return false}}
+async function loadRemote(){if(!API_URL)return false;try{const r=await fetch(API_URL);const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');sales=(j.data.sales||[]).map(x=>({...x,pago:x.valorPago||0}));costs=j.data.costs||[];businessSummary=j.data.summary||null;clientSummary=j.data.clientSummary||[];usingRemote=true;save();render();return true}catch(e){console.warn('API:',e);return false}}
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 async function quitar(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const v=prompt('Valor total pago até agora:',(x.valorPago||0).toFixed(2));if(v===null)return;const novoPago=Math.min(x.total,Math.max(0,+v||0));const payload={row:x.row,pago:novoPago,dataPagamento:novoPago>0?today():''};const ok=await api('pagamento',payload);if(!ok){x.valorPago=novoPago;x.pago=novoPago;x.deve=x.total-novoPago;x.status=x.deve<=0?'Pago':(novoPago>0?'Parcial':'Pendente');save();}else await loadRemote();render()}
+function verCliente(nome){
+  const painel=document.querySelector('#clienteDetalhe');
+  const titulo=document.querySelector('#clienteDetalheTitulo');
+  const resumo=document.querySelector('#clienteDetalheResumo');
+  const historico=document.querySelector('#clienteHistorico');
+  const alvo=String(nome||'').trim().toLowerCase();
+  const itens=sales.filter(x=>String(x.cliente||'').trim().toLowerCase()===alvo).sort((a,b)=>String(b.data).localeCompare(String(a.data)));
+  const s=clientSummary.find(x=>String(x.cliente||'').trim().toLowerCase()===alvo);
+  titulo.textContent='Histórico — '+nome;
+  resumo.innerHTML='<div class="card"><div class="label">Pães</div><div class="value">'+(s?s.qtdPaes:itens.reduce((a,x)=>a+x.quantidade,0))+'</div></div><div class="card"><div class="label">Vendas</div><div class="value">'+(s?s.qtdVendas:itens.length)+'</div></div><div class="card"><div class="label">Total vendido</div><div class="value">'+brl(s?s.totalVendido:itens.reduce((a,x)=>a+x.total,0))+'</div></div><div class="card"><div class="label">Saldo devedor</div><div class="value">'+brl(s?s.saldoDevedor:itens.reduce((a,x)=>a+x.deve,0))+'</div></div>';
+  historico.innerHTML=itens.map(x=>'<tr><td>'+x.data+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago||0)+'</td><td>'+brl(x.deve)+'</td><td>'+(x.dataPagamento||'-')+'</td><td>'+badge(x.status)+'</td><td>'+(x.deve>0?'<button class="secondary" onclick="quitar(\\''+x.row+'\\')">Pagar</button>':'-')+'</td></tr>').join('')||'<tr><td colspan="8">Nenhuma venda encontrada para este cliente.</td></tr>';
+  painel.style.display='block';
+  painel.scrollIntoView({behavior:'smooth',block:'start'});
+}
+
 function openConfig(){const u=prompt('URL do Google Apps Script (/exec). Deixe vazio para usar o modo local:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}}
 document.querySelector('#data').value=today();document.querySelector('#cdata').value=today();loadRemote().then(ok=>{if(!ok)render()});
 </script>
