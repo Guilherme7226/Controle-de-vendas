@@ -183,26 +183,36 @@ function appendSale(ss, d) {
    * porque podem existir linhas vazias entre a última venda
    * e o TOTAL.
    */
-  const totalRow = findTotalRow(sh, 1, 2);
-  const limite = totalRow > 0 ? totalRow - 1 : sh.getLastRow();
+  /*
+   * As vendas ocupam um bloco contínuo a partir da linha 4.
+   * As linhas seguintes ao último registro podem conter fórmulas,
+   * mas não são vendas. Portanto, paramos na PRIMEIRA linha
+   * sem Data e sem Cliente.
+   *
+   * Exemplo:
+   * linha 69 = última venda real
+   * linha 70 = primeira linha livre
+   * nova venda -> linha 70
+   */
+  let novaLinha = 4;
 
-  let ultimaVenda = 3;
-
-  for (let rowNumber = 4; rowNumber <= limite; rowNumber++) {
-    const values = sh.getRange(rowNumber, 1, 1, 11).getValues()[0];
-
-    // Uma venda real precisa ter DATA e CLIENTE preenchidos.
-    // As linhas vazias abaixo das vendas possuem fórmulas em outras
-    // colunas (como Valor Total), então não podem ser usadas como venda.
-    if (
-      String(values[0] || '').trim() !== '' &&
-      String(values[1] || '').trim() !== ''
-    ) {
-      ultimaVenda = rowNumber;
+  for (let rowNumber = 4; rowNumber <= sh.getLastRow(); rowNumber++) {
+    if (isTotalRow(sh, rowNumber)) {
+      novaLinha = rowNumber;
+      break;
     }
-  }
 
-  const novaLinha = ultimaVenda + 1;
+    const values = sh.getRange(rowNumber, 1, 1, 2).getDisplayValues()[0];
+    const data = String(values[0] || '').trim();
+    const cliente = String(values[1] || '').trim();
+
+    if (!data && !cliente) {
+      novaLinha = rowNumber;
+      break;
+    }
+
+    novaLinha = rowNumber + 1;
+  }
 
   /*
    * Insere uma linha exatamente após a última venda.
