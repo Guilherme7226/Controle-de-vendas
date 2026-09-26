@@ -177,25 +177,55 @@ function appendSale(ss, d) {
     saldo
   ];
 
+  /*
+   * A venda nova entra logo abaixo da ÚLTIMA VENDA REAL.
+   * Não usamos a linha TOTAL GERAL como ponto de inserção,
+   * porque podem existir linhas vazias entre a última venda
+   * e o TOTAL.
+   */
   const totalRow = findTotalRow(sh, 1, 2);
+  const limite = totalRow > 0 ? totalRow - 1 : sh.getLastRow();
 
-  if (totalRow > 0) {
-    sh.insertRowsBefore(totalRow, 1);
-    sh.getRange(totalRow,1,1,11).setValues([row]);
+  let ultimaVenda = 3;
 
-    // Copia somente a formatação da linha anterior, sem copiar fórmulas/valores.
-    if (sh.getLastRow() >= 4) {
-      sh.getRange(4,1,1,11)
-        .copyTo(sh.getRange(totalRow,1,1,11), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  for (let rowNumber = 4; rowNumber <= limite; rowNumber++) {
+    const values = sh.getRange(rowNumber, 1, 1, 11).getValues()[0];
+
+    if (
+      values[0] !== '' ||
+      values[1] !== '' ||
+      values[3] !== '' ||
+      values[5] !== ''
+    ) {
+      ultimaVenda = rowNumber;
     }
-  } else {
-    const rowNumber = Math.max(sh.getLastRow() + 1, 2);
-    sh.getRange(rowNumber,1,1,11).setValues([row]);
   }
 
-  aplicarFormatoVenda(sh, totalRow > 0 ? totalRow : sh.getLastRow());
-}
+  const novaLinha = ultimaVenda + 1;
 
+  /*
+   * Insere uma linha exatamente após a última venda.
+   * Isso faz a próxima venda ficar, por exemplo, na linha 70,
+   * em vez de ser enviada para a linha 151.
+   */
+  sh.insertRowsBefore(novaLinha, 1);
+
+  sh.getRange(novaLinha, 1, 1, 11).setValues([row]);
+
+  /*
+   * A linha 4 é o modelo visual.
+   * Copiamos SOMENTE a formatação.
+   */
+  if (sh.getLastRow() >= 4 && novaLinha !== 4) {
+    sh.getRange(4, 1, 1, 11).copyTo(
+      sh.getRange(novaLinha, 1, 1, 11),
+      SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+      false
+    );
+  }
+
+  aplicarFormatoVenda(sh, novaLinha);
+}
 /*
  * Insere custos antes da linha TOTAL/TOTAL GERAL.
  */
