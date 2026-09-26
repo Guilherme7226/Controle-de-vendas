@@ -58,7 +58,7 @@ main{padding:6px 0 35px}.view{display:none}.view.active{display:block}
 <div class="panel"><h2>Histórico de custos</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
 </main></div>
 <script>
-const API_KEY=''; const API_URL=localStorage.getItem('vendas_api_url')||'';
+const API_KEY=''; const API_URL=localStorage.getItem('vendas_api_url')||'https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec';
 let sales=JSON.parse(localStorage.getItem('vendas_local')||'[]'), costs=JSON.parse(localStorage.getItem('custos_local')||'[]');
 let usingRemote=false;
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
