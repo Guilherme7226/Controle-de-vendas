@@ -898,8 +898,10 @@ function changeClientPassword(ss,d) {
 }
 
 function adminListClients(ss) {
+  // A listagem de clientes deve depender somente da aba Clientes.
+  // A migração de vendas antigas para Pedidos é uma operação separada
+  // e não deve bloquear/impedir a exibição dos logins.
   ensureClientSheets(ss);
-  migrarVendasParaPedidos(ss);
   const sh=ss.getSheetByName(SHEET_CLIENTES);
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
   const orders=readOrders(ss);
