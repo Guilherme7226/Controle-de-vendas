@@ -220,7 +220,7 @@ function renderClients(){
    const editar=c.ativo===false
      ? '<button class="primary client-edit-admin" data-id="'+esc(c.id)+'">🔄 Reativar / editar</button>'
      : '<button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button>';
-   return '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+acesso+'</td><td><button class="secondary whatsapp-client" data-client="'+esc(c.nome)+'" data-phone="'+esc(c.telefone||'')+'">📱 WhatsApp</button> '+editar+' <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
+   return '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+acesso+'</td><td> '+editar+' <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
  }).join('')||'<tr><td colspan="7">Nenhum cliente encontrado.</td></tr>';
 }
 function renderSaleClients(){
@@ -337,7 +337,7 @@ function enviarAcessoClienteWhatsApp(nome,telefone,senha){
  }
  window.open(url,'_blank','noopener');
 }
-async function openWhatsApp(name,telefone){
+async async function openWhatsApp(name,telefone){
  const phone=whatsappPhone(telefone);
  if(!phone){showMsg('Este cliente não possui telefone cadastrado para WhatsApp.','error');return}
  // Garante que usamos os dados atuais antes de calcular a cobrança.
@@ -373,7 +373,7 @@ function renderReceber(){
    const cliente=clients.find(c=>normalize(c.nome)===normalize(x.cliente));
    const telefone=cliente?.telefone||'';
    const whatsapp=telefone
-     ? '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="'+esc(telefone)+'">📱 WhatsApp</button>'
+     ? ' '
      : '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="">📱 Cadastrar telefone</button>';
    const pagamentoBtn=x.saldo>0?'<button class="pay-client" data-client="'+esc(x.cliente)+'">Registrar pagamento</button>':'<span class="badge paid">Quitado</span>'; return '<tr><td><button class="client-link" data-client-history="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td>'+x.qtdVendas+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.saldo)+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">'+whatsapp+pagamentoBtn+'</div></td></tr>';
  }).join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
