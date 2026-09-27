@@ -22,7 +22,7 @@
 <div class="panel" id="loginBox">
 <h2>Entrar</h2>
 <div class="grid"><div class="field"><label>E-mail ou telefone</label><input id="login" autocomplete="username"></div><div class="field"><label>Senha</label><input id="senha" type="password" autocomplete="current-password"></div></div>
-<div class="tabs"><button id="loginBtn" class="primary">Entrar</button><button id="showRegister" class="secondary">Criar conta</button></div>
+<div class="tabs"><button id="loginBtn" class="primary">Entrar</button><button id="showRegister" class="secondary">Criar conta</button></div><div style="margin-top:12px"><button id="backBtn" class="secondary" style="width:100%">← Voltar</button></div>
 </div>
 <div class="panel hidden" id="registerBox">
 <h2>Criar minha conta</h2>
@@ -74,6 +74,7 @@ $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox
 $('loginBtn').onclick=async()=>{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg('Login realizado.','success');await loadClient()};
 $('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,email:$('rEmail').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
 $('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
+$('backBtn').onclick=()=>{location.href='/'};
 document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
 document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});
 $('orderBtn').onclick=async()=>{const s=session();const itens=recheios.map(r=>({recheio:r,quantidade:Number(quantities[r]||0)})).filter(x=>x.quantidade>0);if(!itens.length){showMsg('Escolha pelo menos um recheio.','error');return}const j=await api('cliente_pedido',{token:s.token,data:today(),itens});if(!j)return;quantities={};showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');await loadClient()};
