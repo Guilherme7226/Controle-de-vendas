@@ -335,7 +335,7 @@ function enviarAcessoClienteWhatsApp(nome,telefone,senha){
  }
  window.open(url,'_blank','noopener');
 }
-function openWhatsApp(name,telefone){
+async function openWhatsApp(name,telefone){
  const phone=whatsappPhone(telefone);
  if(!phone){showMsg('Este cliente não possui telefone cadastrado para WhatsApp.','error');return}
  // Garante que usamos os dados atuais antes de calcular a cobrança.
