@@ -107,11 +107,11 @@ async function loadClients(){
 }
 function renderClients(){
  if(!$('clientsTable'))return;
- const ativos=clients.filter(c=>c.ativo!==false);
+ const cadastrados=clients.filter(c=>String(c.nome||'').trim());
  const registrados={};
- clients.forEach(c=>{const nome=String(c.nome||'').trim();if(nome&&c.ativo!==false)registrados[normalize(nome)]=c});
+ cadastrados.forEach(c=>{const nome=String(c.nome||'').trim();if(nome&&c.ativo!==false)registrados[normalize(nome)]=c});
  const nomesCadastrados={};
- clients.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomesCadastrados[normalize(nome)]=true});
+ cadastrados.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomesCadastrados[normalize(nome)]=true});
 
  const historicos={};
  sales.forEach(v=>{
@@ -131,7 +131,7 @@ function renderClients(){
    if(!historicos[chave].paes)historicos[chave].paes+=Number(o.quantidadeTotal)||0;
  });
 
- const lista=ativos.map(c=>{
+ const lista=cadastrados.map(c=>{
    const chave=normalize(c.nome);
    const h=historicos[chave]||{pedidos:0,paes:0};
    return Object.assign({},c,{
@@ -156,9 +156,15 @@ function renderClients(){
 
  $('clientsTable').innerHTML=lista.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(c=>{
    const nomeBtn='<button type="button" class="client-link" data-client-history="'+esc(c.nome)+'">'+esc(c.nome)+'</button>';
-   return c.legacy
-     ? '<tr><td>'+nomeBtn+'</td><td>-</td><td>-</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td><span class="badge pending">Sem login</span></td><td><button class="primary client-create-legacy" data-name="'+esc(c.nome)+'">➕ Criar login</button></td></tr>'
-     : '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+(c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>')+'</td><td><button class="secondary whatsapp-client" data-client="'+esc(c.nome)+'" data-phone="'+esc(c.telefone||'')+'">📱 WhatsApp</button> <button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button> <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
+   if(c.legacy)
+     return '<tr><td>'+nomeBtn+'</td><td>-</td><td>-</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td><span class="badge pending">Sem login</span></td><td><button class="primary client-create-legacy" data-name="'+esc(c.nome)+'">➕ Criar login</button></td></tr>';
+   const acesso=c.ativo===false
+     ? '<span class="badge pending">Desativado</span>'
+     : (c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>');
+   const editar=c.ativo===false
+     ? '<button class="primary client-edit-admin" data-id="'+esc(c.id)+'">🔄 Reativar / editar</button>'
+     : '<button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button>';
+   return '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+acesso+'</td><td><button class="secondary whatsapp-client" data-client="'+esc(c.nome)+'" data-phone="'+esc(c.telefone||'')+'">📱 WhatsApp</button> '+editar+' <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
  }).join('')||'<tr><td colspan="7">Nenhum cliente encontrado.</td></tr>';
 }
 function renderSaleClients(){
