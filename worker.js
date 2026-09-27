@@ -1,4 +1,4 @@
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMPMTCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec";
 
 async function proxyToAppsScript(request) {
   let target = APPS_SCRIPT_URL;
@@ -9,7 +9,9 @@ async function proxyToAppsScript(request) {
     body = await request.arrayBuffer();
   }
 
-  for (let i = 0; i < 5; i++) {
+  const visited = new Set();
+
+  for (let i = 0; i < 10; i++) {
     const headers = new Headers();
     const contentType = request.headers.get("content-type");
     if (method !== "GET" && method !== "HEAD" && contentType) {
@@ -28,6 +30,11 @@ async function proxyToAppsScript(request) {
       if (!location) return response;
 
       target = new URL(location, target).toString();
+      if (visited.has(target)) {
+        return new Response(JSON.stringify({ok:false,error:"O Apps Script entrou em um redirecionamento circular."}), {status:502,headers:{"content-type":"application/json;charset=UTF-8"}});
+      }
+      visited.add(target);
+
       method = "GET";
       body = undefined;
       continue;
