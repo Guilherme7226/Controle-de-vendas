@@ -72,23 +72,31 @@ async function loadClients(){
 }
 function renderClients(){
  if(!$('clientsTable'))return;
+ const ativos=clients.filter(c=>c.ativo!==false);
  const registrados={};
- clients.forEach(c=>{registrados[normalize(c.nome)]=c});
+ clients.forEach(c=>{const nome=String(c.nome||'').trim();if(nome&&c.ativo!==false)registrados[normalize(nome)]=c});
+ const nomesCadastrados={};
+ clients.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomesCadastrados[normalize(nome)]=true});
  const historicos={};
  sales.forEach(v=>{const nome=String(v.cliente||'').trim();if(nome&&!historicos[normalize(nome)])historicos[normalize(nome)]={nome:nome,pedidos:0}});
  orders.forEach(o=>{const nome=String(o.cliente||'').trim();if(nome&&!historicos[normalize(nome)])historicos[normalize(nome)]={nome:nome,pedidos:0}});
- const lista=[...clients];
- Object.keys(historicos).forEach(k=>{if(!registrados[k])lista.push({id:'legacy:'+k,nome:historicos[k].nome,telefone:'',email:'',pedidos:0,legacy:true})});
+ const lista=[...ativos];
+ Object.keys(historicos).forEach(k=>{if(!registrados[k]&&!nomesCadastrados[k])lista.push({id:'legacy:'+k,nome:historicos[k].nome,telefone:'',email:'',pedidos:0,legacy:true})});
  $('clientsTable').innerHTML=lista.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(c=>c.legacy
  ? '<tr><td>'+esc(c.nome)+'</td><td>-</td><td>-</td><td>'+c.pedidos+'</td><td><span class="badge pending">Sem login</span></td><td><button class="primary client-create-legacy" data-name="'+esc(c.nome)+'">➕ Criar login</button></td></tr>'
- : '<tr><td>'+esc(c.nome)+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+(c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>')+'</td><td><button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button> <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum cliente encontrado.</td></tr>';
+ : '<tr><td>'+esc(c.nome)+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+(c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>')+'</td><td><button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button> <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum cliente encontrado.</td></tr>';
 }
 function renderSaleClients(){
  const sel=$('clienteSelect'); if(!sel)return;
  const current=sel.value;
  const nomes={};
- clients.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomes[nome.toLowerCase()]={id:c.id,nome:nome,telefone:c.telefone||'',email:c.email||''}});
- sales.forEach(x=>{const nome=String(x.cliente||'').trim();if(nome&&!nomes[nome.toLowerCase()])nomes[nome.toLowerCase()]={id:'legacy:'+nome.toLowerCase(),nome:nome,telefone:'',email:'',legacy:true}});
+ const nomesCadastrados={};
+ clients.forEach(c=>{
+   const nome=String(c.nome||'').trim();
+   if(nome)nomesCadastrados[nome.toLowerCase()]=true;
+   if(nome&&c.ativo!==false)nomes[nome.toLowerCase()]={id:c.id,nome:nome,telefone:c.telefone||'',email:c.email||''}
+ });
+ sales.forEach(x=>{const nome=String(x.cliente||'').trim();if(nome&&!nomes[nome.toLowerCase()]&&!nomesCadastrados[nome.toLowerCase()])nomes[nome.toLowerCase()]={id:'legacy:'+nome.toLowerCase(),nome:nome,telefone:'',email:'',legacy:true}});
  const lista=Object.values(nomes).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
  sel.innerHTML='<option value="">Selecione o cliente</option>'+lista.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
  if(current && lista.some(c=>c.id===current))sel.value=current;
@@ -236,6 +244,17 @@ document.addEventListener('click',async e=>{
 });
 document.addEventListener('click',async e=>{if(e.target.matches('.client-edit-admin')){const c=clients.find(x=>x.id===e.target.dataset.id);if(!c)return;const nome=prompt('Nome:',c.nome);if(nome===null)return;const telefone=prompt('Telefone:',c.telefone||'');if(telefone===null)return;const email=c.email||'';const senha=prompt('Nova senha (deixe vazio para manter):','');if(senha===null)return;const j=await api('admin_editar_cliente',{id:c.id,nome:nome.trim(),telefone:telefone.trim(),email:email.trim(),senha:senha});if(j){alert(j.data.senhaRedefinida?'Dados alterados. Nova senha inicial: '+j.data.senhaInicial:'Dados alterados.');await loadClients()}}
 if(e.target.matches('.client-reset-admin')){const c=clients.find(x=>x.id===e.target.dataset.id);if(!c)return;const senha=prompt('Nova senha inicial para '+c.nome+':','');if(senha===null)return;const j=await api('admin_editar_cliente',{id:c.id,nome:c.nome,telefone:c.telefone,email:c.email,senha:senha});if(j){alert('Senha redefinida. Nova senha inicial: '+j.data.senhaInicial+'\n\nO cliente deverá trocar a senha no próximo acesso.');await loadClients()}}});
+document.addEventListener('click',async e=>{
+ if(!e.target.matches('.client-delete-admin'))return;
+ const c=clients.find(x=>String(x.id)===String(e.target.dataset.id));
+ if(!c)return;
+ const ok=confirm('Excluir o cliente '+c.nome+'?\\n\\nO login será removido e o cliente não poderá mais acessar a área do cliente.\\nAs vendas e pedidos históricos serão preservados.\\n\\nEssa ação não pode ser desfeita.');
+ if(!ok)return;
+ const j=await api('admin_excluir_cliente',{id:c.id});
+ if(!j)return;
+ alert('Cliente excluído e login removido.');
+ await loadClients();
+});
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
 document.addEventListener('click',e=>{if(e.target.matches('[data-client-receber]'))goToReceber(e.target.dataset.clientReceber);if(e.target.matches('[data-client-history]'))showClientHistory(e.target.dataset.clientHistory);if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.pay-client'))payClient(e.target.dataset.client);if(e.target.matches('.edit-sale'))editSale(e.target.dataset.row);if(e.target.matches('.delete-sale'))deleteSale(e.target.dataset.row)});
