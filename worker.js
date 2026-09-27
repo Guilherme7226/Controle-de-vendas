@@ -1,28 +1,55 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfSvv3IiaRxKZIZpWhDd5ZgdIEP4NAyIfpDnWw-zpNjEQg25q2Rbn9NnXkHtEjJiWL/exec";
 
+async function proxyToAppsScript(request) {
+  const method = request.method;
+  const headers = new Headers();
+  const contentType = request.headers.get("content-type");
+  if (contentType) headers.set("content-type", contentType);
+
+  let body;
+  if (method !== "GET" && method !== "HEAD") {
+    body = await request.arrayBuffer();
+  }
+
+  let target = APPS_SCRIPT_URL;
+
+  for (let i = 0; i < 5; i++) {
+    const response = await fetch(target, {
+      method,
+      headers,
+      body,
+      redirect: "manual"
+    });
+
+    if (response.status >= 300 && response.status < 400) {
+      const location = response.headers.get("location");
+      if (!location) return response;
+      target = new URL(location, target).toString();
+      continue;
+    }
+
+    return response;
+  }
+
+  return new Response(
+    JSON.stringify({ok:false,error:"Redirecionamento excessivo no Apps Script."}),
+    {status:502,headers:{"content-type":"application/json;charset=UTF-8"}}
+  );
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (url.pathname === "/api" || url.pathname === "/api/") {
-      const init = {
-        method: request.method,
-        redirect: "follow",
-        headers: {}
-      };
-
-      const contentType = request.headers.get("content-type");
-      if (contentType) init.headers["content-type"] = contentType;
-
-      if (request.method !== "GET" && request.method !== "HEAD") {
-        init.body = await request.arrayBuffer();
-      }
-
-      const upstream = await fetch(APPS_SCRIPT_URL, init);
-      return new Response(upstream.body, {
-        status: upstream.status,
-        statusText: upstream.statusText,
-        headers: upstream.headers
+      const response = await proxyToAppsScript(request);
+      const responseHeaders = new Headers(response.headers);
+      responseHeaders.delete("set-cookie");
+      responseHeaders.delete("location");
+      return new Response(response.body, {
+        status: response.status,
+        statusText: response.statusText,
+        headers: responseHeaders
       });
     }
 
