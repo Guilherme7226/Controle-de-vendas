@@ -31,6 +31,7 @@
 </div>
 </section>
 
+<section id="changePassword" class="hidden"><div class="panel" style="max-width:560px;margin:30px auto"><h2>🔐 Crie sua nova senha</h2><p class="rank-note">Você está usando uma senha inicial. Por segurança, escolha agora sua senha definitiva para continuar.</p><div class="grid"><div class="field"><label>Nova senha</label><input id="newPassword" type="password" minlength="6" autocomplete="new-password"></div><div class="field"><label>Confirmar nova senha</label><input id="newPassword2" type="password" minlength="6" autocomplete="new-password"></div></div><div class="actions"><button id="changePasswordBtn" class="primary">Salvar nova senha</button><button id="changeLogout" type="button" class="secondary">Sair</button></div></div></section>
 <section id="app" class="hidden">
 <div class="panel">
   <div class="top"><div><h2 style="margin:0">Olá, <span id="clientName"></span> 👋</h2><small>Acompanhe seus pedidos e veja seu saldo.</small></div></div>
@@ -60,14 +61,14 @@ async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',m
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
-function showApp(s){$('auth').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome}
-function showAuth(){$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
+function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome}
+function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let editingOrderId=null;
 async function loadClient(){
  const s=session();if(!s){showAuth();return}
  const j=await api('cliente_dados',{token:s.token});
  if(!j){clearSession();showAuth();return}
- saveSession({token:s.token,cliente:j.data.cliente});showApp({cliente:j.data.cliente});renderStock(j.data.stock||[]);renderOrders(j.data.pedidos||[])
+ saveSession({token:s.token,mustChangePassword:!!s.mustChangePassword,cliente:j.data.cliente});showApp({token:s.token,mustChangePassword:!!s.mustChangePassword,cliente:j.data.cliente});if(!s.mustChangePassword){renderStock(j.data.stock||[]);renderOrders(j.data.pedidos||[])}
 }
 async function refreshStock(){
  const j=await fetch(API_URL,{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
@@ -95,7 +96,8 @@ function renderOrders(list){
 }
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
-$('loginBtn').onclick=async()=>{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg('Login realizado.','success');await loadClient()};
+$('loginBtn').onclick=async()=>{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');await loadClient()};
+$('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
 $('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,email:$('rEmail').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
 $('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
 $('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();
