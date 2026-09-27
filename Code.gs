@@ -1089,7 +1089,7 @@ function adminEditOrder(ss,d) {
     if(!itens.length) throw new Error('Informe os itens do pedido.');
     const stock=readStock(ss), available={};
     stock.forEach(x=>available[normalize(x.recheio)]=Number(x.disponivel)||0);
-    const current={}; old.itens.forEach(x=>current[normalize(x.recheio)]=(current[normalize(x.recheio)]||0)+(Number(x.quantidade)||0);
+    const current={}; old.itens.forEach(x=>current[normalize(x.recheio)]=(current[normalize(x.recheio)]||0)+(Number(x.quantidade)||0));
     const requested={};
     itens.forEach(item=>{const r=String(item.recheio||'').trim(),q=Math.max(0,Math.floor(Number(item.quantidade)||0));if(!q)return;const k=normalize(r);if(!RECHEIOS.some(x=>normalize(x)===k))throw new Error('Recheio inválido: '+r);requested[k]=(requested[k]||0)+q});
     const clean=[];let totalQtd=0,total=0;
