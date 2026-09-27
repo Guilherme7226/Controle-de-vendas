@@ -45,7 +45,7 @@
 <div class="field"><label>Cliente</label><select id="pedidoClienteFiltro"><option value="">Todos os clientes</option></select></div>
 </div>
 <div class="actions"><button type="button" id="pedidoFiltrosLimpar" class="secondary">Limpar filtros</button></div>
-<div id="ordersSummary" class="notice" style="margin-top:14px"></div>
+<div id="ordersFeedback" class="notice" style="display:none;margin-top:14px"></div>
 <div id="orderBatchActions" class="actions" style="margin-top:10px;align-items:center;flex-wrap:wrap"><span id="orderBatchCount" class="notice" style="margin:0">0 selecionados</span><button type="button" id="orderSelectAll" class="secondary">☑️ Selecionar todos</button><button type="button" id="orderClearSelection" class="secondary" disabled>Limpar seleção</button><button type="button" id="orderConfirmSelected" class="primary" disabled>✅ Confirmar selecionados</button></div>
 <div id="ordersAdmin" class="order-list"></div>
 </div>
@@ -59,7 +59,7 @@ if(!ADMIN_TOKEN){location.replace('/');}
 const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbx5XRAfHo3_1wa80WFBpeA5b18l7p3LmDmILu-yV2gbS7tTkdtdb84QRNZDF6n7Sxbn/exec';
 const OLD_API_URL='https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec';
 let savedApiUrl=localStorage.getItem('vendas_api_url')||'';if(savedApiUrl===OLD_API_URL){localStorage.setItem('vendas_api_url',DEFAULT_API_URL);savedApiUrl=DEFAULT_API_URL}const API_URL=savedApiUrl||DEFAULT_API_URL;
-let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];
+let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];let lastApiError='';
 let selectedOrderIds=new Set();
 const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;
 const $=id=>document.getElementById(id),brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0),today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()};
@@ -97,7 +97,7 @@ function setDates(){
  if($('pedidoDataFimPicker'))$('pedidoDataFimPicker').value=dataIso(fimSemana);
 }
 function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[1]+'-'+m[2]+'-'+m[3]:s.slice(0,10)}
-async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'cors',redirect:'follow',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);showMsg('Erro ao salvar: '+(e.message||'Erro desconhecido'),'error');return null}}
+async function api(action,data){try{lastApiError='';const r=await fetch(API_URL,{method:'POST',mode:'cors',redirect:'follow',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.message||'Erro desconhecido';showMsg('Erro ao salvar: '+lastApiError,'error');return null}}
 async function loadClients(){
  const j=await api('admin_listar_clientes',{});
  if(!j)return;
@@ -277,22 +277,6 @@ function renderOrdersAdmin(){
 
   list.sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));
 
-  const totals={Frango:0,'Frango com milho':0,'Frango com milho e salada':0,'Frango sem milho com salada':0,total:0};
-  list.forEach(o=>o.itens.forEach(i=>{
-    if(totals[i.recheio]!==undefined)totals[i.recheio]+=Number(i.quantidade)||0;
-    totals.total+=Number(i.quantidade)||0;
-  }));
-
-  const periodo=inicio||fim
-    ? (inicio&&fim ? (formatDate(inicio)+' até '+formatDate(fim)) : inicio ? 'A partir de '+formatDate(inicio) : 'Até '+formatDate(fim))
-    : 'Todos os períodos';
-
-  if($('ordersSummary')){
-    $('ordersSummary').textContent=list.length
-      ? 'Pedidos: '+list.length+' • '+periodo+' • Total: '+totals.total+' pães • Frango: '+totals.Frango+' • Frango com milho: '+totals['Frango com milho']+' • Frango com milho e salada: '+totals['Frango com milho e salada']+' • Frango sem milho com salada: '+totals['Frango sem milho com salada']
-      : 'Nenhum pedido encontrado para os filtros selecionados.';
-  }
-
   const aguardando=list.filter(o=>isPedidoAguardando(o.status));
   const idsVisiveis=new Set(aguardando.map(o=>String(o.id)));
   selectedOrderIds=new Set([...selectedOrderIds].filter(id=>idsVisiveis.has(String(id))));
@@ -335,27 +319,34 @@ function updateOrderBatchUI(aguardando){
   if(clearBtn)clearBtn.disabled=selecionados.length===0;
 }
 
+function showOrdersFeedback(message,type=''){const el=$('ordersFeedback');if(!el)return;el.textContent=message;el.className='notice '+type;el.style.display='block'}
 async function confirmSelectedOrders(){
   const ids=[...selectedOrderIds];
   if(!ids.length)return;
   if(!confirm('Confirmar '+ids.length+' pedido'+(ids.length===1?'':'s')+' selecionado'+(ids.length===1?'':'s')+'?'))return;
+  showOrdersFeedback('Confirmando pedidos...');
   const j=await api('admin_confirmar_pedidos_lote',{ids});
-  if(!j)return;
+  if(!j){showOrdersFeedback('Não foi possível confirmar os pedidos. '+(lastApiError||'Verifique a implantação do Apps Script.'),'error');return}
   const r=j.data||{};
   selectedOrderIds.clear();
   await load();
-  showMsg('Confirmação concluída: '+(r.confirmados||0)+' confirmado'+((r.confirmados||0)===1?'':'s')+'.','success');
+  showOrdersFeedback('Confirmação concluída: '+(r.confirmados||0)+' confirmado'+((r.confirmados||0)===1?'':'s')+'.','success');
 }
 
-async function adminConfirmOrder(id){
+async function adminConfirmOrder(id,button){
   const o=orders.find(x=>String(x.id)===String(id));
-  if(!o)return;
-  if(!isPedidoAguardando(o.status))return;
+  if(!o||!isPedidoAguardando(o.status))return;
   if(!confirm('Confirmar o pedido '+o.id+' de '+o.cliente+'?'))return;
+  if(button){button.disabled=true;button.textContent='⏳ Confirmando...'}
+  showOrdersFeedback('Confirmando pedido '+o.id+'...');
   const j=await api('admin_confirmar_pedido',{id:o.id});
-  if(!j){alert('Não foi possível confirmar o pedido.');return}
+  if(!j){
+    if(button){button.disabled=false;button.textContent='✅ Confirmar pedido'}
+    showOrdersFeedback('Não foi possível confirmar o pedido '+o.id+'. '+(lastApiError||'Verifique a implantação do Apps Script.'),'error');
+    return
+  }
   await load();
-  showMsg('Pedido '+o.id+' confirmado com sucesso.','success');
+  showOrdersFeedback('Pedido '+o.id+' confirmado com sucesso.','success');
 }
 
 async function adminEditOrder(id){
@@ -465,6 +456,6 @@ document.addEventListener('click',async e=>{
 });
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{if(e.target.matches('[data-client-receber]'))goToReceber(e.target.dataset.clientReceber);if(e.target.matches('[data-client-history]'))showClientHistory(e.target.dataset.clientHistory);if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.pay-client'))payClient(e.target.dataset.client);if(e.target.matches('.edit-sale'))editSale(e.target.dataset.row);if(e.target.matches('.delete-sale'))deleteSale(e.target.dataset.row);if(e.target.matches('.admin-order-confirm'))adminConfirmOrder(e.target.dataset.id)});
+document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();load();loadClients();
 </script><script>(async()=>{try{const api=typeof API_URL!=='undefined'?API_URL:'';const r=await fetch(api,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_validar',data:{token:ADMIN_TOKEN}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'Sessão inválida');document.getElementById('adminGate').remove()}catch(e){sessionStorage.removeItem('admin_token');location.replace('/')}})();</script></body></html>
