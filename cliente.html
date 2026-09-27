@@ -102,6 +102,9 @@ function renderStock(data){
 }
 function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
 function renderOrders(list, vendas=[]){
+  // Cada pedido confirmado já possui uma venda vinculada pelo pedidoId.
+  // A venda vinculada não pode aparecer como um segundo registro no cliente.
+  const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));
   const registros=[
     ...list.map(o=>({
       type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
@@ -109,7 +112,8 @@ function renderOrders(list, vendas=[]){
       saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,
       dataPagamento:o.dataPagamento||'',status:o.status,origem:o.origem||''
     })),
-    ...vendas.map(v=>({
+    // Só mostra uma venda separadamente quando ela NÃO pertence a um pedido.
+    ...vendas.filter(v=>!v.pedidoId || !pedidosIds.has(String(v.pedidoId).trim())).map(v=>({
       type:'venda',data:v.data,id:'VENDA #'+v.row,cliente:v.cliente,itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],
       quantidadeTotal:Number(v.quantidade)||0,total:Number(v.total)||0,valorPago:Number(v.valorPago)||0,
       saldo:Number(v.deve)||0,dataPagamento:v.dataPagamento||'',status:v.status,origem:'VENDA'
