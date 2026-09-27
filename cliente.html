@@ -86,15 +86,17 @@ function renderStock(data){
  $('stockGrid').innerHTML=recheios.map(r=>{const x=map[r]||{disponivel:0};const q=Math.min(quantities[r]||0,Number(x.disponivel)||0);quantities[r]=q;return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+r+'</div><div class="available '+(x.disponivel?'':'soldout')+'">'+(x.disponivel?'Estoque: '+x.disponivel:'Estoque: 0')+'</div></div><div class="qty"><button type="button" class="secondary minus" data-r="'+r+'">−</button><input inputmode="numeric" min="0" max="'+(x.disponivel||0)+'" value="'+q+'" data-q="'+r+'"><button type="button" class="secondary plus" data-r="'+r+'">+</button></div></div>'}).join('');updateTotal()
 }
 function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
-function renderOrders(list){
+function renderOrders(list, vendas=[]){
  let total=0,paid=0;
  list.forEach(o=>{total+=Number(o.total)||0});
- $('accountOrders').textContent=list.length;
+ vendas.forEach(v=>{total+=Number(v.total)||0;paid+=Number(v.valorPago)||0});
+ $('accountOrders').textContent=list.length+vendas.length;
  $('accountTotal').textContent=brl(total);
  $('accountPaid').textContent=brl(paid);
- $('accountOpen').textContent=brl(total-paid);
- if(!list.length){$('orders').innerHTML='<div class="notice">Você ainda não fez nenhum pedido.</div>';return}
- $('orders').innerHTML=[...list].reverse().map(o=>{
+ $('accountOpen').textContent=brl(Math.max(0,total-paid));
+ const historico=[...list.map(o=>({type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens,quantidadeTotal:o.quantidadeTotal,total:o.total,status:o.status})),...vendas.map(v=>({type:'venda',data:v.data,id:'VENDA #'+v.row,cliente:v.cliente,itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],quantidadeTotal:v.quantidade,total:v.total,status:v.status}))];
+ if(!historico.length){$('orders').innerHTML='<div class="notice">Você ainda não fez nenhum pedido.</div>';return}
+ $('orders').innerHTML=historico.reverse().map(o=>{
    const actions=o.status==='Reservado'||o.status==='Confirmado'
      ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
      : '';
