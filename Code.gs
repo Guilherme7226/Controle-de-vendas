@@ -1156,7 +1156,10 @@ function sincronizarVendaDoPedido(ss,pedidoId,pedido){
   const row=found.row;
   const quantidade=Math.max(0,Math.floor(Number(pedido.quantidadeTotal)||0));
   const total=Math.max(0,Number(pedido.total)||0);
-  const pago=Math.min(Math.max(Number(pedido.valorPago)||0,0),total);
+  const pagoInformado = Object.prototype.hasOwnProperty.call(pedido,'valorPago')
+    ? Number(pedido.valorPago)||0
+    : Number(found.values[9])||0;
+  const pago=Math.min(Math.max(pagoInformado,0),total);
   const saldo=Math.max(0,total-pago);
 
   sh.getRange(row,1,1,11).setValues([[
