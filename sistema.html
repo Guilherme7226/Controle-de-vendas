@@ -72,6 +72,7 @@ function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&l
 function statusBadge(s){return '<span class="badge '+(s==='Pago'?'paid':s==='Parcial'?'partial':'pending')+'">'+s+'</span>'}
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+esc(t)+'</div>'}
 function normalize(v){return String(v??'').trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g,'')}
+function isPedidoAguardando(status){const s=normalize(status);return s==='reservado'||s==='aguardando';}
 function setDates(){
  if($('data'))$('data').value=today();
  if($('cdata'))$('cdata').value=today();
@@ -292,19 +293,19 @@ function renderOrdersAdmin(){
       : 'Nenhum pedido encontrado para os filtros selecionados.';
   }
 
-  const aguardando=list.filter(o=>o.status==='Reservado');
+  const aguardando=list.filter(o=>isPedidoAguardando(o.status));
   const idsVisiveis=new Set(aguardando.map(o=>String(o.id)));
   selectedOrderIds=new Set([...selectedOrderIds].filter(id=>idsVisiveis.has(String(id))));
 
   $('ordersAdmin').innerHTML=list.map(o=>{
-    const reservado=o.status==='Reservado';
+    const reservado=isPedidoAguardando(o.status);
     const checkbox=reservado
       ? '<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" class="order-select-checkbox" data-id="'+esc(o.id)+'" '+(selectedOrderIds.has(String(o.id))?'checked':'')+' aria-label="Selecionar pedido '+esc(o.id)+'"></label>'
       : '';
     const confirmar=reservado
       ? '<button class="primary admin-order-confirm" data-id="'+esc(o.id)+'">✅ Confirmar pedido</button>'
       : '';
-    return '<div class="order-admin">'+checkbox+'<div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+esc(o.id)+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+esc(o.id)+'">🗑️ Excluir pedido</button></div></div>'
+    return '<div class="order-admin">'+checkbox+'<div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(isPedidoAguardando(o.status)?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+esc(o.id)+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+esc(o.id)+'">🗑️ Excluir pedido</button></div></div>'
   }).join('')||'<div class="notice">Nenhum pedido encontrado.</div>';
   updateOrderBatchUI(aguardando);
 }
@@ -349,7 +350,7 @@ async function confirmSelectedOrders(){
 async function adminConfirmOrder(id){
   const o=orders.find(x=>String(x.id)===String(id));
   if(!o)return;
-  if(o.status!=='Reservado')return;
+  if(!isPedidoAguardando(o.status))return;
   if(!confirm('Confirmar o pedido '+o.id+' de '+o.cliente+'?'))return;
   const j=await api('admin_confirmar_pedido',{id:o.id});
   if(!j){alert('Não foi possível confirmar o pedido.');return}
@@ -410,7 +411,7 @@ $('pedidoDataFim').oninput=renderOrdersAdmin;
 $('pedidoClienteFiltro').onchange=renderOrdersAdmin;
 $('orderSelectAll').onclick=()=>{
   const inicio=isoDate($('pedidoDataInicio')?.value||''),fim=isoDate($('pedidoDataFim')?.value||''),clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
-  const aguardando=orders.filter(o=>o.status==='Reservado'&&(!inicio||dateOnly(o.data)>=inicio)&&(!fim||dateOnly(o.data)<=fim)&&(!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro)));
+  const aguardando=orders.filter(o=>isPedidoAguardando(o.status)&&(!inicio||dateOnly(o.data)>=inicio)&&(!fim||dateOnly(o.data)<=fim)&&(!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro)));
   const todosMarcados=aguardando.length>0&&aguardando.every(o=>selectedOrderIds.has(String(o.id)));
   if(todosMarcados)aguardando.forEach(o=>selectedOrderIds.delete(String(o.id)));else aguardando.forEach(o=>selectedOrderIds.add(String(o.id)));
   renderOrdersAdmin();
@@ -423,7 +424,7 @@ document.addEventListener('change',e=>{
   if(!id)return;
   if(e.target.checked)selectedOrderIds.add(id);else selectedOrderIds.delete(id);
   const inicio=isoDate($('pedidoDataInicio')?.value||''),fim=isoDate($('pedidoDataFim')?.value||''),clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
-  const aguardando=orders.filter(o=>o.status==='Reservado'&&(!inicio||dateOnly(o.data)>=inicio)&&(!fim||dateOnly(o.data)<=fim)&&(!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro)));
+  const aguardando=orders.filter(o=>isPedidoAguardando(o.status)&&(!inicio||dateOnly(o.data)>=inicio)&&(!fim||dateOnly(o.data)<=fim)&&(!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro)));
   updateOrderBatchUI(aguardando);
 });
 $('pedidoFiltrosLimpar').onclick=()=>{
