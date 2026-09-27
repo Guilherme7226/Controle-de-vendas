@@ -96,6 +96,8 @@ function doPost(e) {
         return json({ok:true,data:adminEditOrder(ss,d)});
       case 'admin_excluir_pedido':
         return json({ok:true,data:adminDeleteOrder(ss,d)});
+      case 'admin_confirmar_pedido':
+        return json({ok:true,data:adminConfirmOrder(ss,d)});
       case 'producao':
         addProduction(ss,d);
         break;
@@ -1240,6 +1242,52 @@ function deleteClientOrder(ss,d) {
     SpreadsheetApp.flush();
     return {id:found.pedido.id};
   } finally { lock.releaseLock(); }
+}
+
+function adminConfirmOrder(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const id=String(d.id||'').trim();
+    if(!id) throw new Error('Pedido não informado.');
+
+    const sh=ss.getSheetByName(SHEET_PEDIDOS);
+    if(!sh||sh.getLastRow()<2) throw new Error('Pedido não encontrado.');
+
+    const rows=sh.getRange(2,1,sh.getLastRow()-1,14).getValues();
+    let row=-1, old=null;
+
+    for(let i=0;i<rows.length;i++){
+      if(String(rows[i][0]||'')===id){
+        row=i+2;
+        old={
+          id:id,
+          cliente:String(rows[i][2]||''),
+          data:dateValue(rows[i][3]),
+          status:String(rows[i][7]||'Reservado'),
+          quantidadeTotal:Number(rows[i][5])||0,
+          total:Number(rows[i][6])||0,
+          valorPago:Number(rows[i][9])||0,
+          dataPagamento:dateValue(rows[i][10]),
+          saldo:Number(rows[i][11])||Math.max(0,(Number(rows[i][6])||0)-(Number(rows[i][9])||0))
+        };
+        break;
+      }
+    }
+
+    if(row<0) throw new Error('Pedido não encontrado.');
+    if(old.status==='Confirmado') return old;
+    if(old.status!=='Reservado') throw new Error('Este pedido não está aguardando confirmação.');
+
+    sh.getRange(row,8).setValue('Confirmado');
+    SpreadsheetApp.flush();
+
+    // A venda vinculada continua sendo a venda financeira normal.
+    // Apenas o status do pedido muda.
+    return Object.assign({},old,{status:'Confirmado'});
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function adminEditOrder(ss,d) {
