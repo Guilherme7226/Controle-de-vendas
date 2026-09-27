@@ -77,9 +77,9 @@ function clearSession(){localStorage.removeItem('paozinhos_cliente')}
 function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome;$('clientSettingsPanel').classList.add('hidden');setClientTab('atual')}
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
-async function loadClient(){
+async function loadClient(prefetched=null){
  const s=session();if(!s){showAuth();return}
- const j=await api('cliente_dados',{token:s.token});
+ const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:s.token});
  if(!j)return;
  const mustChangePassword=!!j.data.mustChangePassword;
  const sess={token:s.token,mustChangePassword,cliente:j.data.cliente};
@@ -169,7 +169,7 @@ function setClientTab(tab){
 
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
-$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');if(j.data.dados)await loadClient(j.data.dados);else await loadClient()}finally{btn.disabled=false;btn.textContent='Entrar'}};
+$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');await loadClient()}finally{btn.disabled=false;btn.textContent='Entrar'}};
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
 $('tabAtual').onclick=()=>setClientTab('atual');
 $('tabHistorico').onclick=()=>setClientTab('historico');
