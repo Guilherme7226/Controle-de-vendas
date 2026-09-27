@@ -332,6 +332,20 @@ function appendSale(ss, d) {
   }
 
   aplicarFormatoVenda(sh, novaLinha);
+
+  const pedidoId=criarPedidoHistoricoDaVenda(ss,{
+    row:novaLinha,
+    data:dateValue(row[0]),
+    cliente:String(row[1]||''),
+    quantidade:quantidade,
+    valorUnitario:unit,
+    total:total,
+    valorPago:pago,
+    dataPagamento:pago?(d.dataPagamento||d.data||''):''
+  });
+  if(pedidoId)sh.getRange(novaLinha,12).setValue(pedidoId);
+
+  SpreadsheetApp.flush();
 }
 /*
  * Insere custos antes da linha TOTAL/TOTAL GERAL.
@@ -412,6 +426,20 @@ function updatePayment(ss, d) {
   ]]);
 
   aplicarFormatoVenda(sh, row);
+
+  const pedidoId=sh.getMaxColumns()>=12?String(sh.getRange(row,12).getValue()||'').trim():'';
+  if(pedidoId){
+    atualizarPedidoHistorico(ss,pedidoId,{
+      row:row,
+      data:dateValue(sh.getRange(row,1).getValue()),
+      cliente:String(sh.getRange(row,2).getValue()||''),
+      quantidade:Number(sh.getRange(row,4).getValue())||0,
+      valorUnitario:Number(sh.getRange(row,5).getValue())||0,
+      total:total,
+      valorPago:pago,
+      dataPagamento:pago?(d.dataPagamento||formatToday()):''
+    });
+  }
 }
 
 /*
@@ -458,6 +486,20 @@ function updateSale(ss, d) {
 
   aplicarFormatoVenda(sh, rowNumber);
 
+  const pedidoId=sh.getMaxColumns()>=12?String(sh.getRange(rowNumber,12).getValue()||'').trim():'';
+  if(pedidoId){
+    atualizarPedidoHistorico(ss,pedidoId,{
+      row:rowNumber,
+      data:dateValue(d.data||''),
+      cliente:d.cliente||'',
+      quantidade:quantidade,
+      valorUnitario:unit,
+      total:total,
+      valorPago:pago,
+      dataPagamento:pago?(d.dataPagamento||d.data||''):''
+    });
+  }
+
   return true;
 }
 
@@ -479,8 +521,11 @@ function deleteSale(ss, d) {
   }
 
   const cliente = String(sh.getRange(rowNumber, 2).getDisplayValue() || '').trim();
+  const pedidoId = sh.getMaxColumns()>=12 ? String(sh.getRange(rowNumber,12).getValue() || '').trim() : '';
 
   sh.deleteRow(rowNumber);
+
+  if(pedidoId)excluirPedidoHistorico(ss,pedidoId);
 
   SpreadsheetApp.flush();
 
@@ -1274,6 +1319,20 @@ function clienteIdPorNome(ss,nome){
   return '';
 }
 
+function excluirPedidoHistorico(ss,pedidoId){
+  if(!pedidoId)return false;
+  const sh=ss.getSheetByName(SHEET_PEDIDOS);
+  if(!sh||sh.getLastRow()<2)return false;
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,14).getValues();
+  for(let i=0;i<rows.length;i++){
+    if(String(rows[i][0]||'')===String(pedidoId)){
+      sh.deleteRow(i+2);
+      return true;
+    }
+  }
+  return false;
+}
+
 function atualizarPedidoHistorico(ss,pedidoId,venda){
   if(!pedidoId)return false;
   const sh=ss.getSheetByName(SHEET_PEDIDOS);
@@ -1389,7 +1448,19 @@ function migrarVendasParaPedidos(ss){
 
       let pedidoId=String(r[11]||'').trim();
 
-      if(pedidoId && pedidosPorReferencia[String(actualRow)]===pedidoId)continue;
+      if(pedidoId && pedidosPorReferencia[String(actualRow)]===pedidoId){
+        atualizarPedidoHistorico(ss,pedidoId,{
+          row:actualRow,
+          data:dateValue(r[0]),
+          cliente:cliente,
+          quantidade:quantidade,
+          valorUnitario:Number(r[4])||0,
+          total:total,
+          valorPago:Number(r[9])||0,
+          dataPagamento:dateValue(r[6])
+        });
+        continue;
+      }
       if(pedidoId && !pedidosPorReferencia[String(actualRow)]){
         atualizarPedidoHistorico(ss,pedidoId,{
           row:actualRow,data:dateValue(r[0]),cliente:cliente,
