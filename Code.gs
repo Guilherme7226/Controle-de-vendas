@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-27-pedidos-confirmacao-v3';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','producao'];
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','producao'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -90,6 +90,11 @@ function doPost(e) {
         return json({ok:true,data:changeClientPassword(ss,d)});
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
+      case 'admin_bootstrap': {
+        const painel=readAll();
+        painel.clients=adminListClients(ss,painel.orders,painel.sales);
+        return json({ok:true,data:painel});
+      }
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
       case 'admin_criar_cliente':
@@ -897,35 +902,39 @@ function changeClientPassword(ss,d) {
   throw new Error('Cliente não encontrado.');
 }
 
-function adminListClients(ss) {
-  // Nunca esconda um cadastro existente e não dependa de migração
-  // para conseguir montar a lista de clientes.
+function adminListClients(ss,ordersData,salesData) {
+  // Uma leitura da aba Clientes + dados já carregados do painel.
+  // Evita reler Pedidos/Vendas e evita filter() dentro do loop de clientes.
   ensureClientSheets(ss);
   const sh=ss.getSheetByName(SHEET_CLIENTES);
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
-  const orders=readOrders(ss);
-  const sales=readSales(ss);
+  const orders=ordersData || readOrders(ss);
+  const sales=salesData || readSales(ss);
   const result=[];
   const known={};
+  const pedidoCountByClient={};
+  const pedidoCountByName={};
+
+  orders.forEach(o=>{
+    const id=String(o.clienteId||'');
+    const key=normalize(o.cliente);
+    if(id) pedidoCountByClient[id]=(pedidoCountByClient[id]||0)+1;
+    if(key) pedidoCountByName[key]=(pedidoCountByName[key]||0)+1;
+  });
 
   rows.forEach(r=>{
     const nome=String(r[1]||'').trim();
     if(!nome)return;
+    const id=String(r[0]||'');
     const key=normalize(nome);
     known[key]=true;
     result.push({
-      id:String(r[0]||''),
-      nome:nome,
-      telefone:String(r[2]||''),
-      email:String(r[3]||''),
-      ativo:r[7]!==false,
-      mustChangePassword:r[8]===true,
-      pedidos:orders.filter(o=>o.clienteId===String(r[0]||'') || normalize(o.cliente)===key).length
+      id:id,nome:nome,telefone:String(r[2]||''),email:String(r[3]||''),
+      ativo:r[7]!==false,mustChangePassword:r[8]===true,
+      pedidos:Math.max(pedidoCountByClient[id]||0,pedidoCountByName[key]||0)
     });
   });
 
-  // Se houver clientes nas vendas/pedidos sem uma linha correspondente
-  // na aba Clientes, eles continuam visíveis como "Sem login".
   const historicos={};
   sales.forEach(v=>{
     const nome=String(v.cliente||'').trim();
@@ -946,19 +955,10 @@ function adminListClients(ss) {
 
   Object.keys(historicos).forEach(key=>{
     if(known[key])return;
-    result.push({
-      id:'legacy:'+key,
-      nome:historicos[key].nome,
-      telefone:'',
-      email:'',
-      ativo:false,
-      mustChangePassword:false,
-      pedidos:historicos[key].pedidos,
-      paes:historicos[key].paes,
-      legacy:true
-    });
+    result.push({id:'legacy:'+key,nome:historicos[key].nome,telefone:'',email:'',
+      ativo:false,mustChangePassword:false,pedidos:historicos[key].pedidos,
+      paes:historicos[key].paes,legacy:true});
   });
-
   return result;
 }
 function adminCreateClient(ss,d) {
