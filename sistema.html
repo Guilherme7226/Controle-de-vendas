@@ -31,7 +31,7 @@
 <section id="vendas" class="view"><div class="panel"><h2>Histórico de vendas</h2><div class="grid"><div class="field"><label>Pesquisar</label><input id="buscaVenda" placeholder="Cliente"></div><div class="field"><label>Status</label><select id="filtroStatus"><option value="">Todos</option><option>Pago</option><option>Parcial</option><option>Pendente</option></select></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="filtroDataVenda" type="text" placeholder="26-09-2026"><button type="button" id="filtroDataVendaBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="filtroDataVendaPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
 <section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="cdata" type="text" placeholder="26-09-2026" required><button type="button" id="cdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="cdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="actions"><button class="primary">Registrar custo</button></div></form></div><div class="panel"><h2>Histórico de custos</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
 <section id="estoque" class="view">
-<div class="panel"><h2>📦 Produção e estoque</h2><p class="rank-note">Cadastre a produção de cada dia. O estoque disponível é calculado descontando automaticamente as reservas dos clientes.</p>
+<div class="panel"><h2>📦 Produção e estoque</h2><p class="rank-note">Cadastre a produção de cada dia. O estoque disponível desconta reservas, vendas confirmadas e descartes. <strong>Editar estoque registra descarte</strong>; para aumentar o estoque, registre uma nova produção.</p>
 <form id="productionForm"><div class="grid"><div class="field"><label>Data da produção</label><div class="date-picker-row"><input id="pdata" type="text" placeholder="26-09-2026" required><button type="button" id="pdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="pdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div><div class="field"><label>Frango</label><input id="pfrango" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho</label><input id="pfrangomilho" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho e salada</label><input id="pfrangomilhosalada" type="number" min="0" value="0"></div><div class="field"><label>Frango sem milho com salada</label><input id="pfrangosemmilhosalada" type="number" min="0" value="0"></div></div><div class="actions"><button class="primary">Registrar produção</button></div></form></div>
 <div class="panel"><h2>Estoque atual</h2><div id="stockAdmin" class="stock-admin"></div></div>
 <div class="panel"><h2>Histórico de produção</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Recheio</th><th>Quantidade</th></tr></thead><tbody id="productionTable"></tbody></table></div></div>
@@ -59,6 +59,7 @@ if(!ADMIN_TOKEN){location.replace('/');}
 const DEFAULT_API_URL='/api';
 const OLD_API_URL='';
 let savedApiUrl=localStorage.getItem('vendas_api_url')||'';const LEGACY_API_URLS=['https://script.google.com/macros/s/AKfycbx5XRAfHo3_1wa80WFBpeA5b18l7p3LmDmILu-yV2gbS7tTkdtdb84QRNZDF6n7Sxbn/exec','https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec'];if(!savedApiUrl || savedApiUrl.startsWith('https://script.google.com/macros/s/') || LEGACY_API_URLS.includes(savedApiUrl)){savedApiUrl=DEFAULT_API_URL;localStorage.setItem('vendas_api_url',DEFAULT_API_URL)}const API_URL=savedApiUrl;
+const STOCK_RECHEIOS=['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];let lastApiError='';
 let clientsLoadedAt=0,clientsPromise=null;
 const CLIENTS_CACHE_TTL=30000;
@@ -323,7 +324,31 @@ function goToReceber(name){const tab=document.querySelector('[data-view="receber
 function showClientHistory(name){const key=String(name).trim().toLowerCase();const itens=[...sales].filter(x=>String(x.cliente).trim().toLowerCase()===key).sort((a,b)=>Number(b.row)-Number(a.row));const total=itens.reduce((a,x)=>a+(Number(x.total)||0),0),pago=itens.reduce((a,x)=>a+(Number(x.valorPago)||0),0),saldo=itens.reduce((a,x)=>a+(Number(x.deve)||0),0),qtd=itens.reduce((a,x)=>a+(Number(x.quantidade)||0),0);$('clienteHistoricoTitulo').textContent='Histórico de vendas — '+name;$('clienteResumo').innerHTML='<div class="card"><div class="label">Vendas</div><div class="value">'+itens.length+'</div></div><div class="card"><div class="label">Pães</div><div class="value">'+qtd+'</div></div><div class="card"><div class="label">Total vendido</div><div class="value">'+brl(total)+'</div></div><div class="card"><div class="label">Saldo atual</div><div class="value">'+brl(saldo)+'</div></div>';$('clienteHistorico').innerHTML=itens.map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td></tr>').join('')||'<tr><td colspan="8">Nenhuma venda encontrada.</td></tr>';$('clienteHistoricoPanel').hidden=false;$('clienteHistoricoPanel').scrollIntoView({behavior:'smooth',block:'start'})}
 function renderStockAdmin(){
   if(!$('stockAdmin'))return;
-  $('stockAdmin').innerHTML=stock.map(x=>'<div class="card"><div class="label">'+esc(x.recheio)+'</div><div class="value">'+x.disponivel+'</div><div class="rank-note">Produzido: '+x.produzido+' • Reservado: '+x.reservado+' • Vendido: '+(x.vendido||0)+'</div></div>').join('')||'<div class="notice">Nenhum estoque cadastrado.</div>';
+  $('stockAdmin').innerHTML=stock.map(x=>{
+    return '<div class="card">'+
+      '<div class="label">'+esc(x.recheio)+'</div>'+
+      '<div class="value">'+x.disponivel+'</div>'+
+      '<div class="rank-note">Produzido: '+x.produzido+' • Reservado: '+x.reservado+' • Vendido: '+(x.vendido||0)+' • Descartado: '+(x.descartado||0)+'</div>'+
+      '<button type="button" class="secondary edit-stock" data-recheio="'+esc(x.recheio)+'" data-value="'+x.disponivel+'">✏️ Editar estoque</button>'+
+    '</div>';
+  }).join('')||'<div class="notice">Nenhum estoque cadastrado.</div>';
+}
+async function editStock(recheio,atual){
+  const valor=prompt(
+    'Estoque disponível de '+recheio+': '+atual+'\n\nInforme o novo estoque após o descarte.\nO valor só pode ser menor ou igual ao atual.',
+    atual
+  );
+  if(valor===null)return;
+  const novo=Math.max(0,Math.floor(Number(valor)));
+  if(!Number.isFinite(novo)){alert('Informe uma quantidade válida.');return}
+  if(novo>atual){alert('Para aumentar o estoque, registre uma nova produção. Editar estoque serve apenas para registrar descarte.');return}
+  if(novo===atual)return;
+  const observacao=prompt('Observação do descarte (opcional):','');
+  if(observacao===null)return;
+  const j=await api('admin_editar_estoque',{recheio,novo,data:today(),observacao});
+  if(!j)return;
+  await load();
+  showMsg('Descarte registrado: '+(atual-novo)+' × '+recheio+'.','success');
 }
 function renderProduction(){
   if(!$('productionTable'))return;
@@ -421,7 +446,7 @@ async function adminConfirmOrder(id,button){
 async function adminEditOrder(id){
  const o=orders.find(x=>x.id===id); if(!o)return;
  const itens=[];
- for(const r of ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada']){
+ for(const r of STOCK_RECHEIOS){
    const atual=o.itens.find(i=>i.recheio===r)?.quantidade||0;
    const v=prompt('Quantidade de '+r+':',atual);
    if(v===null)return;
@@ -467,7 +492,17 @@ async function payClient(name){
  showMsg('Pagamento de '+brl(valor)+' aplicado às dívidas mais antigas de '+name+'.','success');
 }async function editSale(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const cliente=prompt('Cliente:',x.cliente);if(cliente===null)return;const contato=prompt('Contato/Empresa:',x.contatoEmpresa||'');if(contato===null)return;const data=prompt('Data (DD-MM-AAAA):',formatDate(x.data));if(data===null)return;const quantidade=prompt('Quantidade:',x.quantidade);if(quantidade===null)return;const valor=prompt('Valor unitário:',Number(x.valorUnitario||0).toFixed(2));if(valor===null)return;const pago=prompt('Valor pago:',Number(x.valorPago||0).toFixed(2));if(pago===null)return;const q=Number(quantidade)||0,u=Number(valor)||0,total=q*u,p=Math.min(Math.max(Number(pago)||0,0),total),j=await api('editar_venda',{row:x.row,data:isoDate(data),cliente:cliente.trim(),contatoEmpresa:contato.trim(),quantidade:q,valorUnitario:u,pago:p,dataPagamento:p?(x.dataPagamento||isoDate(data)):''});if(!j){alert('Não foi possível editar a venda.');return}await load();showMsg('Venda editada com sucesso.','success')}
 async function deleteSale(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;if(!confirm('Excluir esta venda?\n\nCliente: '+x.cliente+'\nData: '+x.data+'\nTotal: '+brl(x.total)+'\n\nEssa ação não pode ser desfeita.'))return;const j=await api('excluir_venda',{row:x.row});if(!j){alert('Não foi possível excluir a venda.');return}await load();showMsg('Venda excluída com sucesso.','success')}
-document.addEventListener('click',e=>{const id=e.target.dataset.id;if(!id)return;if(e.target.classList.contains('admin-order-edit'))adminEditOrder(id);if(e.target.classList.contains('admin-order-delete'))adminDeleteOrder(id)});
+document.addEventListener('click',e=>{
+  const stockBtn=e.target.closest?.('.edit-stock');
+  if(stockBtn){
+    editStock(stockBtn.dataset.recheio,Number(stockBtn.dataset.value)||0);
+    return;
+  }
+  const id=e.target.dataset.id;
+  if(!id)return;
+  if(e.target.classList.contains('admin-order-edit'))adminEditOrder(id);
+  if(e.target.classList.contains('admin-order-delete'))adminDeleteOrder(id);
+});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===b.dataset.view));
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
