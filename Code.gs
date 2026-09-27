@@ -1578,34 +1578,48 @@ function atualizarPedidoHistorico(ss,pedidoId,venda){
   const sh=ss.getSheetByName(SHEET_PEDIDOS);
   if(!sh||sh.getLastRow()<2)return false;
   const rows=sh.getRange(2,1,sh.getLastRow()-1,14).getValues();
+
   for(let i=0;i<rows.length;i++){
-    if(String(rows[i][0]||'')===String(pedidoId)){
-      const row=i+2;
-      const total=Number(venda.total)||0;
-      const pago=Math.min(Math.max(Number(venda.valorPago)||0,0),total);
-      const saldo=Math.max(0,total-pago);
-      sh.getRange(row,2,1,12).setValues([[
-        clienteIdPorNome(ss,venda.cliente),
-        venda.cliente,
-        venda.data,
-        JSON.stringify([{
-          recheio:'Venda histórica',
-          quantidade:Math.max(0,Math.floor(Number(venda.quantidade)||0)),
-          valorUnitario:Number(venda.valorUnitario)||0
-        }]),
-        Math.max(0,Math.floor(Number(venda.quantidade)||0)),
-        total,
-        'Histórico',
-        rows[i][8]||new Date(),
+    if(String(rows[i][0]||'')!==String(pedidoId))continue;
+
+    const row=i+2;
+    const total=Math.max(0,Number(venda.total)||0);
+    const pago=Math.min(Math.max(Number(venda.valorPago)||0,0),total);
+    const saldo=Math.max(0,total-pago);
+    const origem=String(rows[i][12]||'').trim();
+
+    // Vendas antigas importadas/migradas não possuem os sabores originais.
+    // Mantemos o registro genérico e alteramos somente os dados financeiros.
+    if(origem==='VENDA_HISTORICA'){
+      sh.getRange(row,10,1,3).setValues([[
         pago,
         pago>0?(venda.dataPagamento||venda.data||''):'',
-        saldo,
-        'VENDA_HISTORICA'
+        saldo
       ]]);
-      sh.getRange(row,14).setValue(String(venda.row||rows[i][13]||''));
       aplicarFormatoPedido(sh,row);
       return true;
     }
+
+    // Pedidos novos preservam os sabores e o status originais.
+    // Quando a venda é editada, sincronizamos apenas os campos que realmente
+    // pertencem à venda e os dados financeiros, sem substituir os itens por
+    // "Venda histórica".
+    sh.getRange(row,2).setValue(clienteIdPorNome(ss,venda.cliente));
+    sh.getRange(row,3,1,2).setValues([[
+      venda.cliente,
+      venda.data
+    ]]);
+    sh.getRange(row,6,1,2).setValues([[
+      Math.max(0,Math.floor(Number(venda.quantidade)||0)),
+      total
+    ]]);
+    sh.getRange(row,10,1,3).setValues([[
+      pago,
+      pago>0?(venda.dataPagamento||venda.data||''):'',
+      saldo
+    ]]);
+    aplicarFormatoPedido(sh,row);
+    return true;
   }
   return false;
 }
