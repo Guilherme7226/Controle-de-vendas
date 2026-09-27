@@ -44,9 +44,9 @@
     <div class="account-card open"><div class="account-label">Em aberto</div><div id="accountOpen" class="account-value">R$ 0,00</div></div>
   </div>
   <div class="account-note">O painel Atual mostra somente o que ainda está em aberto. Quando a pendência chegar a R$ 0,00, esses registros passam automaticamente para o Histórico.</div>
-  <div id="goOrder" class="order-cta" role="button" tabindex="0"><div><strong>🛒 Reservar pedido</strong><br><span>Escolha os sabores e a quantidade disponível.</span></div><div style="font-size:28px">→</div></div>
+  <div id="goOrder" class="order-cta" role="button" tabindex="0"><div><strong>🛒 Escolher pedido</strong><br><span>Escolha os sabores e a quantidade disponível.</span></div><div style="font-size:28px">→</div></div>
 </div>
-<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> pães</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><div style="margin-top:12px"><button id="orderBtn" type="button" hidden></button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
+<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> pães</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
 <div id="currentPanel"><div class="panel"><h2>📋 Pedidos atuais</h2><div id="orders"></div></div></div>
 <div id="historyPanel" class="hidden">
   <div class="panel"><h2>🕘 Histórico completo</h2>
@@ -204,9 +204,7 @@ $('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=do
 document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
 document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});
 $('goOrder').onclick=()=>{
- const temItens=editingOrderId||recheios.some(r=>Number(quantities[r]||0)>0);
- if(temItens){$('orderBtn').click();return}
- $('orderArea').scrollIntoView({behavior:'smooth',block:'start'});
+  $('orderArea').scrollIntoView({behavior:'smooth',block:'start'});
 };
 $('goOrder').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('orderArea').scrollIntoView({behavior:'smooth',block:'start'})}};
 $('orderBtn').onclick=async()=>{
