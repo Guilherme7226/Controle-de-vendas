@@ -89,7 +89,7 @@ function renderOrders(list){
  if(!list.length){$('orders').innerHTML='<div class="notice">Você ainda não fez nenhum pedido.</div>';return}
  $('orders').innerHTML=[...list].reverse().map(o=>{
    const actions=o.status==='Reservado'||o.status==='Confirmado'
-     ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="primary order-confirm" data-id="'+o.id+'">'+(o.status==='Confirmado'?'✓ Pedido confirmado':'✓ Confirmar pedido')+'</button><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
+     ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
      : '';
    return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="badge">'+o.status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div><div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>'+actions+'</div>'
  }).join('')
@@ -125,13 +125,7 @@ $('cancelEdit').onclick=()=>{editingOrderId=null;quantities={};$('orderBtn').tex
 document.addEventListener('click',async e=>{
  const id=e.target.dataset.id;if(!id)return;
  const s=session();if(!s)return;
- if(e.target.classList.contains('order-confirm')){
-   if(e.target.textContent.includes('confirmado'))return;
-   const j=await api('cliente_confirmar_pedido',{token:s.token,id});if(j){showMsg('Pedido '+id+' confirmado.','success');await loadClient()}
- }else if(e.target.classList.contains('order-delete')){
-   if(!confirm('Excluir o pedido '+id+'? O estoque será devolvido imediatamente.'))return;
-   const j=await api('cliente_excluir_pedido',{token:s.token,id});if(j){editingOrderId=null;quantities={};showMsg('Pedido '+id+' excluído e o estoque foi atualizado.','success');await loadClient()}
- }else if(e.target.classList.contains('order-edit')){
+ if(e.target.classList.contains('order-edit')){
    const j=await api('cliente_dados',{token:s.token});if(!j)return;
    const o=(j.data.pedidos||[]).find(x=>x.id===id);if(!o)return;
    editingOrderId=id;quantities={};o.itens.forEach(i=>quantities[i.recheio]=Number(i.quantidade)||0);
