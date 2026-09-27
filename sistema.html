@@ -295,6 +295,7 @@ function renderOrdersAdmin(){
     return '<div class="order-admin">'+checkbox+'<div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+esc(o.id)+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+esc(o.id)+'">🗑️ Excluir pedido</button></div></div>'
   }).join('')||'<div class="notice">Nenhum pedido encontrado.</div>';
   updateOrderBatchUI(aguardando);
+}
 function renderPedidoClientFilter(){
   const sel=$('pedidoClienteFiltro');
   if(!sel)return;
