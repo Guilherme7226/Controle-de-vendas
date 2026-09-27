@@ -342,7 +342,7 @@ function appendCost(ss, d) {
   const row = [
     d.data || '',
     d.descricao || '',
-    Number(d.valor) || 0
+    parseMoney(d.valor) || 0
   ];
 
   const totalRow = findTotalRow(sh, 1, 2);
@@ -378,7 +378,7 @@ function updatePayment(ss, d) {
   }
 
   const total = Number(sh.getRange(row,6).getValue()) || 0;
-  const pago = Math.min(Math.max(Number(d.pago) || 0, 0), total);
+  const pago = Math.min(Math.max(parseMoney(d.pago) || 0, 0), total);
   const saldo = Math.max(0, total - pago);
 
   sh.getRange(row,7,1,5).setValues([[
@@ -519,7 +519,7 @@ function readAll() {
       if (!r[0] && !r[1] && !r[3] && !r[5]) continue;
 
       const total = Number(r[5]) || 0;
-      const pago = Number(r[9]) || 0;
+      const pago = parseMoney(r[9]) || 0;
       const saldo = Number(r[10]) || Math.max(0,total-pago);
 
       sales.push({
@@ -1655,7 +1655,7 @@ function readOrders(ss) {
     let itens=[];
     try{itens=JSON.parse(String(r[4]||'[]'))}catch(_){}
     const total=Number(r[6])||0;
-    const valorPago=Number(r[9])||0;
+    const valorPago=parseMoney(r[9])||0;
     const saldo=Number(r[11])||Math.max(0,total-valorPago);
 
     out.push({
@@ -1862,7 +1862,7 @@ function migrarVendasParaPedidos(ss){
           quantidade:quantidade,
           valorUnitario:Number(r[4])||0,
           total:total,
-          valorPago:Number(r[9])||0,
+          valorPago:parseMoney(r[9])||0,
           dataPagamento:dateValue(r[6])
         });
         continue;
@@ -1871,7 +1871,7 @@ function migrarVendasParaPedidos(ss){
         atualizarPedidoHistorico(ss,pedidoId,{
           row:actualRow,data:dateValue(r[0]),cliente:cliente,
           quantidade:quantidade,valorUnitario:Number(r[4])||0,total:total,
-          valorPago:Number(r[9])||0,dataPagamento:dateValue(r[6])
+          valorPago:parseMoney(r[9])||0,dataPagamento:dateValue(r[6])
         });
         continue;
       }
@@ -1890,7 +1890,7 @@ function migrarVendasParaPedidos(ss){
         quantidade:quantidade,
         valorUnitario:Number(r[4])||0,
         total:total,
-        valorPago:Number(r[9])||0,
+        valorPago:parseMoney(r[9])||0,
         dataPagamento:dateValue(r[6])
       };
 
