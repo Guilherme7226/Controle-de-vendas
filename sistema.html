@@ -37,7 +37,17 @@
 <div class="panel"><h2>Histórico de produção</h2><div class="table-wrap"><table><thead><tr><th>Data</th><th>Recheio</th><th>Quantidade</th></tr></thead><tbody id="productionTable"></tbody></table></div></div>
 </section>
 <section id="pedidos" class="view">
-<div class="panel"><h2>🛒 Pedidos do dia</h2><div class="grid"><div class="field"><label>Data</label><div class="date-picker-row"><input id="pedidoData" type="text" placeholder="26-09-2026"><button type="button" id="pedidoDataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="pedidoDataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div id="ordersSummary" class="notice" style="margin-top:14px"></div><div id="ordersAdmin" class="order-list"></div></div>
+<div class="panel">
+<h2>🛒 Pedidos</h2>
+<div class="grid">
+<div class="field"><label>Data inicial</label><div class="date-picker-row"><input id="pedidoDataInicio" type="text" placeholder="26-09-2026"><button type="button" id="pedidoDataInicioBtn" class="calendar-btn" title="Selecionar data inicial">📅</button><input id="pedidoDataInicioPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div>
+<div class="field"><label>Data final</label><div class="date-picker-row"><input id="pedidoDataFim" type="text" placeholder="26-09-2026"><button type="button" id="pedidoDataFimBtn" class="calendar-btn" title="Selecionar data final">📅</button><input id="pedidoDataFimPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div>
+<div class="field"><label>Cliente</label><select id="pedidoClienteFiltro"><option value="">Todos os clientes</option></select></div>
+</div>
+<div class="actions"><button type="button" id="pedidoFiltrosLimpar" class="secondary">Limpar filtros</button></div>
+<div id="ordersSummary" class="notice" style="margin-top:14px"></div>
+<div id="ordersAdmin" class="order-list"></div>
+</div>
 </section>
 <section id="clientes" class="view"><div class="panel"><h2>👥 Clientes e logins</h2><div class="notice">As senhas são armazenadas como hash e não podem ser exibidas depois de criadas. Você pode criar logins, alterar dados e redefinir senhas.</div><div class="actions"><button id="newClient" class="primary">➕ Criar login</button><button id="refreshClients" class="secondary">Atualizar</button></div><div class="table-wrap" style="margin-top:14px"><table><thead><tr><th>Cliente</th><th>Telefone</th><th>E-mail</th><th>Pedidos</th><th>Acesso</th><th>Ações</th></tr></thead><tbody id="clientsTable"></tbody></table></div></div></section>
 </main></div>
@@ -66,8 +76,10 @@ function setDates(){
  if($('cdataPicker'))$('cdataPicker').value=isoDate(today());
  if($('pdata'))$('pdata').value=today();
  if($('pdataPicker'))$('pdataPicker').value=isoDate(today());
- if($('pedidoData'))$('pedidoData').value=today();
- if($('pedidoDataPicker'))$('pedidoDataPicker').value=isoDate(today());
+ if($('pedidoDataInicio'))$('pedidoDataInicio').value=today();
+ if($('pedidoDataInicioPicker'))$('pedidoDataInicioPicker').value=isoDate(today());
+ if($('pedidoDataFim'))$('pedidoDataFim').value=today();
+ if($('pedidoDataFimPicker'))$('pedidoDataFimPicker').value=isoDate(today());
 }
 function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[1]+'-'+m[2]+'-'+m[3]:s.slice(0,10)}
 async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'cors',redirect:'follow',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);showMsg('Erro ao salvar: '+(e.message||'Erro desconhecido'),'error');return null}}
@@ -199,12 +211,55 @@ function renderProduction(){
 }
 function renderOrdersAdmin(){
   if(!$('ordersAdmin'))return;
-  const data=isoDate($('pedidoData')?.value||today());
-  const list=orders.filter(o=>dateOnly(o.data)===data);
+
+  const inicio=isoDate($('pedidoDataInicio')?.value||'');
+  const fim=isoDate($('pedidoDataFim')?.value||'');
+  const clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
+
+  let list=orders.filter(o=>{
+    const d=dateOnly(o.data);
+    const clienteOk=!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro);
+    const inicioOk=!inicio||d>=inicio;
+    const fimOk=!fim||d<=fim;
+    return inicioOk&&fimOk&&clienteOk;
+  });
+
+  list.sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))||String(b.criadoEm||'').localeCompare(String(a.criadoEm||'')));
+
   const totals={Frango:0,'Frango com milho':0,'Frango com milho e salada':0,'Frango sem milho com salada':0,total:0};
-  list.forEach(o=>o.itens.forEach(i=>{if(totals[i.recheio]!==undefined)totals[i.recheio]+=Number(i.quantidade)||0;totals.total+=Number(i.quantidade)||0}));
-  if($('ordersSummary'))$('ordersSummary').textContent=list.length?'Pedidos: '+list.length+' • Total: '+totals.total+' pães • Frango: '+totals.Frango+' • Frango com milho: '+totals['Frango com milho']+' • Frango com milho e salada: '+totals['Frango com milho e salada']+' • Frango sem milho com salada: '+totals['Frango sem milho com salada']:'Nenhum pedido para esta data.';
-  $('ordersAdmin').innerHTML=list.map(o=>'<div class="order-admin"><div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="primary admin-order-edit" data-id="'+o.id+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+o.id+'">🗑️ Excluir pedido</button></div></div>').join('')||'<div class="notice">Nenhum pedido para esta data.</div>';
+  list.forEach(o=>o.itens.forEach(i=>{
+    if(totals[i.recheio]!==undefined)totals[i.recheio]+=Number(i.quantidade)||0;
+    totals.total+=Number(i.quantidade)||0;
+  }));
+
+  const periodo=inicio||fim
+    ? (inicio&&fim ? (formatDate(inicio)+' até '+formatDate(fim)) : inicio ? 'A partir de '+formatDate(inicio) : 'Até '+formatDate(fim))
+    : 'Todos os períodos';
+
+  if($('ordersSummary')){
+    $('ordersSummary').textContent=list.length
+      ? 'Pedidos: '+list.length+' • '+periodo+' • Total: '+totals.total+' pães • Frango: '+totals.Frango+' • Frango com milho: '+totals['Frango com milho']+' • Frango com milho e salada: '+totals['Frango com milho e salada']+' • Frango sem milho com salada: '+totals['Frango sem milho com salada']
+      : 'Nenhum pedido encontrado para os filtros selecionados.';
+  }
+
+  $('ordersAdmin').innerHTML=list.map(o=>'<div class="order-admin"><div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="primary admin-order-edit" data-id="'+o.id+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+o.id+'">🗑️ Excluir pedido</button></div></div>').join('')||'<div class="notice">Nenhum pedido encontrado.</div>';
+}
+function renderPedidoClientFilter(){
+  const sel=$('pedidoClienteFiltro');
+  if(!sel)return;
+  const atual=sel.value;
+  const nomes={};
+  clients.filter(c=>c.ativo!==false).forEach(c=>{
+    const nome=String(c.nome||'').trim();
+    if(nome)nomes[normalize(nome)]=nome;
+  });
+  orders.forEach(o=>{
+    const nome=String(o.cliente||'').trim();
+    if(nome)nomes[normalize(nome)]=nome;
+  });
+  const lista=Object.values(nomes).sort((a,b)=>a.localeCompare(b,'pt-BR'));
+  sel.innerHTML='<option value="">Todos os clientes</option>'+lista.map(nome=>'<option value="'+esc(nome)+'">'+esc(nome)+'</option>').join('');
+  if(atual&&lista.some(nome=>normalize(nome)===normalize(atual)))sel.value=atual;
 }
 async function adminEditOrder(id){
  const o=orders.find(x=>x.id===id); if(!o)return;
@@ -245,10 +300,22 @@ $('productionForm').onsubmit=async e=>{e.preventDefault();const itens=[['Frango'
 bindDatePicker('filtroDataVenda','filtroDataVendaPicker','filtroDataVendaBtn',render);
 bindDatePicker('cdata','cdataPicker','cdataBtn');
 bindDatePicker('pdata','pdataPicker','pdataBtn');
-bindDatePicker('pedidoData','pedidoDataPicker','pedidoDataBtn',renderOrdersAdmin);
+bindDatePicker('pedidoDataInicio','pedidoDataInicioPicker','pedidoDataInicioBtn',renderOrdersAdmin);
+bindDatePicker('pedidoDataFim','pedidoDataFimPicker','pedidoDataFimBtn',renderOrdersAdmin);
 $('filtroDataVenda').oninput=render;
 $('filtroDataVenda').onkeydown=e=>{if(e.key==='Enter')render()};
-$('pedidoData').oninput=renderOrdersAdmin;
+$('pedidoDataInicio').oninput=renderOrdersAdmin;
+$('pedidoDataFim').oninput=renderOrdersAdmin;
+$('pedidoClienteFiltro').onchange=renderOrdersAdmin;
+$('pedidoFiltrosLimpar').onclick=()=>{
+  $('pedidoDataInicio').value='';
+  $('pedidoDataFim').value='';
+  $('pedidoDataInicioPicker').value='';
+  $('pedidoDataFimPicker').value='';
+  $('pedidoClienteFiltro').value='';
+  renderOrdersAdmin();
+};
+renderPedidoClientFilter();
 $('newClient').onclick=async()=>{const nome=prompt('Nome do cliente:','');if(nome===null)return;const telefone=prompt('Telefone/WhatsApp:','');if(telefone===null)return;const email='';const senha=prompt('Senha inicial (mínimo 6 caracteres):','');if(senha===null)return;const vincularNome=prompt('Nome exato usado nos pedidos antigos para vincular (deixe vazio se não houver):',nome);if(vincularNome===null)return;const j=await api('admin_criar_cliente',{nome:nome.trim(),telefone:telefone.trim(),email:'',senha:senha,vincularNome:vincularNome.trim()});if(!j)return;alert('Login criado. Senha inicial: '+j.data.senhaInicial+'\nPedidos vinculados: '+j.data.vinculados+'\n\nO cliente deverá trocar a senha no primeiro acesso.');await loadClients()};
 $('refreshClients').onclick=loadClients;
 document.addEventListener('click',async e=>{
