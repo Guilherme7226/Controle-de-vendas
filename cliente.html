@@ -15,7 +15,7 @@
 </head>
 <body>
 <div class="wrap">
-<header><div class="top"><div><h1>🥖 Paozinhos</h1><small>Área do cliente • fazer pedido</small></div><div style="display:flex;gap:8px;align-items:center"><button id="backTop" class="theme-btn" type="button">← Voltar</button><button id="themeToggle" class="theme-btn" type="button">🌙 Modo escuro</button><button id="logout" class="secondary logout hidden">Sair</button></div></div></header>
+<header><div class="top"><div><h1>🥖 Paozinhos</h1><small>Área do cliente • fazer pedido</small></div><div style="display:flex;gap:8px;align-items:center"><button id="backTop" class="theme-btn" type="button">← Voltar</button><button id="themeToggle" class="theme-btn" type="button">🌙 Modo escuro</button><button id="clientSettings" class="theme-btn hidden" type="button">⚙️ Configurações</button><button id="logout" class="secondary logout hidden">Sair</button></div></div></header>
 <div id="msg"></div>
 
 <section id="auth">
@@ -31,6 +31,7 @@
 </div>
 </section>
 
+<section id="clientSettingsPanel" class="hidden"><div class="panel" style="max-width:560px;margin:14px auto"><div class="top"><div><h2 style="margin:0">⚙️ Configurações</h2><small>Altere sua senha de acesso.</small></div><button id="closeClientSettings" type="button" class="secondary">Fechar</button></div><div class="grid" style="margin-top:14px"><div class="field"><label>Nova senha</label><input id="settingsPassword" type="password" minlength="6" autocomplete="new-password"></div><div class="field"><label>Confirmar nova senha</label><input id="settingsPassword2" type="password" minlength="6" autocomplete="new-password"></div></div><div class="actions"><button id="saveSettingsPassword" class="primary">Salvar nova senha</button></div></div></section>
 <section id="changePassword" class="hidden"><div class="panel" style="max-width:560px;margin:30px auto"><h2>🔐 Crie sua nova senha</h2><p class="rank-note">Você está usando uma senha inicial. Por segurança, escolha agora sua senha definitiva para continuar.</p><div class="grid"><div class="field"><label>Nova senha</label><input id="newPassword" type="password" minlength="6" autocomplete="new-password"></div><div class="field"><label>Confirmar nova senha</label><input id="newPassword2" type="password" minlength="6" autocomplete="new-password"></div></div><div class="actions"><button id="changePasswordBtn" class="primary">Salvar nova senha</button><button id="changeLogout" type="button" class="secondary">Sair</button></div></div></section>
 <section id="app" class="hidden">
 <div class="panel">
@@ -61,8 +62,8 @@ async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',m
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
-function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome}
-function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
+function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome;$('clientSettingsPanel').classList.add('hidden')}
+function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let editingOrderId=null;
 async function loadClient(){
  const s=session();if(!s){showAuth();return}
@@ -153,6 +154,27 @@ $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('register
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
 $('loginBtn').onclick=async()=>{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');await loadClient()};
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
+$('clientSettings').onclick=()=>{
+  $('clientSettingsPanel').classList.remove('hidden');
+  $('settingsPassword').value='';
+  $('settingsPassword2').value='';
+  $('clientSettingsPanel').scrollIntoView({behavior:'smooth',block:'start'});
+};
+$('closeClientSettings').onclick=()=>{$('clientSettingsPanel').classList.add('hidden')};
+$('saveSettingsPassword').onclick=async()=>{
+  const s=session(),a=$('settingsPassword').value,b=$('settingsPassword2').value;
+  if(!s)return;
+  if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}
+  if(a!==b){showMsg('As senhas não conferem.','error');return}
+  const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});
+  if(!j)return;
+  saveSession(j.data);
+  $('clientSettingsPanel').classList.add('hidden');
+  $('settingsPassword').value='';
+  $('settingsPassword2').value='';
+  showMsg('Senha alterada com sucesso.','success');
+};
+
 $('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
 $('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
 $('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();
