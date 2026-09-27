@@ -562,15 +562,21 @@ $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{d
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
 document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();
-</script><script>(async()=>{try{
-  const api=typeof API_URL!=='undefined'?API_URL:'';
-  const r=await fetch(api,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_bootstrap',data:{token:ADMIN_TOKEN}})});
-  const j=await r.json();
-  if(!j.ok)throw new Error(j.error||'Sessão inválida');
-  const d=j.data||{};
-  sales=d.sales||[];costs=d.costs||[];summary=d.summary||{};clientSummary=d.clientSummary||[];
-  production=d.production||[];stock=d.stock||[];orders=d.orders||[];clients=d.clients||[];
-  clientsLoadedAt=Date.now();
-  render();renderRanking();renderStockAdmin();renderProduction();renderOrdersAdmin();renderClients();renderSaleClients();
-  document.getElementById('adminGate').remove();
-}catch(e){sessionStorage.removeItem('admin_token');location.replace('/')}})();</script></body></html>
+</script><script>(async()=>{
+  const gate=document.getElementById('adminGate');
+  const fail=(msg)=>{console.error('Falha ao abrir administração:',msg);if(gate){gate.innerHTML='<div style="max-width:520px;padding:24px;text-align:center"><strong>Não foi possível abrir a administração.</strong><div style="margin-top:10px;font-size:14px;line-height:1.5">'+esc(msg)+'</div><button style="margin-top:16px" onclick="location.href='/'">Voltar ao login</button></div>'}};
+  try{
+    if(!ADMIN_TOKEN) throw new Error('Sessão administrativa não encontrada.');
+    const j=await api('admin_bootstrap',{token:ADMIN_TOKEN});
+    if(!j) throw new Error(lastApiError||'O Apps Script não respondeu ao carregamento administrativo.');
+    const d=j.data||{};
+    sales=d.sales||[];costs=d.costs||[];summary=d.summary||{};clientSummary=d.clientSummary||[];
+    production=d.production||[];stock=d.stock||[];orders=d.orders||[];clients=d.clients||[];
+    clientsLoadedAt=Date.now();
+    render();renderRanking();renderStockAdmin();renderProduction();renderOrdersAdmin();renderClients();renderSaleClients();
+    gate.remove();
+  }catch(e){
+    sessionStorage.removeItem('admin_token');
+    fail(e&&e.message?e.message:'Erro desconhecido.');
+  }
+})();</script></body></html>
