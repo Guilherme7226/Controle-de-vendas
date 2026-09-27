@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-27-contabilidade-v7';
+const APP_VERSION = '2026-09-27-contabilidade-v8';
 const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','producao'];
 
 const VENDAS_HEADERS = [
@@ -55,7 +55,7 @@ function doPost(e) {
 
     switch (body.action) {
       case 'venda':
-        appendSale(ss, d);
+        registrarVendaDiretaProtegida(ss, d);
         break;
       case 'custo':
         appendCost(ss, d);
@@ -281,6 +281,32 @@ function limparTestes() {
  * Insere a venda ANTES da linha TOTAL GERAL.
  * Se não existir TOTAL GERAL, insere depois da última venda.
  */
+function registrarVendaDiretaProtegida(ss,d){
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try{
+    const itens=Array.isArray(d.itens)?d.itens.filter(x=>Number(x.quantidade)>0):[];
+    if(!itens.length) throw new Error('Informe os sabores da venda.');
+    const stock=readStock(ss);
+    const disponivel={};
+    stock.forEach(x=>disponivel[normalize(x.recheio)]=Math.max(0,Number(x.disponivel)||0));
+    const solicitado={};
+    itens.forEach(item=>{
+      const recheio=String(item.recheio||'').trim();
+      const qtd=Math.max(0,Math.floor(Number(item.quantidade)||0));
+      const canonical=RECHEIOS.find(r=>normalize(r)===normalize(recheio));
+      if(!canonical) throw new Error('Recheio inválido: '+recheio);
+      solicitado[normalize(canonical)]=(solicitado[normalize(canonical)]||0)+qtd;
+    });
+    for(const recheio of RECHEIOS){
+      const key=normalize(recheio);
+      const qtd=Number(solicitado[key]||0);
+      if(qtd>Number(disponivel[key]||0)) throw new Error('Estoque insuficiente de '+recheio+'. Disponível: '+(disponivel[key]||0)+'.');
+    }
+    return appendSale(ss,d);
+  } finally { lock.releaseLock(); }
+}
+
 function appendSale(ss, d) {
   const sh = ss.getSheetByName(SHEET_VENDAS);
   if (!sh) throw new Error('Aba Vendas não encontrada');
@@ -334,7 +360,6 @@ function appendSale(ss, d) {
     pedidoId=pedido.id;
   }
   if(pedidoId) sh.getRange(novaLinha,12).setValue(pedidoId);
-  SpreadsheetApp.flush();
   return {row:novaLinha,pedidoId:pedidoId};
 }
 
@@ -906,7 +931,9 @@ function loginClient(ss, d) {
     if (ativo && login.replace(/\D/g,'')===telefone && telefone && hashPassword(senha)===String(r[4]||'')) {
       const token=newToken();
       sh.getRange(i+2,6).setValue(token);
-      return {token:token,mustChangePassword:r[8] === true,cliente:{id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])}};
+      const cliente={id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])};
+      const dados=getClientDataForClient(ss,cliente);
+      return {token:token,mustChangePassword:r[8] === true,cliente:cliente,dados:dados};
     }
   }
   throw new Error('Login ou senha inválidos.');
@@ -965,19 +992,23 @@ function adminListClients(ss,ordersData,salesData) {
   });
 
   const historicos={};
+  const vendasPorPedido={};
   sales.forEach(v=>{
     const nome=String(v.cliente||'').trim();
     if(!nome)return;
     const key=normalize(nome);
+    const pedidoId=String(v.pedidoId||'').trim();
+    if(pedidoId && vendasPorPedido[pedidoId])return;
+    if(pedidoId)vendasPorPedido[pedidoId]=true;
     if(!historicos[key])historicos[key]={nome:nome,pedidos:0,paes:0};
     historicos[key].pedidos++;
     historicos[key].paes+=Number(v.quantidade)||0;
   });
-  // Para contabilidade, pães comprados vêm SOMENTE de Vendas.
-  // Pedidos pendentes são operacionais e não representam compra confirmada.
   orders.forEach(o=>{
     const nome=String(o.cliente||'').trim();
     if(!nome)return;
+    const id=String(o.id||'').trim();
+    if(id && vendasPorPedido[id])return;
     const key=normalize(nome);
     if(!historicos[key])historicos[key]={nome:nome,pedidos:0,paes:0};
     historicos[key].pedidos++;
@@ -1115,8 +1146,8 @@ function createClientOrder(ss,d) {
 
     // O pedido fica apenas como "Reservado" até o administrador confirmar.
     // A venda financeira será criada no momento da confirmação.
-    SpreadsheetApp.flush();
-    return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado',valorPago:0,dataPagamento:'',saldo:total,origem:'CLIENTE',referencia:id};
+    const stockAtualizado=stock.map(x=>{const add=Number(clean.find(i=>normalize(i.recheio)===normalize(x.recheio))?.quantidade||0);return {recheio:x.recheio,produzido:x.produzido,reservado:x.reservado+add,vendido:x.vendido,descartado:x.descartado,disponivel:Math.max(0,Number(x.disponivel||0)-add)}});
+    return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado',valorPago:0,dataPagamento:'',saldo:total,origem:'CLIENTE',referencia:id,stock:stockAtualizado};
   } finally {
     lock.releaseLock();
   }
@@ -1628,38 +1659,19 @@ function adminDeleteOrder(ss,d) {
     return {id:id};
   } finally { lock.releaseLock(); }
 }
-function getClientData(ss,d) {
-  const client=findClientByToken(ss,d.token);
-
-  const todasPedidos=readOrders(ss);
+function getClientDataForClient(ss,client){
+  const painel=readAll();
   const nomeCliente=normalize(client.nome);
-
-  // Todo lançamento possui um pedido correspondente. "Nova venda" cria
-  // um pedido já confirmado pelo ADM; pedidos do site começam pendentes.
-  const pedidos=todasPedidos.filter(x=>
-    String(x.clienteId||'')===client.id ||
-    normalize(x.cliente)===nomeCliente
-  );
-
-  // Vendas são a ÚNICA fonte financeira. Um pedido confirmado já possui
-  // uma venda vinculada por pedidoId, então nunca somamos os dois.
-  const todasVendas=readAll().sales||[];
-  const vendas=todasVendas.filter(x=>normalize(x.cliente)===nomeCliente);
-
+  const pedidos=(painel.orders||[]).filter(x=>String(x.clienteId||'')===client.id||normalize(x.cliente)===nomeCliente);
+  const vendas=(painel.sales||[]).filter(x=>normalize(x.cliente)===nomeCliente);
   const totalComprado=vendas.reduce((a,x)=>a+Number(x.total||0),0);
   const totalPago=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
   const totalAberto=vendas.reduce((a,x)=>a+Number(x.deve||0),0);
-
-  return {
-    cliente:{id:client.id,nome:client.nome,telefone:client.telefone,email:client.email},
-    pedidos:pedidos,
-    vendas:vendas,
-    totalComprado:totalComprado,
-    totalPago:totalPago,
-    totalAberto:totalAberto,
-    stock:readStock(ss),
-    mustChangePassword:!!client.mustChangePassword
-  };
+  return {cliente:client,pedidos:pedidos,vendas:vendas,totalComprado:totalComprado,totalPago:totalPago,totalAberto:totalAberto,stock:painel.stock||[],mustChangePassword:!!client.mustChangePassword};
+}
+function getClientData(ss,d){
+  const client=findClientByToken(ss,d.token);
+  return getClientDataForClient(ss,client);
 }
 
 function isPedidoAguardando(status){
