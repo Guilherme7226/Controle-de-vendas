@@ -78,10 +78,22 @@ function setDates(){
  if($('cdataPicker'))$('cdataPicker').value=isoDate(today());
  if($('pdata'))$('pdata').value=today();
  if($('pdataPicker'))$('pdataPicker').value=isoDate(today());
- if($('pedidoDataInicio'))$('pedidoDataInicio').value=today();
- if($('pedidoDataInicioPicker'))$('pedidoDataInicioPicker').value=isoDate(today());
- if($('pedidoDataFim'))$('pedidoDataFim').value=today();
- if($('pedidoDataFimPicker'))$('pedidoDataFimPicker').value=isoDate(today());
+
+ const agora=new Date();
+ const diaSemana=agora.getDay();
+ const deslocamentoSegunda=diaSemana===0?-6:1-diaSemana;
+ const inicioSemana=new Date(agora);
+ inicioSemana.setDate(agora.getDate()+deslocamentoSegunda);
+ const fimSemana=new Date(inicioSemana);
+ fimSemana.setDate(inicioSemana.getDate()+6);
+ const p=n=>String(n).padStart(2,'0');
+ const dataTexto=d=>p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear();
+ const dataIso=d=>d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate());
+
+ if($('pedidoDataInicio'))$('pedidoDataInicio').value=dataTexto(inicioSemana);
+ if($('pedidoDataInicioPicker'))$('pedidoDataInicioPicker').value=dataIso(inicioSemana);
+ if($('pedidoDataFim'))$('pedidoDataFim').value=dataTexto(fimSemana);
+ if($('pedidoDataFimPicker'))$('pedidoDataFimPicker').value=dataIso(fimSemana);
 }
 function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[1]+'-'+m[2]+'-'+m[3]:s.slice(0,10)}
 async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'cors',redirect:'follow',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);showMsg('Erro ao salvar: '+(e.message||'Erro desconhecido'),'error');return null}}
