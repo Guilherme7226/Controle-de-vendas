@@ -76,7 +76,7 @@ function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
 function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome;$('clientSettingsPanel').classList.add('hidden');setClientTab('atual')}
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
-let stock=[];let quantities={};let editingOrderId=null;
+let stock=[];let quantities={};let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(){
  const s=session();if(!s){showAuth();return}
  const j=await api('cliente_dados',{token:s.token});
@@ -86,8 +86,10 @@ async function loadClient(){
  saveSession(sess);
  showApp(sess);
  if(!mustChangePassword){
+   currentPedidos=j.data.pedidos||[];
+   currentVendas=j.data.vendas||[];
    renderStock(j.data.stock||[]);
-   renderOrders(j.data.pedidos||[],j.data.vendas||[]);
+   renderOrders(currentPedidos,currentVendas);
  }
 }
 async function refreshStock(){
@@ -167,7 +169,7 @@ function setClientTab(tab){
 
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
-$('loginBtn').onclick=async()=>{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');await loadClient()};
+$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');if(j.data.dados)await loadClient(j.data.dados);else await loadClient()}finally{btn.disabled=false;btn.textContent='Entrar'}};
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
 $('tabAtual').onclick=()=>setClientTab('atual');
 $('tabHistorico').onclick=()=>setClientTab('historico');
@@ -217,7 +219,14 @@ $('orderBtn').onclick=async()=>{
    if(!j)return;
    showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');
  }
- editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');await loadClient()
+ if(j.data&&j.data.id){
+   const novo=Object.assign({},j.data);
+   const idx=currentPedidos.findIndex(o=>String(o.id)===String(novo.id));
+   if(idx>=0)currentPedidos[idx]=novo;else currentPedidos.push(novo);
+ }
+ editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');
+ if(j.data&&j.data.stock)renderStock(j.data.stock);
+ renderOrders(currentPedidos,currentVendas)
 };
 $('cancelEdit').onclick=()=>{editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');renderStock(stock)};
 document.addEventListener('click',async e=>{
