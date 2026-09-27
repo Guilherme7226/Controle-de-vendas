@@ -80,6 +80,10 @@ function doPost(e) {
         return json({ok:true,data:editClientOrder(ss,d)});
       case 'cliente_excluir_pedido':
         return json({ok:true,data:deleteClientOrder(ss,d)});
+      case 'admin_editar_pedido':
+        return json({ok:true,data:adminEditOrder(ss,d)});
+      case 'admin_excluir_pedido':
+        return json({ok:true,data:adminDeleteOrder(ss,d)});
       case 'producao':
         addProduction(ss,d);
         break;
@@ -991,6 +995,44 @@ function deleteClientOrder(ss,d) {
   } finally { lock.releaseLock(); }
 }
 
+function adminEditOrder(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const id=String(d.id||'');
+    if(!id) throw new Error('Pedido não informado.');
+    const ordersSh=ss.getSheetByName(SHEET_PEDIDOS);
+    const rows=ordersSh.getLastRow()>1?ordersSh.getRange(2,1,ordersSh.getLastRow()-1,9).getValues():[];
+    let row=-1, old=null;
+    for(let i=0;i<rows.length;i++) if(String(rows[i][0])===id){row=i+2;old={id:String(rows[i][0]),clienteId:String(rows[i][1]),cliente:String(rows[i][2]),data:String(rows[i][3]),itens:JSON.parse(String(rows[i][4]||'[]')),status:String(rows[i][7]||'Reservado')};break}
+    if(row<0) throw new Error('Pedido não encontrado.');
+    if(!['Reservado','Confirmado'].includes(old.status)) throw new Error('Este pedido não pode ser editado.');
+    const itens=Array.isArray(d.itens)?d.itens:[];
+    if(!itens.length) throw new Error('Informe os itens do pedido.');
+    const stock=readStock(ss), available={};
+    stock.forEach(x=>available[normalize(x.recheio)]=Number(x.disponivel)||0);
+    const current={}; old.itens.forEach(x=>current[normalize(x.recheio)]=(current[normalize(x.recheio)]||0)+(Number(x.quantidade)||0);
+    const requested={};
+    itens.forEach(item=>{const r=String(item.recheio||'').trim(),q=Math.max(0,Math.floor(Number(item.quantidade)||0));if(!q)return;const k=normalize(r);if(!RECHEIOS.some(x=>normalize(x)===k))throw new Error('Recheio inválido: '+r);requested[k]=(requested[k]||0)+q});
+    const clean=[];let totalQtd=0,total=0;
+    RECHEIOS.forEach(r=>{const k=normalize(r),q=Number(requested[k]||0);if(!q)return;const disponivel=(available[k]||0)+(current[k]||0);if(q>disponivel)throw new Error('Estoque insuficiente de '+r+'. Disponível para edição: '+disponivel+'.');clean.push({recheio:r,quantidade:q,valorUnitario:PRECO_PAODEFINIDO});totalQtd+=q;total+=q*PRECO_PAODEFINIDO});
+    if(!clean.length)throw new Error('Informe quantidades válidas.');
+    ordersSh.getRange(row,5,1,3).setValues([[JSON.stringify(clean),totalQtd,total]]);
+    SpreadsheetApp.flush();
+    return {id:id,cliente:old.cliente,data:old.data,itens:clean,quantidadeTotal:totalQtd,total:total,status:old.status};
+  } finally { lock.releaseLock(); }
+}
+function adminDeleteOrder(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const id=String(d.id||''); if(!id)throw new Error('Pedido não informado.');
+    const sh=ss.getSheetByName(SHEET_PEDIDOS), rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
+    let row=-1; for(let i=0;i<rows.length;i++)if(String(rows[i][0])===id){row=i+2;break}
+    if(row<0)throw new Error('Pedido não encontrado.');
+    sh.deleteRow(row); SpreadsheetApp.flush(); return {id:id};
+  } finally { lock.releaseLock(); }
+}
 function getClientData(ss,d) {
   const client=findClientByToken(ss,d.token);
   const pedidos=readOrders(ss).filter(x=>x.clienteId===client.id);
