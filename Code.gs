@@ -88,6 +88,8 @@ function doPost(e) {
         return json({ok:true,data:adminCreateClient(ss,d)});
       case 'admin_editar_cliente':
         return json({ok:true,data:adminEditClient(ss,d)});
+      case 'admin_excluir_cliente':
+        return json({ok:true,data:adminDeleteClient(ss,d)});
       case 'admin_editar_pedido':
         return json({ok:true,data:adminEditOrder(ss,d)});
       case 'admin_excluir_pedido':
@@ -931,6 +933,35 @@ function adminEditClient(ss,d) {
   if(senha){sh.getRange(row,5).setValue(hashPassword(senha));sh.getRange(row,6).setValue('');sh.getRange(row,9).setValue(true)}
   SpreadsheetApp.flush();
   return {id:id,nome:nome,telefone:telefone,email:email,senhaRedefinida:!!senha,senhaInicial:senha||'',mustChangePassword:senha?true:old[8]===true};
+}
+
+function adminDeleteClient(ss,d) {
+  ensureClientSheets(ss);
+  const id=String(d.id||'').trim();
+  if(!id) throw new Error('Cliente não informado.');
+
+  const sh=ss.getSheetByName(SHEET_CLIENTES);
+  const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
+  let row=-1, nome='';
+
+  for(let i=0;i<rows.length;i++){
+    if(String(rows[i][0]||'')===id){
+      row=i+2;
+      nome=String(rows[i][1]||'').trim();
+      break;
+    }
+  }
+
+  if(row<0) throw new Error('Cliente não encontrado.');
+
+  // Remove o acesso ao sistema sem apagar o histórico financeiro.
+  sh.getRange(row,5).setValue('');
+  sh.getRange(row,6).setValue('');
+  sh.getRange(row,8).setValue(false);
+  sh.getRange(row,9).setValue(false);
+
+  SpreadsheetApp.flush();
+  return {id:id,nome:nome,excluido:true};
 }
 
 function findClientByToken(ss, token) {
