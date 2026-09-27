@@ -354,7 +354,8 @@ function renderReceber(){
  const filtro=String($('receberFiltro')?.value||'').trim().toLowerCase();
  const grupos={};
  sales.forEach(x=>{
-   const nome=String(x.cliente||'').trim()||'Sem nome';
+   const nome=String(x.cliente||'').trim();
+   if(!nome || normalize(nome)==='sem nome') return;
    const chave=nome.toLowerCase();
    if(!grupos[chave])grupos[chave]={cliente:nome,qtdVendas:0,total:0,pago:0,saldo:0};
    grupos[chave].qtdVendas++;
