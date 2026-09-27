@@ -515,19 +515,12 @@ function readAll() {
       const r = rows[i];
       const actualRow = i + 2;
 
-      // TOTAL GERAL marca o fim das vendas.
-      if (isTotalValues(r)) {
-        break;
-      }
-
-      // Ignora linhas completamente vazias.
-      if (!r[0] && !r[1] && !r[3] && !r[5]) {
-        continue;
-      }
+      if (isTotalValues(r)) break;
+      if (!r[0] && !r[1] && !r[3] && !r[5]) continue;
 
       const total = Number(r[5]) || 0;
       const pago = Number(r[9]) || 0;
-      const saldo = Number(r[10]) || Math.max(0, total - pago);
+      const saldo = Number(r[10]) || Math.max(0,total-pago);
 
       sales.push({
         row: actualRow,
@@ -566,13 +559,9 @@ function readAll() {
         a === 'TOTAL GERAL' ||
         b === 'TOTAL' ||
         b === 'TOTAL GERAL'
-      ) {
-        continue;
-      }
+      ) continue;
 
-      if (!r[0] && !r[1] && !r[2]) {
-        continue;
-      }
+      if (!r[0] && !r[1] && !r[2]) continue;
 
       costs.push({
         row: i + 1,
@@ -583,14 +572,17 @@ function readAll() {
     }
   }
 
+  const production = readProduction(ss);
+  const orders = readOrders(ss);
+
   return {
     sales: sales,
     costs: costs,
     summary: readSummary(ss),
     clientSummary: readClientSummary(ss),
-    production: readProduction(ss),
-    stock: readStock(ss),
-    orders: readOrders(ss)
+    production: production,
+    stock: calculateStock(production,orders),
+    orders: orders
   };
 }
 
@@ -792,10 +784,6 @@ function ensureClientSheets(ss) {
     sh.setFrozenRows(1);
   } else {
     if (sh.getLastColumn() < 9) sh.getRange(1,9).setValue('Senha Temporária');
-    if (sh.getLastRow() > 1) {
-      const flags = sh.getRange(2,9,sh.getLastRow()-1,1).getValues();
-      sh.getRange(2,9,flags.length,1).setValues(flags.map(r=>[r[0] === '' ? false : r[0]]));
-    }
   }
 
   let ph = ss.getSheetByName(SHEET_PEDIDOS);
@@ -1901,28 +1889,26 @@ function readProduction(ss) {
   return out;
 }
 
-function readStock(ss) {
-  const production=readProduction(ss);
-  const orders=readOrders(ss);
+function calculateStock(production,orders) {
   const prod={}; const reserved={}; const sold={};
   RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0;sold[r]=0});
 
-  production.forEach(x=>{
+  (production||[]).forEach(x=>{
     const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));
     if(k)prod[k]+=Number(x.quantidade)||0;
   });
 
-  orders.forEach(o=>{
-    const isPending=isPedidoAguardando(o.status);
-    const isSold=normalize(o.status)==='CONFIRMADO' || normalize(o.status)==='ENTREGUE';
-    // Apenas itens com recheio conhecido entram no estoque.
-    // Registros históricos antigos ("Venda histórica"/"Venda direta") não inventam sabor.
-    o.itens.forEach(x=>{
+  (orders||[]).forEach(o=>{
+    const status=normalize(o.status);
+    const isPending=status==='RESERVADO' || status==='AGUARDANDO' || status==='CONFIRMANDO';
+    const isSold=status==='CONFIRMADO' || status==='ENTREGUE';
+
+    (o.itens||[]).forEach(x=>{
       const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));
       if(!k)return;
-      const qtd=Number(x.quantidade)||0;
-      if(isPending) reserved[k]+=qtd;
-      else if(isSold) sold[k]+=qtd;
+      const qtd=Math.max(0,Number(x.quantidade)||0);
+      if(isPending)reserved[k]+=qtd;
+      else if(isSold)sold[k]+=qtd;
     });
   });
 
@@ -1933,4 +1919,8 @@ function readStock(ss) {
     vendido:sold[r],
     disponivel:Math.max(0,prod[r]-reserved[r]-sold[r])
   }));
+}
+
+function readStock(ss) {
+  return calculateStock(readProduction(ss),readOrders(ss));
 }
