@@ -56,9 +56,9 @@
 const API_KEY='';
 const ADMIN_TOKEN=sessionStorage.getItem('admin_token');
 if(!ADMIN_TOKEN){location.replace('/');} 
-const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbxfSvv3IiaRxKZIZpWhDd5ZgdIEP4NAyIfpDnWw-zpNjEQg25q2Rbn9NnXkHtEjJiWL/exec';
-const OLD_API_URL='https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec';
-let savedApiUrl=localStorage.getItem('vendas_api_url')||'';const LEGACY_API_URLS=[OLD_API_URL,'https://script.google.com/macros/s/AKfycbx5XRAfHo3_1wa80WFBpeA5b18l7p3LmDmILu-yV2gbS7tTkdtdb84QRNZDF6n7Sxbn/exec'];if(!savedApiUrl||LEGACY_API_URLS.includes(savedApiUrl)){savedApiUrl=DEFAULT_API_URL;localStorage.setItem('vendas_api_url',DEFAULT_API_URL)}const API_URL=savedApiUrl;
+const DEFAULT_API_URL='/api';
+const OLD_API_URL='';
+let savedApiUrl=localStorage.getItem('vendas_api_url')||'';const LEGACY_API_URLS=['https://script.google.com/macros/s/AKfycbx5XRAfHo3_1wa80WFBpeA5b18l7p3LmDmILu-yV2gbS7tTkdtdb84QRNZDF6n7Sxbn/exec','https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec'];if(!savedApiUrl || savedApiUrl.startsWith('https://script.google.com/macros/s/') || LEGACY_API_URLS.includes(savedApiUrl)){savedApiUrl=DEFAULT_API_URL;localStorage.setItem('vendas_api_url',DEFAULT_API_URL)}const API_URL=savedApiUrl;
 let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];let lastApiError='';
 let selectedOrderIds=new Set();
 const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;
@@ -97,7 +97,7 @@ function setDates(){
  if($('pedidoDataFimPicker'))$('pedidoDataFimPicker').value=dataIso(fimSemana);
 }
 function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[1]+'-'+m[2]+'-'+m[3]:s.slice(0,10)}
-async function api(action,data){try{lastApiError='';const r=await fetch(API_URL,{method:'POST',mode:'cors',redirect:'follow',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.message||'Erro desconhecido';showMsg('Erro ao salvar: '+lastApiError,'error');return null}}
+async function api(action,data){try{lastApiError='';const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.message||'Erro desconhecido';showMsg('Erro ao salvar: '+lastApiError,'error');return null}}
 async function loadClients(){
  const j=await api('admin_listar_clientes',{});
  if(!j)return;
@@ -206,7 +206,7 @@ function fillSaleFromOrder(){
 async function load(){
   let j;
   try{
-    const r=await fetch(API_URL,{cache:'no-store'});
+    const r=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'});
     if(!r.ok)throw Error('HTTP '+r.status);
     const text=await r.text();
     try{j=JSON.parse(text)}catch(_){throw Error('A API retornou uma resposta que não é JSON.')};
@@ -458,4 +458,4 @@ $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{d
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
 document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();load();loadClients();
-</script><script>(async()=>{try{const api=typeof API_URL!=='undefined'?API_URL:'';const r=await fetch(api,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_validar',data:{token:ADMIN_TOKEN}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'Sessão inválida');document.getElementById('adminGate').remove()}catch(e){sessionStorage.removeItem('admin_token');location.replace('/')}})();</script></body></html>
+</script><script>(async()=>{try{const api=typeof API_URL!=='undefined'?API_URL:'';const r=await fetch(api,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_validar',data:{token:ADMIN_TOKEN}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'Sessão inválida');document.getElementById('adminGate').remove()}catch(e){sessionStorage.removeItem('admin_token');location.replace('/')}})();</script></body></html>
