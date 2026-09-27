@@ -88,19 +88,65 @@ function renderStock(data){
 function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
 function renderOrders(list, vendas=[]){
  let total=0,paid=0;
- list.forEach(o=>{total+=Number(o.total)||0});
- vendas.forEach(v=>{total+=Number(v.total)||0;paid+=Number(v.valorPago)||0});
+ list.forEach(o=>{
+   total+=Number(o.total)||0;
+   paid+=Number(o.valorPago)||0;
+ });
+ vendas.forEach(v=>{
+   total+=Number(v.total)||0;
+   paid+=Number(v.valorPago)||0;
+ });
  $('accountOrders').textContent=list.length+vendas.length;
  $('accountTotal').textContent=brl(total);
  $('accountPaid').textContent=brl(paid);
  $('accountOpen').textContent=brl(Math.max(0,total-paid));
- const historico=[...list.map(o=>({type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens,quantidadeTotal:o.quantidadeTotal,total:o.total,status:o.status})),...vendas.map(v=>({type:'venda',data:v.data,id:'VENDA #'+v.row,cliente:v.cliente,itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],quantidadeTotal:v.quantidade,total:v.total,status:v.status}))];
- if(!historico.length){$('orders').innerHTML='<div class="notice">Você ainda não fez nenhum pedido.</div>';return}
+
+ const historico=[
+   ...list.map(o=>({
+     type:'pedido',
+     data:o.data,
+     id:o.id,
+     cliente:o.cliente,
+     itens:o.itens,
+     quantidadeTotal:o.quantidadeTotal,
+     total:o.total,
+     valorPago:Number(o.valorPago)||0,
+     saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,
+     dataPagamento:o.dataPagamento||'',
+     status:o.status,
+     origem:o.origem||''
+   })),
+   ...vendas.map(v=>({
+     type:'venda',
+     data:v.data,
+     id:'VENDA #'+v.row,
+     cliente:v.cliente,
+     itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],
+     quantidadeTotal:v.quantidade,
+     total:v.total,
+     valorPago:Number(v.valorPago)||0,
+     saldo:Number(v.deve)||0,
+     dataPagamento:v.dataPagamento||'',
+     status:v.status,
+     origem:'VENDA'
+   }))
+ ];
+
+ if(!historico.length){
+   $('orders').innerHTML='<div class="notice">Você ainda não fez nenhum pedido.</div>';
+   return;
+ }
+
  $('orders').innerHTML=historico.reverse().map(o=>{
-   const actions=o.status==='Reservado'||o.status==='Confirmado'
+   const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (o.status==='Reservado'||o.status==='Confirmado')
      ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
      : '';
-   return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="badge">'+o.status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div><div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>'+actions+'</div>'
+
+   const pagamento=o.valorPago>0
+     ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
+     : '';
+
+   return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="badge">'+o.status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div><div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>'+pagamento+actions+'</div>'
  }).join('')
 }
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
