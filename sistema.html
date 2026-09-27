@@ -56,7 +56,7 @@
 const API_KEY='';
 const ADMIN_TOKEN=sessionStorage.getItem('admin_token');
 if(!ADMIN_TOKEN){location.replace('/');} 
-const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbx5XRAfHo3_1wa80WFBpeA5b18l7p3LmDmILu-yV2gbS7tTkdtdb84QRNZDF6n7Sxbn/exec';
+const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbxfSvv3IiaRxKZIZpWhDd5ZgdIEP4NAyIfpDnWw-zpNjEQg25q2Rbn9NnXkHtEjJiWL/exec';
 const OLD_API_URL='https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec';
 let savedApiUrl=localStorage.getItem('vendas_api_url')||'';if(savedApiUrl===OLD_API_URL){localStorage.setItem('vendas_api_url',DEFAULT_API_URL);savedApiUrl=DEFAULT_API_URL}const API_URL=savedApiUrl||DEFAULT_API_URL;
 let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];let lastApiError='';
