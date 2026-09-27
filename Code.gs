@@ -1063,7 +1063,7 @@ function confirmClientOrder(ss,d) {
     const sh=ss.getSheetByName(SHEET_PEDIDOS);
     const row=readOrders(ss).findIndex(x=>x.id===found.pedido.id)+2;
     if(found.pedido.status==='Confirmado') return found.pedido;
-    if(found.pedido.status!=='Reservado') throw new Error('Este pedido não pode ser confirmado.');
+    if(!isPedidoAguardando(found.pedido.status)) throw new Error('Este pedido não pode ser confirmado.');
 
     sh.getRange(row,8).setValue('Confirmado');
     registrarVendaDoPedido(ss,found.pedido);
@@ -1192,7 +1192,7 @@ function editClientOrder(ss,d) {
   lock.waitLock(10000);
   try {
     const found=findClientOrder(ss,d.token,d.id);
-    if(!['Reservado','Confirmado'].includes(found.pedido.status)) throw new Error('Este pedido não pode ser editado.');
+    if(!(isPedidoAguardando(found.pedido.status) || found.pedido.status==='Confirmado')) throw new Error('Este pedido não pode ser editado.');
     const itens=Array.isArray(d.itens)?d.itens:[];
     if(!itens.length) throw new Error('Escolha pelo menos um recheio ou exclua o pedido.');
     const current={};
@@ -1244,7 +1244,7 @@ function deleteClientOrder(ss,d) {
   lock.waitLock(10000);
   try {
     const found=findClientOrder(ss,d.token,d.id);
-    if(!['Reservado','Confirmado'].includes(found.pedido.status)) throw new Error('Este pedido não pode ser excluído.');
+    if(!(isPedidoAguardando(found.pedido.status) || found.pedido.status==='Confirmado')) throw new Error('Este pedido não pode ser excluído.');
     const sh=ss.getSheetByName(SHEET_PEDIDOS);
     const rows=sh.getRange(2,1,sh.getLastRow()-1,9).getValues();
     let row=-1;
@@ -1293,7 +1293,7 @@ function adminConfirmOrder(ss,d) {
     }
     if(row<0) throw new Error('Pedido não encontrado.');
     if(old.status==='Confirmado') return old;
-    if(old.status!=='Reservado') throw new Error('Este pedido não está aguardando confirmação.');
+    if(!isPedidoAguardando(old.status)) throw new Error('Este pedido não está aguardando confirmação.');
 
     sh.getRange(row,8).setValue('Confirmado');
     old.status='Confirmado';
@@ -1324,7 +1324,7 @@ function adminConfirmOrdersBatch(ss,d) {
       if(!selected.has(id)) continue;
 
       const status=String(rows[i][7]||'Reservado').trim();
-      if(status==='Reservado'){
+      if(isPedidoAguardando(status)){
         const itens=(()=>{try{return JSON.parse(String(rows[i][4]||'[]'))}catch(_){return []}})();
         const pedido={
           id:id,
@@ -1455,6 +1455,11 @@ function getClientData(ss,d) {
     stock:readStock(ss),
     mustChangePassword:!!client.mustChangePassword
   };
+}
+
+function isPedidoAguardando(status){
+  const s=normalize(status);
+  return s==='RESERVADO' || s==='AGUARDANDO';
 }
 
 function readOrders(ss) {
@@ -1745,6 +1750,6 @@ function readStock(ss) {
   const prod={}; const reserved={};
   RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0});
   production.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k)prod[k]+=Number(x.quantidade)||0});
-  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k && ['Reservado','Confirmado','Entregue'].includes(o.status))reserved[k]+=Number(x.quantidade)||0}));
+  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k && (isPedidoAguardando(o.status) || ['Confirmado','Entregue'].includes(o.status)))reserved[k]+=Number(x.quantidade)||0}));
   return RECHEIOS.map(r=>({recheio:r,produzido:prod[r],reservado:reserved[r],disponivel:Math.max(0,prod[r]-reserved[r])}));
 }
