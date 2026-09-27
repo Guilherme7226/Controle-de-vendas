@@ -94,9 +94,9 @@ function doPost(e) {
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
       case 'admin_bootstrap': {
-        const painel=readAll();
-        painel.clients=adminListClients(ss,painel.orders,painel.sales);
-        return json({ok:true,data:painel});
+        // O painel principal não precisa bloquear a abertura da tela
+        // esperando a lista completa de clientes. Ela é carregada em seguida.
+        return json({ok:true,data:readAll()});
       }
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
@@ -934,8 +934,9 @@ function loginClient(ss, d) {
       const token=newToken();
       sh.getRange(i+2,6).setValue(token);
       const cliente={id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3]),mustChangePassword:r[8] === true};
-      const dados=getClientDataForClient(ss,cliente);
-      return {token:token,mustChangePassword:r[8] === true,cliente:cliente,dados:dados};
+      // Login retorna somente a sessão. Os dados do cliente são carregados em
+      // uma única chamada separada, evitando duas leituras completas seguidas.
+      return {token:token,mustChangePassword:r[8] === true,cliente:cliente};
     }
   }
   throw new Error('Login ou senha inválidos.');
@@ -1661,15 +1662,49 @@ function adminDeleteOrder(ss,d) {
     return {id:id};
   } finally { lock.releaseLock(); }
 }
+function readClientSales(ss,nomeCliente){
+  const sh=ss.getSheetByName(SHEET_VENDAS);
+  const out=[];
+  if(!sh||sh.getLastRow()<2)return out;
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,Math.min(12,sh.getMaxColumns())).getValues();
+  const alvo=normalize(nomeCliente);
+  const pedidosVistos={};
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i],actualRow=i+2;
+    if(isTotalValues(r))break;
+    if(!r[0]&&!r[1]&&!r[3]&&!r[5])continue;
+    if(normalize(r[1])!==alvo)continue;
+    const total=Number(r[5])||0;
+    const pago=parseMoney(r[9])||0;
+    const saldo=Number(r[10])||Math.max(0,total-pago);
+    const pedidoId=String(r[11]||'').trim();
+    if(pedidoId&&pedidosVistos[pedidoId])continue;
+    if(pedidoId)pedidosVistos[pedidoId]=true;
+    out.push({
+      row:actualRow,data:dateValue(r[0]),cliente:String(r[1]||''),
+      contatoEmpresa:String(r[2]||''),quantidade:Number(r[3])||0,
+      valorUnitario:Number(r[4])||0,total:total,dataPagamento:dateValue(r[6]),
+      pago:!!r[7],parcial:String(r[8]||'Não'),valorPago:pago,deve:saldo,
+      status:saldo<=0?'Pago':pago>0?'Parcial':'Pendente',pedidoId:pedidoId
+    });
+  }
+  return out;
+}
+
 function getClientDataForClient(ss,client){
-  const painel=readAll();
+  const pedidosTodos=readOrders(ss);
   const nomeCliente=normalize(client.nome);
-  const pedidos=(painel.orders||[]).filter(x=>String(x.clienteId||'')===client.id||normalize(x.cliente)===nomeCliente);
-  const vendas=(painel.sales||[]).filter(x=>normalize(x.cliente)===nomeCliente);
+  const pedidos=pedidosTodos.filter(x=>String(x.clienteId||'')===client.id||normalize(x.cliente)===nomeCliente);
+  const vendas=readClientSales(ss,client.nome);
+  // Não chama readAll(): login e atualização do cliente não precisam ler
+  // custos, resumos, ranking e demais dados administrativos.
+  const production=readProduction(ss);
+  const adjustments=readStockAdjustments(ss);
+  const stock=calculateStock(production,pedidosTodos,adjustments);
   const totalComprado=vendas.reduce((a,x)=>a+Number(x.total||0),0);
   const totalPago=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
   const totalAberto=vendas.reduce((a,x)=>a+Number(x.deve||0),0);
-  return {cliente:client,pedidos:pedidos,vendas:vendas,totalComprado:totalComprado,totalPago:totalPago,totalAberto:totalAberto,stock:painel.stock||[],mustChangePassword:!!client.mustChangePassword};
+  return {cliente:client,pedidos:pedidos,vendas:vendas,totalComprado:totalComprado,totalPago:totalPago,totalAberto:totalAberto,stock:stock,mustChangePassword:!!client.mustChangePassword};
 }
 function getClientData(ss,d){
   const client=findClientByToken(ss,d.token);
