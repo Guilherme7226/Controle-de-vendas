@@ -206,6 +206,7 @@ function renderSaleClients(){
    if(nome&&c.ativo!==false)nomes[nome.toLowerCase()]={id:c.id,nome:nome,telefone:c.telefone||'',email:c.email||''}
  });
  sales.forEach(x=>{const nome=String(x.cliente||'').trim();if(nome&&!nomes[nome.toLowerCase()]&&!nomesCadastrados[nome.toLowerCase()])nomes[nome.toLowerCase()]={id:'legacy:'+nome.toLowerCase(),nome:nome,telefone:'',email:'',legacy:true}});
+ orders.forEach(x=>{const nome=String(x.cliente||'').trim();if(nome&&!nomes[nome.toLowerCase()]&&!nomesCadastrados[nome.toLowerCase()])nomes[nome.toLowerCase()]={id:'legacy:'+nome.toLowerCase(),nome:nome,telefone:'',email:'',legacy:true}});
  const lista=Object.values(nomes).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
  sel.innerHTML='<option value="">Selecione o cliente</option>'+lista.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
  if(current && lista.some(c=>c.id===current))sel.value=current;
@@ -307,7 +308,7 @@ async function openWhatsApp(name,telefone){
 function renderReceber(){
  const filtro=String($('receberFiltro')?.value||'').trim().toLowerCase();
  const grupos={};
- sales.filter(x=>Number(x.deve)>0).forEach(x=>{
+ sales.forEach(x=>{
    const nome=String(x.cliente||'').trim()||'Sem nome';
    const chave=nome.toLowerCase();
    if(!grupos[chave])grupos[chave]={cliente:nome,qtdVendas:0,total:0,pago:0,saldo:0};
@@ -326,7 +327,7 @@ function renderReceber(){
    const whatsapp=telefone
      ? '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="'+esc(telefone)+'">📱 WhatsApp</button>'
      : '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="">📱 Cadastrar telefone</button>';
-   return '<tr><td><button class="client-link" data-client-history="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td>'+x.qtdVendas+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.saldo)+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">'+whatsapp+'<button class="pay-client" data-client="'+esc(x.cliente)+'">Registrar pagamento</button></div></td></tr>';
+   const pagamentoBtn=x.saldo>0?'<button class="pay-client" data-client="'+esc(x.cliente)+'">Registrar pagamento</button>':'<span class="badge paid">Quitado</span>'; return '<tr><td><button class="client-link" data-client-history="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td>'+x.qtdVendas+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.saldo)+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">'+whatsapp+pagamentoBtn+'</div></td></tr>';
  }).join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
 }
 function renderRanking(){if(!$('rankingTable'))return;const inicio=$('rankMesInicio')?.value||'',fim=$('rankMesFim')?.value||'';const filtradas=sales.filter(x=>{const d=dateOnly(x.data);return (!inicio||d>=inicio)&&(!fim||d<=fim)});const grupos={};filtradas.forEach(x=>{const nome=String(x.cliente||'').trim()||'Sem nome',chave=nome.toLowerCase();if(!grupos[chave])grupos[chave]={cliente:nome,qtd:0,vendas:0,total:0};grupos[chave].qtd+=Number(x.quantidade)||0;grupos[chave].vendas++;grupos[chave].total+=Number(x.total)||0});const ranking=Object.values(grupos).sort((a,b)=>b.qtd-a.qtd||b.total-a.total),max=ranking[0]?.qtd||0;const medalhas=['🥇','🥈','🥉'];$('rankingTable').innerHTML=ranking.map((x,i)=>{const pos=i<3?'<span class="medal">'+medalhas[i]+'</span>':'<span class="rank-number">'+(i+1)+'</span>';return '<tr class="'+(i<3?'rank-top':'')+'"><td>'+pos+'</td><td><button class="client-link" data-client-receber="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td><strong>'+x.qtd+'</strong><div class="rank-bar"><span style="width:'+((x.qtd/max)*100).toFixed(1)+'%"></span></div></td><td>'+x.vendas+'</td><td class="rank-total">'+brl(x.total)+'</td><td>'+brl(x.vendas?x.total/x.vendas:0)+'</td></tr>'}).join('')||'<tr><td colspan="6">Nenhuma venda encontrada no mês.</td></tr>'}
@@ -533,12 +534,12 @@ $('receberFiltrar').onclick=renderReceber;$('receberLimpar').onclick=()=>{$('rec
 $('clienteSelect').onchange=renderSaleOrders;
 ['qFrango','qFrangoMilho','qFrangoMilhoSalada','qFrangoSemMilhoSalada'].forEach(id=>{$(id).oninput=updateSaleTotal});
 $('saleForm').onreset=()=>{setTimeout(()=>{renderSaleOrders()},0)};
-$('saleForm').onsubmit=async e=>{e.preventDefault();const clientId=$('clienteSelect').value,c=clients.find(x=>String(x.id)===String(clientId));if(!c){alert('Selecione o cliente.');return}const q=updateSaleTotal();if(q<1){alert('Informe a quantidade de pelo menos um sabor.');return}const u=8,t=q*u,p=Math.min(Math.max(+$('pago').value||0,0),t),itens=[
+$('saleForm').onsubmit=async e=>{e.preventDefault();const submitBtn=e.submitter||e.target.querySelector('button.primary');if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='⏳ Registrando...'}try{const clientId=$('clienteSelect').value,c=clients.find(x=>String(x.id)===String(clientId));if(!c){alert('Selecione o cliente.');return}const q=updateSaleTotal();if(q<1){alert('Informe a quantidade de pelo menos um sabor.');return}const u=8,t=q*u,p=Math.min(Math.max(+$('pago').value||0,0),t),itens=[
   {recheio:'Frango',quantidade:Math.max(0,Math.floor(+$('qFrango').value||0)),valorUnitario:u},
   {recheio:'Frango com milho',quantidade:Math.max(0,Math.floor(+$('qFrangoMilho').value||0)),valorUnitario:u},
   {recheio:'Frango com milho e salada',quantidade:Math.max(0,Math.floor(+$('qFrangoMilhoSalada').value||0)),valorUnitario:u},
   {recheio:'Frango sem milho com salada',quantidade:Math.max(0,Math.floor(+$('qFrangoSemMilhoSalada').value||0)),valorUnitario:u}
-].filter(x=>x.quantidade>0),j=await api('venda',{data:today(),cliente:c.nome.trim(),contatoEmpresa:'',quantidade:q,valorUnitario:u,pago:p,dataPagamento:p?today():'',itens});if(!j){alert('Não foi possível salvar a venda.');return}e.target.reset();setDates();renderSaleClients();document.querySelector('[data-view="dashboard"]').click();alert('Venda registrada!');load()};
+].filter(x=>x.quantidade>0),j=await api('venda',{data:today(),cliente:c.nome.trim(),contatoEmpresa:'',quantidade:q,valorUnitario:u,pago:p,dataPagamento:p?today():'',itens});if(!j){alert('Não foi possível salvar a venda.');return}e.target.reset();setDates();renderSaleClients();document.querySelector('[data-view="dashboard"]').click();alert('Venda registrada!');await load()}finally{if(submitBtn){submitBtn.disabled=false;submitBtn.textContent='Registrar venda'}}};
 $('productionForm').onsubmit=async e=>{e.preventDefault();const itens=[['Frango','pfrango'],['Frango com milho','pfrangomilho'],['Frango com milho e salada','pfrangomilhosalada'],['Frango sem milho com salada','pfrangosemmilhosalada']].map(x=>({recheio:x[0],quantidade:+$(x[1]).value||0})).filter(x=>x.quantidade>0);if(!itens.length){alert('Informe pelo menos uma quantidade de produção.');return}const j=await api('producao',{data:isoDate($('pdata').value),itens});if(!j){alert('Não foi possível registrar a produção.');return}e.target.reset();$('pdata').value=today();await load();showMsg('Produção registrada com sucesso.','success')};
 bindDatePicker('filtroDataVenda','filtroDataVendaPicker','filtroDataVendaBtn',render);
 bindDatePicker('cdata','cdataPicker','cdataBtn');
