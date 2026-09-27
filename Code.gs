@@ -9,7 +9,7 @@ const SHEET_RESUMO_PESSOA = 'Resumo por pessoa';
 const SHEET_CLIENTES = 'Clientes';
 const SHEET_PEDIDOS = 'Pedidos';
 const SHEET_PRODUCAO = 'Produção';
-const RECHEIOS = ['Queijo','Frango','Carne','Calabresa'];
+const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
 
 const VENDAS_HEADERS = [
