@@ -41,7 +41,7 @@
 const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;const API_URL='https://script.google.com/macros/s/AKfycbzX2BVUH4Jba-F74MTwECZd3Mzv78UKEZBnRY5t_LOaNiZiE1_9wg1TzK72aHcI4DI/exec';
 const API_KEY='';
 const PRECO=8;
-const recheios=['Queijo','Frango','Carne','Calabresa'];
+const recheios=['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
@@ -65,7 +65,7 @@ async function refreshStock(){
 }
 function renderStock(data){
  stock=data;const map={};data.forEach(x=>map[x.recheio]=x);
- $('stockGrid').innerHTML=recheios.map(r=>{const x=map[r]||{disponivel:0};const q=Math.min(quantities[r]||0,Number(x.disponivel)||0);quantities[r]=q;return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+r+'</div><div class="available '+(x.disponivel?'':'soldout')+'">'+(x.disponivel?'Disponível: '+x.disponivel:'Esgotado')+'</div></div><div class="qty"><button type="button" class="secondary minus" data-r="'+r+'">−</button><input inputmode="numeric" min="0" max="'+(x.disponivel||0)+'" value="'+q+'" data-q="'+r+'"><button type="button" class="secondary plus" data-r="'+r+'">+</button></div></div>'}).join('');updateTotal()
+ $('stockGrid').innerHTML=recheios.map(r=>{const x=map[r]||{disponivel:0};const q=Math.min(quantities[r]||0,Number(x.disponivel)||0);quantities[r]=q;return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+r+'</div><div class="available '+(x.disponivel?'':'soldout')+'">'+(x.disponivel?'Estoque: '+x.disponivel:'Estoque: 0')+'</div></div><div class="qty"><button type="button" class="secondary minus" data-r="'+r+'">−</button><input inputmode="numeric" min="0" max="'+(x.disponivel||0)+'" value="'+q+'" data-q="'+r+'"><button type="button" class="secondary plus" data-r="'+r+'">+</button></div></div>'}).join('');updateTotal()
 }
 function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
 function renderOrders(list){if(!list.length){$('orders').innerHTML='<div class="notice">Você ainda não fez nenhum pedido.</div>';return}$('orders').innerHTML=[...list].reverse().map(o=>'<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="badge">'+o.status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div><div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div></div>').join('')}
