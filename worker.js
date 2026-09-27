@@ -9,7 +9,9 @@ async function proxyToAppsScript(request) {
     body = await request.arrayBuffer();
   }
 
-  for (let i = 0; i < 5; i++) {
+  const visited = new Set();
+
+  for (let i = 0; i < 10; i++) {
     const headers = new Headers();
     const contentType = request.headers.get("content-type");
     if (method !== "GET" && method !== "HEAD" && contentType) {
@@ -28,6 +30,10 @@ async function proxyToAppsScript(request) {
       if (!location) return response;
 
       target = new URL(location, target).toString();
+      if (visited.has(target)) {
+        return new Response(JSON.stringify({ok:false,error:"O Apps Script entrou em um redirecionamento circular."}), {status:502,headers:{"content-type":"application/json;charset=UTF-8"}});
+      }
+      visited.add(target);
 
       // Apps Script ContentService first executes doPost/doGet,
       // then redirects to a one-time googleusercontent.com URL
