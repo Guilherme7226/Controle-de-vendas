@@ -807,40 +807,46 @@ function findClientByToken(ss, token) {
 }
 
 function createClientOrder(ss,d) {
-  const client=findClientByToken(ss,d.token);
-  const itens=Array.isArray(d.itens)?d.itens:[];
-  if(!itens.length) throw new Error('Escolha pelo menos um recheio.');
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const client=findClientByToken(ss,d.token);
+    const itens=Array.isArray(d.itens)?d.itens:[];
+    if(!itens.length) throw new Error('Escolha pelo menos um recheio.');
 
-  const stock=readStock(ss);
-  const map={};
-  stock.forEach(x=>map[normalize(x.recheio)]=x.disponivel);
+    const stock=readStock(ss);
+    const map={};
+    stock.forEach(x=>map[normalize(x.recheio)]=x.disponivel);
 
-  const clean=[];
-  let totalQtd=0;
-  let total=0;
+    const clean=[];
+    let totalQtd=0;
+    let total=0;
 
-  itens.forEach(item=>{
-    const recheio=String(item.recheio||'').trim();
-    const qtd=Math.max(0,Math.floor(Number(item.quantidade)||0));
-    if(!recheio || !qtd) return;
-    const key=normalize(recheio);
-    if(!RECHEIOS.some(r=>normalize(r)===key)) throw new Error('Recheio inválido: '+recheio);
-    const disponivel=Number(map[key]||0);
-    if(qtd>disponivel) throw new Error('Não há estoque suficiente de '+recheio+'. Disponível: '+disponivel+'.');
-    clean.push({recheio:RECHEIOS.find(r=>normalize(r)===key),quantidade:qtd,valorUnitario:PRECO_PAODEFINIDO});
-    totalQtd+=qtd;
-    total+=qtd*PRECO_PAODEFINIDO;
-    map[key]=disponivel-qtd;
-  });
+    itens.forEach(item=>{
+      const recheio=String(item.recheio||'').trim();
+      const qtd=Math.max(0,Math.floor(Number(item.quantidade)||0));
+      if(!recheio || !qtd) return;
+      const key=normalize(recheio);
+      if(!RECHEIOS.some(r=>normalize(r)===key)) throw new Error('Recheio inválido: '+recheio);
+      const disponivel=Number(map[key]||0);
+      if(qtd>disponivel) throw new Error('Não há estoque suficiente de '+recheio+'. Disponível: '+disponivel+'.');
+      clean.push({recheio:RECHEIOS.find(r=>normalize(r)===key),quantidade:qtd,valorUnitario:PRECO_PAODEFINIDO});
+      totalQtd+=qtd;
+      total+=qtd*PRECO_PAODEFINIDO;
+      map[key]=disponivel-qtd;
+    });
 
-  if(!clean.length) throw new Error('Informe quantidades válidas.');
-  const ph=ss.getSheetByName(SHEET_PEDIDOS);
-  const id=newId('PED');
-  const data=String(d.data||formatToday()).slice(0,10);
-  ph.appendRow([id,client.id,client.nome,data,JSON.stringify(clean),totalQtd,total,'Reservado',new Date()]);
-  return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado'};
+    if(!clean.length) throw new Error('Informe quantidades válidas.');
+    const ph=ss.getSheetByName(SHEET_PEDIDOS);
+    const id=newId('PED');
+    const data=String(d.data||formatToday()).slice(0,10);
+    ph.appendRow([id,client.id,client.nome,data,JSON.stringify(clean),totalQtd,total,'Reservado',new Date()]);
+    SpreadsheetApp.flush();
+    return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado'};
+  } finally {
+    lock.releaseLock();
+  }
 }
-
 function getClientData(ss,d) {
   const client=findClientByToken(ss,d.token);
   const pedidos=readOrders(ss).filter(x=>x.clienteId===client.id);
