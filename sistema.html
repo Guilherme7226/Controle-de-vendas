@@ -220,7 +220,8 @@ function renderClients(){
    const editar=c.ativo===false
      ? '<button class="primary client-edit-admin" data-id="'+esc(c.id)+'">🔄 Reativar / editar</button>'
      : '<button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button>';
-   return '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+acesso+'</td><td><button class="secondary whatsapp-client" data-client="'+esc(c.nome)+'" data-phone="'+esc(c.telefone||'')+'">📱 WhatsApp</button> '+editar+' <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
+   const whatsappLogin='<button class="secondary whatsapp-login-client" data-id="'+esc(c.id)+'">📱 Enviar login</button>';
+   return '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+acesso+'</td><td>'+whatsappLogin+' '+editar+' <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
  }).join('')||'<tr><td colspan="7">Nenhum cliente encontrado.</td></tr>';
 }
 function renderSaleClients(){
@@ -675,6 +676,18 @@ $('pedidoFiltrosLimpar').onclick=()=>{
   renderOrdersAdmin();
 };
 renderPedidoClientFilter();\n$('pedidosTabConfirmar').onclick=()=>setPedidosAba('confirmar');\n$('pedidosTabHistorico').onclick=()=>setPedidosAba('historico');
+async function enviarLoginWhatsAppCliente(id){
+  const c=clients.find(x=>String(x.id)===String(id));
+  if(!c)return;
+  if(!String(c.telefone||'').trim()){showMsg('Este cliente não possui telefone cadastrado.','error');return}
+  const senha=prompt('Defina a senha primária que será enviada ao cliente:','');
+  if(senha===null)return;
+  if(String(senha).length<6){showMsg('A senha deve ter no mínimo 6 caracteres.','error');return}
+  const j=await api('admin_editar_cliente',{id:c.id,nome:c.nome,telefone:c.telefone,email:c.email||'',senha:senha});
+  if(!j)return;
+  openLoginWhatsApp(c.nome,c.telefone,j.data.senhaInicial);
+  await loadClients(true);
+}
 function openLoginWhatsApp(nome,telefone,senha){
   const phone=whatsappPhone(telefone);
   if(!phone){showMsg('Cliente criado, mas não possui telefone/WhatsApp cadastrado.','error');return}
@@ -695,6 +708,10 @@ $('newClient').onclick=async()=>{
  await loadClients(true);
 }
 $('refreshClients').onclick=()=>loadClients(true);
+document.addEventListener('click',async e=>{
+ if(!e.target.matches('.whatsapp-login-client'))return;
+ await enviarLoginWhatsAppCliente(e.target.dataset.id);
+});
 document.addEventListener('click',async e=>{
  if(e.target.matches('.client-create-legacy')){
    const nome=e.target.dataset.name||'';
