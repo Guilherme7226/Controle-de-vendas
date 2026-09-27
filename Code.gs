@@ -1904,9 +1904,33 @@ function readProduction(ss) {
 function readStock(ss) {
   const production=readProduction(ss);
   const orders=readOrders(ss);
-  const prod={}; const reserved={};
-  RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0});
-  production.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k)prod[k]+=Number(x.quantidade)||0});
-  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k && (isPedidoAguardando(o.status) || ['Confirmado','Entregue'].includes(o.status)))reserved[k]+=Number(x.quantidade)||0}));
-  return RECHEIOS.map(r=>({recheio:r,produzido:prod[r],reservado:reserved[r],disponivel:Math.max(0,prod[r]-reserved[r])}));
+  const prod={}; const reserved={}; const sold={};
+  RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0;sold[r]=0});
+
+  production.forEach(x=>{
+    const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));
+    if(k)prod[k]+=Number(x.quantidade)||0;
+  });
+
+  orders.forEach(o=>{
+    const isPending=isPedidoAguardando(o.status);
+    const isSold=['Confirmado','Entregue'].includes(normalize(o.status).charAt(0).toUpperCase()+normalize(o.status).slice(1).toLowerCase());
+    // Apenas itens com recheio conhecido entram no estoque.
+    // Registros históricos antigos ("Venda histórica"/"Venda direta") não inventam sabor.
+    o.itens.forEach(x=>{
+      const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));
+      if(!k)return;
+      const qtd=Number(x.quantidade)||0;
+      if(isPending) reserved[k]+=qtd;
+      else if(isSold) sold[k]+=qtd;
+    });
+  });
+
+  return RECHEIOS.map(r=>({
+    recheio:r,
+    produzido:prod[r],
+    reservado:reserved[r],
+    vendido:sold[r],
+    disponivel:Math.max(0,prod[r]-reserved[r]-sold[r])
+  }));
 }
