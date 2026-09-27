@@ -674,20 +674,25 @@ document.addEventListener('click',e=>{
  const cli=clients.find(x=>String(x.id)===String(btn.dataset.id));
  if(!cli)return;
  let senha=senhasTemporarias[String(cli.id)]||'';
- let janela=window.open('about:blank','_blank','noopener');
  if(!senha){
    senha=prompt('Informe a senha provisória de '+cli.nome+':','');
-   if(senha===null){if(janela)janela.close();return}
+   if(senha===null)return;
    senha=String(senha).trim();
-   if(!senha){if(janela)janela.close();showMsg('Informe a senha provisória para enviar o acesso.','error');return}
+   if(!senha){showMsg('Informe a senha provisória para enviar o acesso.','error');return}
  }
  const url=clienteAcessoWhatsAppUrl(cli.nome,cli.telefone,senha);
  if(!url){
-   if(janela)janela.close();
    showMsg('O cliente não possui telefone/WhatsApp cadastrado.','error');
    return;
  }
- if(janela)janela.location.href=url;else window.open(url,'_blank','noopener');
+ const a=document.createElement('a');
+ a.href=url;
+ a.target='_blank';
+ a.rel='noopener noreferrer';
+ a.style.display='none';
+ document.body.appendChild(a);
+ a.click();
+ a.remove();
 });
 document.addEventListener('click',async e=>{
  if(e.target.matches('.client-create-legacy')){
