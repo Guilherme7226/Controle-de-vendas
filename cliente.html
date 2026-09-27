@@ -231,7 +231,12 @@ document.addEventListener('click',async e=>{
  }
 });
 loadClient();
-setInterval(()=>{if(session())loadClient()},15000);
+let clientRefreshBusy=false;
+setInterval(()=>{
+  if(document.hidden || clientRefreshBusy || !session())return;
+  clientRefreshBusy=true;
+  loadClient().finally(()=>{clientRefreshBusy=false});
+},60000);
 </script>
 </body>
 </html>
