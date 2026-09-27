@@ -379,8 +379,24 @@ async function undoPayment(row){
  await load();
  showMsg('Pagamento desfeito. A venda de '+x.cliente+' voltou para Pendente.','success');
 }
-async function payClient(name){const itens=sales.filter(x=>String(x.cliente).trim().toLowerCase()===String(name).trim().toLowerCase()&&Number(x.deve)>0).sort((a,b)=>Number(a.row)-Number(b.row));if(!itens.length){alert('Este cliente não possui saldo pendente.');return}const saldo=itens.reduce((a,x)=>a+Number(x.deve||0),0),v=prompt('Saldo de '+name+': '+brl(saldo)+'\n\nInforme quanto o cliente pagou agora:',saldo.toFixed(2));if(v===null)return;let valor=Math.max(0,Number(v)||0);if(!valor){alert('Informe um valor de pagamento maior que zero.');return}if(valor>saldo)valor=saldo;for(const x of itens){if(valor<=0)break;const atualPago=Number(x.valorPago)||0,pagarAgora=Math.min(valor,Number(x.deve)||0),j=await api('pagamento',{row:x.row,pago:atualPago+pagarAgora,dataPagamento:isoDate(today())});if(!j){alert('O pagamento foi interrompido porque uma das vendas não pôde ser atualizada.');await load();return}valor-=pagarAgora}await load();showMsg('Pagamento de '+brl(Number(v)||0)+' registrado para '+name+'.','success')}
-async function editSale(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const cliente=prompt('Cliente:',x.cliente);if(cliente===null)return;const contato=prompt('Contato/Empresa:',x.contatoEmpresa||'');if(contato===null)return;const data=prompt('Data (DD-MM-AAAA):',formatDate(x.data));if(data===null)return;const quantidade=prompt('Quantidade:',x.quantidade);if(quantidade===null)return;const valor=prompt('Valor unitário:',Number(x.valorUnitario||0).toFixed(2));if(valor===null)return;const pago=prompt('Valor pago:',Number(x.valorPago||0).toFixed(2));if(pago===null)return;const q=Number(quantidade)||0,u=Number(valor)||0,total=q*u,p=Math.min(Math.max(Number(pago)||0,0),total),j=await api('editar_venda',{row:x.row,data:isoDate(data),cliente:cliente.trim(),contatoEmpresa:contato.trim(),quantidade:q,valorUnitario:u,pago:p,dataPagamento:p?(x.dataPagamento||isoDate(data)):''});if(!j){alert('Não foi possível editar a venda.');return}await load();showMsg('Venda editada com sucesso.','success')}
+async function payClient(name){
+ const itens=sales.filter(x=>String(x.cliente).trim().toLowerCase()===String(name).trim().toLowerCase()&&Number(x.deve)>0).sort((a,b)=>Number(a.row)-Number(b.row));
+ if(!itens.length){alert('Este cliente não possui saldo pendente.');return}
+ const saldo=itens.reduce((a,x)=>a+Number(x.deve||0),0);
+ const v=prompt('Saldo de '+name+': '+brl(saldo)+'\\n\\nInforme quanto o cliente pagou agora:',saldo.toFixed(2));
+ if(v===null)return;
+ let valor=Math.max(0,Number(v)||0);
+ if(!valor){alert('Informe um valor de pagamento maior que zero.');return}
+ if(valor>saldo)valor=saldo;
+
+ const j=await api('admin_pagar_cliente',{cliente:name,valor:valor});
+ if(!j){
+   alert('Não foi possível registrar o pagamento.\n\n'+(lastApiError||'Erro desconhecido.'));
+   return;
+ }
+ await load();
+ showMsg('Pagamento de '+brl(valor)+' registrado para '+name+'.','success');
+}async function editSale(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const cliente=prompt('Cliente:',x.cliente);if(cliente===null)return;const contato=prompt('Contato/Empresa:',x.contatoEmpresa||'');if(contato===null)return;const data=prompt('Data (DD-MM-AAAA):',formatDate(x.data));if(data===null)return;const quantidade=prompt('Quantidade:',x.quantidade);if(quantidade===null)return;const valor=prompt('Valor unitário:',Number(x.valorUnitario||0).toFixed(2));if(valor===null)return;const pago=prompt('Valor pago:',Number(x.valorPago||0).toFixed(2));if(pago===null)return;const q=Number(quantidade)||0,u=Number(valor)||0,total=q*u,p=Math.min(Math.max(Number(pago)||0,0),total),j=await api('editar_venda',{row:x.row,data:isoDate(data),cliente:cliente.trim(),contatoEmpresa:contato.trim(),quantidade:q,valorUnitario:u,pago:p,dataPagamento:p?(x.dataPagamento||isoDate(data)):''});if(!j){alert('Não foi possível editar a venda.');return}await load();showMsg('Venda editada com sucesso.','success')}
 async function deleteSale(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;if(!confirm('Excluir esta venda?\n\nCliente: '+x.cliente+'\nData: '+x.data+'\nTotal: '+brl(x.total)+'\n\nEssa ação não pode ser desfeita.'))return;const j=await api('excluir_venda',{row:x.row});if(!j){alert('Não foi possível excluir a venda.');return}await load();showMsg('Venda excluída com sucesso.','success')}
 document.addEventListener('click',e=>{const id=e.target.dataset.id;if(!id)return;if(e.target.classList.contains('admin-order-edit'))adminEditOrder(id);if(e.target.classList.contains('admin-order-delete'))adminDeleteOrder(id)});
 document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===b.dataset.view));document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));render();if(b.dataset.view==='receber')renderReceber();if(b.dataset.view==='ranking')renderRanking();if(b.dataset.view==='clientes')loadClients()});
