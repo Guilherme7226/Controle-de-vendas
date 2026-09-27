@@ -931,7 +931,7 @@ function loginClient(ss, d) {
     if (ativo && login.replace(/\D/g,'')===telefone && telefone && hashPassword(senha)===String(r[4]||'')) {
       const token=newToken();
       sh.getRange(i+2,6).setValue(token);
-      const cliente={id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])};
+      const cliente={id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3]),mustChangePassword:r[8] === true};
       const dados=getClientDataForClient(ss,cliente);
       return {token:token,mustChangePassword:r[8] === true,cliente:cliente,dados:dados};
     }
