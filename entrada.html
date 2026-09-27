@@ -22,12 +22,12 @@ button:hover{filter:brightness(.95)}button:active{transform:scale(.99)}small{dis
 <main class="card">
 <div class="logo">🥖</div>
 <h1>Paozinhos</h1>
-<p>Escolha como deseja acessar o sistema.</p>
+<p>Escolha uma área para continuar.</p>
 <div class="actions">
-<button type="button" class="client" onclick="location.href='/cliente.html'">🛒 Fazer pedido</button>
+<button type="button" class="client" onclick="location.href='/cliente.html'">👤 Área do cliente</button>
 <button type="button" class="admin" onclick="openAdminLogin()">🔐 Administração</button>
 </div>
-<small>Área do cliente • Área administrativa</small>
+<small>👤 Área do cliente • 🔐 Administração</small>
 <div id="adminModal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.58);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px"><div class="card" style="max-width:390px;text-align:left"><h2 style="margin:0 0 8px">🔐 Administração</h2><p style="margin:0 0 16px">Digite sua senha para continuar.</p><input id="adminPassword" type="password" inputmode="numeric" autocomplete="off" placeholder="Senha" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d6d3d1;border-radius:10px;font-size:16px"><div id="adminError" style="min-height:20px;color:#dc2626;font-size:13px;margin-top:8px"></div><div style="display:flex;gap:8px;margin-top:14px"><button type="button" onclick="closeAdminLogin()" style="background:#f5f5f4;color:#292524">Cancelar</button><button type="button" onclick="checkAdminPassword()" style="background:#292524;color:#fff">Entrar</button></div></div></div></main>
 <script>const theme=localStorage.getItem('vendas_theme')||'light';document.documentElement.classList.toggle('dark',theme==='dark');const b=document.getElementById('themeToggle');function updateTheme(){const d=document.documentElement.classList.contains('dark');b.textContent=d?'☀️ Modo claro':'🌙 Modo escuro'}b.onclick=()=>{const d=!document.documentElement.classList.contains('dark');document.documentElement.classList.toggle('dark',d);localStorage.setItem('vendas_theme',d?'dark':'light');updateTheme()};updateTheme();</script><script>
 const ADMIN_API_URL='https://script.google.com/macros/s/AKfycbzX2BVUH4Jba-F74MTwECZd3Mzv78UKEZBnRY5t_LOaNiZiE1_9wg1TzK72aHcI4DI/exec';
