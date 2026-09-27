@@ -80,7 +80,11 @@ let stock=[];let quantities={};let editingOrderId=null;let currentPedidos=[];let
 async function loadClient(prefetched=null){
  const s=session();if(!s){showAuth();return}
  const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:s.token});
- if(!j)return;
+ if(!j){
+   const atual=session();
+   if(atual)showApp(atual);
+   return;
+ }
  const mustChangePassword=!!j.data.mustChangePassword;
  const sess={token:s.token,mustChangePassword,cliente:j.data.cliente};
  saveSession(sess);
