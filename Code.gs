@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-27-contabilidade-v5';
+const APP_VERSION = '2026-09-27-contabilidade-v6';
 const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','producao'];
 
 const VENDAS_HEADERS = [
@@ -938,7 +938,7 @@ function adminListClients(ss,ordersData,salesData) {
 
   // VENDA_DIRETA é apenas o registro operacional usado para manter os sabores
   // do estoque. Ela já possui uma venda correspondente e NÃO é um pedido do cliente.
-  orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
+  orders.forEach(o=>{
     const id=String(o.clienteId||'');
     const key=normalize(o.cliente);
     if(id) pedidoCountByClient[id]=(pedidoCountByClient[id]||0)+1;
@@ -969,7 +969,7 @@ function adminListClients(ss,ordersData,salesData) {
   });
   // Para contabilidade, pães comprados vêm SOMENTE de Vendas.
   // Pedidos pendentes são operacionais e não representam compra confirmada.
-  orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
+  orders.forEach(o=>{
     const nome=String(o.cliente||'').trim();
     if(!nome)return;
     const key=normalize(nome);
@@ -1200,7 +1200,7 @@ function criarPedidoDaVendaDireta(ss,venda){
     Math.min(Math.max(Number(venda.valorPago)||0,0),total),
     Number(venda.valorPago)>0?(venda.dataPagamento||venda.data||''):'',
     Math.max(0,total-Math.min(Math.max(Number(venda.valorPago)||0,0),total)),
-    'VENDA_DIRETA',
+    'ADM',
     String(venda.row||'')
   ]);
   const row=ph.getLastRow();
@@ -1628,14 +1628,11 @@ function getClientData(ss,d) {
   const todasPedidos=readOrders(ss);
   const nomeCliente=normalize(client.nome);
 
-  // Pedidos servem para acompanhar o fluxo do cliente. Registros internos
-  // criados por "Nova venda" não aparecem como pedidos do cliente.
+  // Todo lançamento possui um pedido correspondente. "Nova venda" cria
+  // um pedido já confirmado pelo ADM; pedidos do site começam pendentes.
   const pedidos=todasPedidos.filter(x=>
-    normalize(x.origem)!=='VENDA_DIRETA' &&
-    (
-      String(x.clienteId||'')===client.id ||
-      normalize(x.cliente)===nomeCliente
-    )
+    String(x.clienteId||'')===client.id ||
+    normalize(x.cliente)===nomeCliente
   );
 
   // Vendas são a ÚNICA fonte financeira. Um pedido confirmado já possui
