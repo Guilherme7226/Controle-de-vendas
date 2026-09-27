@@ -1,19 +1,21 @@
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycbxfSvv3IiaRxKZIZpWhDd5ZgdIEP4NAyIfpDnWw-zpNjEQg25q2Rbn9NnXkHtEjJiWL/exec";
 
 async function proxyToAppsScript(request) {
-  const method = request.method;
-  const headers = new Headers();
-  const contentType = request.headers.get("content-type");
-  if (contentType) headers.set("content-type", contentType);
-
+  let target = APPS_SCRIPT_URL;
+  let method = request.method;
   let body;
+
   if (method !== "GET" && method !== "HEAD") {
     body = await request.arrayBuffer();
   }
 
-  let target = APPS_SCRIPT_URL;
-
   for (let i = 0; i < 5; i++) {
+    const headers = new Headers();
+    const contentType = request.headers.get("content-type");
+    if (method !== "GET" && method !== "HEAD" && contentType) {
+      headers.set("content-type", contentType);
+    }
+
     const response = await fetch(target, {
       method,
       headers,
@@ -24,7 +26,14 @@ async function proxyToAppsScript(request) {
     if (response.status >= 300 && response.status < 400) {
       const location = response.headers.get("location");
       if (!location) return response;
+
       target = new URL(location, target).toString();
+
+      // Apps Script ContentService first executes doPost/doGet,
+      // then redirects to a one-time googleusercontent.com URL
+      // containing the generated response. Retrieve that response with GET.
+      method = "GET";
+      body = undefined;
       continue;
     }
 
@@ -33,7 +42,10 @@ async function proxyToAppsScript(request) {
 
   return new Response(
     JSON.stringify({ok:false,error:"Redirecionamento excessivo no Apps Script."}),
-    {status:502,headers:{"content-type":"application/json;charset=UTF-8"}}
+    {
+      status: 502,
+      headers: {"content-type":"application/json;charset=UTF-8"}
+    }
   );
 }
 
@@ -46,6 +58,7 @@ export default {
       const responseHeaders = new Headers(response.headers);
       responseHeaders.delete("set-cookie");
       responseHeaders.delete("location");
+
       return new Response(response.body, {
         status: response.status,
         statusText: response.statusText,
