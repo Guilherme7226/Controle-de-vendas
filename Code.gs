@@ -12,8 +12,8 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-27-admin-fix-v3';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','producao'];
+const APP_VERSION = '2026-09-27-admin-fix-v4';
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','producao'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -149,32 +149,49 @@ function getAdminSessions() {
 }
 
 function saveAdminSessions(sessions) {
-  PropertiesService.getScriptProperties().setProperty(ADMIN_SESSION_PROPERTY, JSON.stringify(sessions));
+  const now=Date.now();
+  const clean={};
+  Object.keys(sessions||{}).forEach(token=>{
+    const expires=Number(sessions[token]||0);
+    if(expires>now)clean[token]=expires;
+  });
+  // Evita crescimento indefinido da propriedade de sessões.
+  const tokens=Object.keys(clean);
+  if(tokens.length>20){
+    tokens.sort((a,b)=>clean[b]-clean[a]);
+    tokens.slice(20).forEach(token=>delete clean[token]);
+  }
+  PropertiesService.getScriptProperties().setProperty(ADMIN_SESSION_PROPERTY, JSON.stringify(clean));
 }
 
 function adminLogin(d) {
-  const senha = String(d.senha || '');
-  if (!senha || senha !== getAdminPassword()) throw new Error('Senha incorreta.');
+  const senha=String(d.senha||'');
+  if(!senha || senha!==getAdminPassword())throw new Error('Senha incorreta.');
 
-  const token = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
-  const sessions = getAdminSessions();
-  sessions[token] = Date.now() + 8 * 60 * 60 * 1000;
-  saveAdminSessions(sessions);
-
-  return {token:token};
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try{
+    const token=Utilities.getUuid().replace(/-/g,'')+Utilities.getUuid().replace(/-/g,'');
+    const sessions=getAdminSessions();
+    sessions[token]=Date.now()+8*60*60*1000;
+    saveAdminSessions(sessions);
+    return {token:token};
+  }finally{
+    lock.releaseLock();
+  }
 }
 
 function adminValidate(d) {
-  const token = String(d.token || '');
-  const sessions = getAdminSessions();
-  const expires = Number(sessions[token] || 0);
+  const token=String(d.token||'').trim();
+  if(!token)throw new Error('Sessão administrativa inválida ou expirada.');
 
-  if (!token || !expires || expires < Date.now()) {
-    if (token) delete sessions[token];
+  const sessions=getAdminSessions();
+  const expires=Number(sessions[token]||0);
+  if(!expires || expires<Date.now()){
+    delete sessions[token];
     saveAdminSessions(sessions);
     throw new Error('Sessão administrativa inválida ou expirada.');
   }
-
   return {valid:true};
 }
 
@@ -913,7 +930,7 @@ function adminListClients(ss,ordersData,salesData) {
   const sh=ss.getSheetByName(SHEET_CLIENTES);
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
   const orders=ordersData || readOrders(ss);
-  const sales=salesData || readSales(ss);
+  const sales=salesData || readAll().sales || [];
   const result=[];
   const known={};
   const pedidoCountByClient={};
