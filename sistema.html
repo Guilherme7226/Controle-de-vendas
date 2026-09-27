@@ -132,20 +132,31 @@ function renderClients(){
  cadastrados.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomesCadastrados[normalize(nome)]=true});
 
  const historicos={};
+ const vendasProcessadas=new Set();
  sales.forEach(v=>{
    const nome=String(v.cliente||'').trim();
    if(!nome)return;
+   const pedidoId=String(v.pedidoId||'').trim();
+   const vendaKey=pedidoId||('VENDA:'+String(v.row||''));
+   if(vendasProcessadas.has(vendaKey))return;
+   vendasProcessadas.add(vendaKey);
    const chave=normalize(nome);
    if(!historicos[chave])historicos[chave]={nome:nome,pedidos:0,paes:0};
    historicos[chave].pedidos++;
    historicos[chave].paes+=Number(v.quantidade)||0;
  });
- orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
+ const pedidosProcessados=new Set();
+ orders.forEach(o=>{
+   const id=String(o.id||'').trim();
+   if(!id||pedidosProcessados.has(id))return;
+   pedidosProcessados.add(id);
    const nome=String(o.cliente||'').trim();
    if(!nome)return;
    const chave=normalize(nome);
    if(!historicos[chave])historicos[chave]={nome:nome,pedidos:0,paes:0};
-   historicos[chave].pedidos++;
+   // Só soma o pedido se ele ainda não tiver uma venda vinculada.
+   const temVenda=sales.some(v=>String(v.pedidoId||'').trim()===id);
+   if(!temVenda)historicos[chave].pedidos++;
  });
 
  const lista=cadastrados.map(c=>{
