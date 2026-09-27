@@ -17,7 +17,7 @@
 <section id="dashboard" class="view active"><div id="msg"></div><div class="cards"><div class="card"><div class="label">Faturamento</div><div class="value" id="fat">R$ 0,00</div></div><div class="card"><div class="label">Custos</div><div class="value" id="cust">R$ 0,00</div></div><div class="card"><div class="label">Lucro</div><div class="value" id="lucro">R$ 0,00</div></div><div class="card"><div class="label">A receber</div><div class="value" id="receber">R$ 0,00</div></div><div class="card"><div class="label">Pães vendidos</div><div class="value" id="qtd">0</div></div><div class="card"><div class="label">Vendas</div><div class="value" id="nvendas">0</div></div><div class="card"><div class="label">Clientes</div><div class="value" id="nclientes">0</div></div><div class="card"><div class="label">Ticket médio</div><div class="value" id="ticket">R$ 0,00</div></div></div><div class="panel"><h2>Resumo</h2><p class="rank-note">Visão geral das vendas, custos, lucro e valores a receber. Os detalhes de cobrança ficam na aba <strong>Contas a receber</strong>.</p></div><div class="panel"><h2>🏆 Ranking de clientes</h2><div class="rank-note">Ranking por quantidade de pães comprados no período selecionado.</div><div class="rank-controls monthly-ranking-controls"><button type="button" class="secondary month-arrow" id="rankMesAnterior" title="Mês anterior">←</button><div class="month-title" id="rankMesTitulo">Setembro de 2026</div><button type="button" class="secondary month-arrow" id="rankMesProximo" title="Próximo mês">→</button><button type="button" class="calendar-btn" id="rankMesBtn" title="Selecionar mês">📅</button><input id="rankMesPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div><div class="table-wrap"><table><thead><tr><th>#</th><th>Cliente</th><th>Pães comprados</th><th>Vendas</th><th>Total comprado</th><th>Ticket médio</th></tr></thead><tbody id="rankingTable"></tbody></table></div></div></section>
 <section id="receber" class="view"><div class="panel"><h2>Contas a receber por cliente</h2><div class="receber-filter"><input id="receberFiltro" type="text" placeholder="Filtrar por nome do cliente"><button type="button" id="receberFiltrar" class="btn">Filtrar</button><button type="button" id="receberLimpar" class="secondary">Limpar</button></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ação</th></tr></thead><tbody id="receberTable"></tbody></table></div></div><div id="clienteHistoricoPanel" class="panel" hidden><button id="fecharHistorico" class="secondary history-close">Fechar</button><h2 id="clienteHistoricoTitulo">Histórico do cliente</h2><div id="clienteResumo" class="history-summary"></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th></tr></thead><tbody id="clienteHistorico"></tbody></table></div></div></section>
 <section id="venda" class="view"><div class="panel"><h2>Registrar venda</h2><div class="notice">Valor padrão: R$ 8,00 por pão.</div><form id="saleForm"><div class="grid">
-<div class="field"><label>Cliente</label><div style="display:flex;gap:8px"><select id="clienteSelect" required style="flex:1"><option value="">Selecione o cliente</option></select><button type="button" id="newSaleClient" class="secondary" title="Criar novo cliente">➕ Criar</button></div></div>
+<div class="field"><label>Cliente</label><div style="display:flex;gap:8px"><select id="clienteSelect" required style="flex:1"><option value="">Selecione o cliente</option><option value="avulso">👤 Cliente sem cadastro</option></select><button type="button" id="newSaleClient" class="secondary" title="Criar novo cliente">➕ Criar</button></div><input id="clienteAvulsoNome" type="text" placeholder="Nome do cliente avulso" style="display:none;margin-top:8px"></div>
 
 <div class="field"><label>Frango <span class="sale-stock" id="stockFrango">Disponível: 0</span></label><input id="qFrango" type="number" min="0" step="1" value="0"></div>
 <div class="field"><label>Frango com milho <span class="sale-stock" id="stockFrangoMilho">Disponível: 0</span></label><input id="qFrangoMilho" type="number" min="0" step="1" value="0"></div>
@@ -236,8 +236,10 @@ function renderSaleClients(){
  sales.forEach(x=>{const nome=String(x.cliente||'').trim();if(nome&&!nomes[nome.toLowerCase()]&&!nomesCadastrados[nome.toLowerCase()])nomes[nome.toLowerCase()]={id:'legacy:'+nome.toLowerCase(),nome:nome,telefone:'',email:'',legacy:true}});
  orders.forEach(x=>{const nome=String(x.cliente||'').trim();if(nome&&!nomes[nome.toLowerCase()]&&!nomesCadastrados[nome.toLowerCase()])nomes[nome.toLowerCase()]={id:'legacy:'+nome.toLowerCase(),nome:nome,telefone:'',email:'',legacy:true}});
  const lista=Object.values(nomes).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
- sel.innerHTML='<option value="">Selecione o cliente</option>'+lista.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
- if(current && lista.some(c=>c.id===current))sel.value=current;
+ sel.innerHTML='<option value="">Selecione o cliente</option><option value="avulso">👤 Cliente sem cadastro</option>'+lista.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
+ if(current && (current==='avulso'||lista.some(c=>c.id===current)))sel.value=current;
+ const avulso=$('clienteAvulsoNome');
+ if(avulso)avulso.style.display=sel.value==='avulso'?'block':'none';
  clearSaleOrderFields();
 }
 function renderSaleOrders(){
@@ -595,7 +597,11 @@ $('rankMesBtn').onclick=()=>{const p=$('rankMesPicker');p.value=rankMes.getFullY
 $('rankMesPicker').onchange=()=>{if(!$('rankMesPicker').value)return;const d=new Date($('rankMesPicker').value+'T00:00:00');rankMes.setFullYear(d.getFullYear(),d.getMonth(),1);rankMesPeriodo()};
 $('receberFiltrar').onclick=renderReceber;$('receberLimpar').onclick=()=>{$('receberFiltro').value='';renderReceber()};$('receberFiltro').oninput=renderReceber;$('receberFiltro').onkeydown=e=>{if(e.key==='Enter')renderReceber()};
 
-$('clienteSelect').onchange=renderSaleOrders;
+$('clienteSelect').onchange=()=>{
+ const avulso=$('clienteAvulsoNome');
+ if(avulso)avulso.style.display=$('clienteSelect').value==='avulso'?'block':'none';
+ renderSaleOrders();
+};
 $('newSaleClient').onclick=async()=>{
   const nome=prompt('Nome do cliente:',''); if(nome===null)return;
   if(!nome.trim()){alert('Informe o nome do cliente.');return}
@@ -614,7 +620,7 @@ $('newSaleClient').onclick=async()=>{
 };
 ['qFrango','qFrangoMilho','qFrangoMilhoSalada','qFrangoSemMilhoSalada'].forEach(id=>{$(id).oninput=updateSaleTotal});
 $('saleForm').onreset=()=>{setTimeout(()=>{renderSaleOrders();renderSaleStock()},0)};
-$('saleForm').onsubmit=async e=>{e.preventDefault();const submitBtn=e.submitter||e.target.querySelector('button.primary');if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='⏳ Registrando...'}try{const clientId=$('clienteSelect').value,c=clients.find(x=>String(x.id)===String(clientId));const selectedOption=$('clienteSelect').selectedOptions[0];const clienteNome=c?String(c.nome||'').trim():String(selectedOption?.textContent||'').trim();if(!clienteNome||!clientId){alert('Selecione o cliente.');return}const q=updateSaleTotal();if(q<1){alert('Informe a quantidade de pelo menos um sabor.');return}const u=8,t=q*u,p=Math.min(Math.max(+$('pago').value||0,0),t),itens=[
+$('saleForm').onsubmit=async e=>{e.preventDefault();const submitBtn=e.submitter||e.target.querySelector('button.primary');if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='⏳ Registrando...'}try{const clientId=$('clienteSelect').value,c=clients.find(x=>String(x.id)===String(clientId));const selectedOption=$('clienteSelect').selectedOptions[0];const clienteNome=clientId==='avulso'?String($('clienteAvulsoNome')?.value||'').trim():(c?String(c.nome||'').trim():String(selectedOption?.textContent||'').trim());if(!clienteNome||!clientId){alert(clientId==='avulso'?'Informe o nome do cliente.':'Selecione o cliente.');return}const q=updateSaleTotal();if(q<1){alert('Informe a quantidade de pelo menos um sabor.');return}const u=8,t=q*u,p=Math.min(Math.max(+$('pago').value||0,0),t),itens=[
   {recheio:'Frango',quantidade:Math.max(0,Math.floor(+$('qFrango').value||0)),valorUnitario:u},
   {recheio:'Frango com milho',quantidade:Math.max(0,Math.floor(+$('qFrangoMilho').value||0)),valorUnitario:u},
   {recheio:'Frango com milho e salada',quantidade:Math.max(0,Math.floor(+$('qFrangoMilhoSalada').value||0)),valorUnitario:u},
