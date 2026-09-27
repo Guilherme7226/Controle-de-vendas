@@ -62,7 +62,7 @@ let savedApiUrl=localStorage.getItem('vendas_api_url')||'';const LEGACY_API_URLS
 let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];let lastApiError='';
 let selectedOrderIds=new Set();
 const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;
-const $=id=>document.getElementById(id),brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0),today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()};
+const $=id=>document.getElementById(id),brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0),today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()};function parseValor(v){const s=String(v??'').trim().replace(/\\s/g,'');if(!s)return 0;if(s.includes(',')&&s.includes('.'))return Number(s.replace(/\\./g,'').replace(',','.'))||0;if(s.includes(','))return Number(s.replace(',','.'))||0;return Number(s)||0}
 function formatDate(v){const s=String(v||'').trim();if(!s)return '-';let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);return m?m[1]+'-'+m[2]+'-'+m[3]:s}
 function isoDate(v){const s=String(v||'').trim();let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);return m?m[3]+'-'+m[2]+'-'+m[1]:s}
 function maskDateInput(el){if(!el)return;el.addEventListener('input',()=>{let v=el.value.replace(/\D/g,'').slice(0,8);if(v.length>4)v=v.slice(0,2)+'-'+v.slice(2,4)+'-'+v.slice(4);else if(v.length>2)v=v.slice(0,2)+'-'+v.slice(2);el.value=v;});el.addEventListener('blur',()=>{const v=el.value.replace(/\D/g,'');if(v.length===8)el.value=v.slice(0,2)+'-'+v.slice(2,4)+'-'+v.slice(4);});}
@@ -421,7 +421,7 @@ async function adminDeleteOrder(id){
  if(!j){alert('Não foi possível excluir o pedido.');return}
  await load();showMsg('Pedido '+id+' excluído e estoque atualizado.','success');
 }
-async function pay(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const v=prompt('Informe o valor total já pago nesta venda:',Number(x.valorPago||0).toFixed(2));if(v===null)return;const valorTotal=Math.max(0,Number(v)||0),j=await api('pagamento',{row:x.row,pago:valorTotal,dataPagamento:isoDate(today())});if(!j){alert('Não foi possível salvar o pagamento na planilha.');return}await load()}
+async function pay(row){const x=sales.find(v=>String(v.row)===String(row));if(!x)return;const v=prompt('Informe o valor total já pago nesta venda:',Number(x.valorPago||0).toFixed(2));if(v===null)return;const valorTotal=Math.max(0,parseValor(v));if(!valorTotal){alert('Informe um valor de pagamento maior que zero.');return}const j=await api('pagamento',{row:x.row,pago:valorTotal,dataPagamento:isoDate(today())});if(!j){alert('Não foi possível salvar o pagamento na planilha.\\n\\n'+(lastApiError||'Erro desconhecido.'));return}await load()}
 async function undoPayment(row){
  const x=sales.find(v=>String(v.row)===String(row));
  if(!x||Number(x.valorPago)<=0)return;
@@ -437,7 +437,7 @@ async function payClient(name){
  const saldo=itens.reduce((a,x)=>a+Number(x.deve||0),0);
  const v=prompt('Saldo de '+name+': '+brl(saldo)+'\\n\\nInforme quanto o cliente pagou agora:',saldo.toFixed(2));
  if(v===null)return;
- let valor=Math.max(0,Number(v)||0);
+ let valor=Math.max(0,parseValor(v));
  if(!valor){alert('Informe um valor de pagamento maior que zero.');return}
  if(valor>saldo)valor=saldo;
 
