@@ -893,7 +893,15 @@ function adminListClients(ss) {
   const sh=ss.getSheetByName(SHEET_CLIENTES);
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
   const orders=readOrders(ss);
-  return rows.map(r=>({id:String(r[0]||''),nome:String(r[1]||''),telefone:String(r[2]||''),email:String(r[3]||''),ativo:r[7]!==false,mustChangePassword:r[8]===true,pedidos:orders.filter(o=>o.clienteId===String(r[0]||'')).length}));
+  return rows.map(r=>({
+    id:String(r[0]||''),
+    nome:String(r[1]||''),
+    telefone:String(r[2]||''),
+    email:String(r[3]||''),
+    ativo:r[7]!==false,
+    mustChangePassword:r[8]===true,
+    pedidos:orders.filter(o=>o.clienteId===String(r[0]||'') || normalize(o.cliente)===normalize(String(r[1]||''))).length
+  }));
 }
 function adminCreateClient(ss,d) {
   ensureClientSheets(ss);
@@ -911,7 +919,7 @@ function adminCreateClient(ss,d) {
     const ph=ss.getSheetByName(SHEET_PEDIDOS);
     if(ph&&ph.getLastRow()>1){
       const pr=ph.getRange(2,1,ph.getLastRow()-1,9).getValues();
-      pr.forEach((r,i)=>{if(!String(r[1]||'').trim()&&normalize(r[2])===normalize(legacyName)){ph.getRange(i+2,2).setValue(id);ph.getRange(i+2,3).setValue(nome);vinculados++}});
+      pr.forEach((r,i)=>{if(normalize(r[2])===normalize(legacyName)){ph.getRange(i+2,2).setValue(id);ph.getRange(i+2,3).setValue(nome);vinculados++}});
     }
   }
   SpreadsheetApp.flush();
@@ -1144,12 +1152,17 @@ function adminDeleteOrder(ss,d) {
 }
 function getClientData(ss,d) {
   const client=findClientByToken(ss,d.token);
-  const pedidos=readOrders(ss).filter(x=>x.clienteId===client.id);
+  const todasPedidos=readOrders(ss);
+  const nomeCliente=normalize(client.nome);
+  const pedidos=todasPedidos.filter(x=>String(x.clienteId||'')===client.id || normalize(x.cliente)===nomeCliente);
+
   const todasVendas=readAll().sales||[];
-  const vendas=todasVendas.filter(x=>normalize(x.cliente)===normalize(client.nome));
+  const vendas=todasVendas.filter(x=>normalize(x.cliente)===nomeCliente);
+
   const totalPedidos=pedidos.reduce((a,x)=>a+Number(x.total||0),0);
   const totalVendas=vendas.reduce((a,x)=>a+Number(x.total||0),0);
   const pagoVendas=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
+
   return {
     cliente:{id:client.id,nome:client.nome,telefone:client.telefone,email:client.email},
     pedidos:pedidos,
