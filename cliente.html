@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#ea580c">
+<title>Paozinhos • Fazer pedido</title>
+<style>
+:root{--bg:#f7f8fb;--card:#fff;--text:#172033;--muted:#687386;--line:#e2e6ee;--primary:#ea580c;--primary2:#c2410c;--ok:#16a34a;--danger:#dc2626;--shadow:0 10px 30px rgba(15,23,42,.07)}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#fff7ed,#fef3c7);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Roboto,Arial;min-height:100vh}
+.wrap{max-width:900px;margin:auto;padding:18px 16px 40px}header{padding:16px 0 8px}header .top{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{margin:0;font-size:24px}header small{color:var(--muted)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);margin-top:14px}.hidden{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;color:var(--muted)}input{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:#fff;color:var(--text);font:inherit;outline:none}button{border:0;border-radius:11px;padding:11px 15px;cursor:pointer;font:inherit;font-weight:700}.primary{background:var(--primary);color:#fff}.secondary{background:#fff;color:var(--text);border:1px solid var(--line)}.danger{background:#fee2e2;color:#991b1b}.tabs{display:flex;gap:8px;margin-top:16px}.tabs button.active{background:var(--primary);color:#fff}.notice{padding:11px 13px;border-radius:11px;background:#eff6ff;color:#1e40af;margin:10px 0;font-size:13px}.success{background:#f0fdf4;color:#166534}.error{background:#fef2f2;color:#991b1b}.stock-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.stock-card{border:1px solid var(--line);border-radius:15px;padding:14px}.stock-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.stock-name{font-weight:800;font-size:17px}.available{color:var(--ok);font-weight:700;font-size:13px}.soldout{color:var(--danger)}.qty{display:flex;align-items:center;gap:8px;margin-top:12px}.qty button{width:42px;height:42px;padding:0;font-size:21px}.qty input{width:80px;text-align:center;font-weight:800}.summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;margin-top:14px}.total{font-size:24px;font-weight:850;color:var(--primary)}.order{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px}.order-top{display:flex;justify-content:space-between;gap:10px}.badge{border-radius:999px;padding:4px 9px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700}.order-items{color:var(--muted);margin-top:7px;line-height:1.6}.logout{font-size:13px}
+@media(max-width:600px){.grid,.stock-grid{grid-template-columns:1fr}.summary{align-items:flex-start;flex-direction:column}.wrap{padding:12px}.panel{padding:15px}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header><div class="top"><div><h1>🥖 Paozinhos</h1><small>Área do cliente • fazer pedido</small></div><button id="logout" class="secondary logout hidden">Sair</button></div></header>
+<div id="msg"></div>
+
+<section id="auth">
+<div class="panel" id="loginBox">
+<h2>Entrar</h2>
+<div class="grid"><div class="field"><label>E-mail ou telefone</label><input id="login" autocomplete="username"></div><div class="field"><label>Senha</label><input id="senha" type="password" autocomplete="current-password"></div></div>
+<div class="tabs"><button id="loginBtn" class="primary">Entrar</button><button id="showRegister" class="secondary">Criar conta</button></div>
+</div>
+<div class="panel hidden" id="registerBox">
+<h2>Criar minha conta</h2>
+<div class="grid"><div class="field"><label>Nome</label><input id="rNome" autocomplete="name"></div><div class="field"><label>WhatsApp/telefone</label><input id="rTelefone" autocomplete="tel"></div><div class="field"><label>E-mail</label><input id="rEmail" type="email" autocomplete="email"></div><div class="field"><label>Senha</label><input id="rSenha" type="password" minlength="6" autocomplete="new-password"></div></div>
+<div class="tabs"><button id="registerBtn" class="primary">Criar conta</button><button id="showLogin" class="secondary">Voltar</button></div>
+</div>
+</section>
+
+<section id="app" class="hidden">
+<div class="panel"><div class="top"><div><h2 style="margin:0">Olá, <span id="clientName"></span> 👋</h2><small>Escolha seus pães conforme o estoque disponível.</small></div></div></div>
+<div class="panel"><h2>🛒 Fazer pedido</h2><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> pães</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><div style="margin-top:12px"><button id="orderBtn" class="primary" style="width:100%">Reservar meu pedido</button></div></div>
+<div class="panel"><h2>📋 Meus pedidos</h2><div id="orders"></div></div>
+</section>
+</div>
+<script>
+const API_URL='https://script.google.com/macros/s/AKfycbzX2BVUH4Jba-F74MTwECZd3Mzv78UKEZBnRY5t_LOaNiZiE1_9wg1TzK72aHcI4DI/exec';
+const API_KEY='';
+const PRECO=8;
+const recheios=['Queijo','Frango','Carne','Calabresa'];
+const $=id=>document.getElementById(id);
+const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
+const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
+function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
+async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'cors',redirect:'follow',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){showMsg(e.message||'Erro de comunicação.','error');return null}}
+function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
+function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
+function clearSession(){localStorage.removeItem('paozinhos_cliente')}
+function showApp(s){$('auth').classList.add('hidden');$('app').classList.remove('hidden');$('logout').classList.remove('hidden');$('clientName').textContent=s.cliente.nome}
+function showAuth(){$('auth').classList.remove('hidden');$('app').classList.add('hidden');$('logout').classList.add('hidden')}
+let stock=[];let quantities={};
+async function loadClient(){
+ const s=session();if(!s){showAuth();return}
+ const j=await api('cliente_dados',{token:s.token});
+ if(!j){clearSession();showAuth();return}
+ saveSession({token:s.token,cliente:j.data.cliente});showApp({cliente:j.data.cliente});renderStock(j.data.stock||[]);renderOrders(j.data.pedidos||[])
+}
+async function refreshStock(){
+ const j=await fetch(API_URL,{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+ if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}
+}
+function renderStock(data){
+ stock=data;const map={};data.forEach(x=>map[x.recheio]=x);
+ $('stockGrid').innerHTML=recheios.map(r=>{const x=map[r]||{disponivel:0};const q=Math.min(quantities[r]||0,Number(x.disponivel)||0);quantities[r]=q;return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+r+'</div><div class="available '+(x.disponivel?'':'soldout')+'">'+(x.disponivel?'Disponível: '+x.disponivel:'Esgotado')+'</div></div><div class="qty"><button type="button" class="secondary minus" data-r="'+r+'">−</button><input inputmode="numeric" min="0" max="'+(x.disponivel||0)+'" value="'+q+'" data-q="'+r+'"><button type="button" class="secondary plus" data-r="'+r+'">+</button></div></div>'}).join('');updateTotal()
+}
+function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
+function renderOrders(list){if(!list.length){$('orders').innerHTML='<div class="notice">Você ainda não fez nenhum pedido.</div>';return}$('orders').innerHTML=[...list].reverse().map(o=>'<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="badge">'+o.status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div><div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div></div>').join('')}
+$('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
+$('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
+$('loginBtn').onclick=async()=>{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg('Login realizado.','success');await loadClient()};
+$('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,email:$('rEmail').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
+$('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
+document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
+document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});
+$('orderBtn').onclick=async()=>{const s=session();const itens=recheios.map(r=>({recheio:r,quantidade:Number(quantities[r]||0)})).filter(x=>x.quantidade>0);if(!itens.length){showMsg('Escolha pelo menos um recheio.','error');return}const j=await api('cliente_pedido',{token:s.token,data:today(),itens});if(!j)return;quantities={};showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');await loadClient()};
+loadClient();
+</script>
+</body>
+</html>
