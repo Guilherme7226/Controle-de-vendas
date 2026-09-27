@@ -41,7 +41,7 @@ function doPost(e) {
     const d = body.data || body || {};
 
     // Somente ações de cliente podem ser chamadas sem sessão administrativa.
-    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','admin_login','admin_validar'];
+    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar'];
     if (!clientActions.includes(body.action)) {
       adminValidate({token: body.adminToken});
     }
@@ -80,6 +80,14 @@ function doPost(e) {
         return json({ok:true,data:editClientOrder(ss,d)});
       case 'cliente_excluir_pedido':
         return json({ok:true,data:deleteClientOrder(ss,d)});
+      case 'cliente_alterar_senha':
+        return json({ok:true,data:changeClientPassword(ss,d)});
+      case 'admin_listar_clientes':
+        return json({ok:true,data:adminListClients(ss)});
+      case 'admin_criar_cliente':
+        return json({ok:true,data:adminCreateClient(ss,d)});
+      case 'admin_editar_cliente':
+        return json({ok:true,data:adminEditClient(ss,d)});
       case 'admin_editar_pedido':
         return json({ok:true,data:adminEditOrder(ss,d)});
       case 'admin_excluir_pedido':
@@ -763,10 +771,16 @@ function ensureClientSheets(ss) {
   let sh = ss.getSheetByName(SHEET_CLIENTES);
   if (!sh) {
     sh = ss.insertSheet(SHEET_CLIENTES);
-    sh.getRange(1,1,1,8).setValues([[
-      'ID','Nome','Telefone','Email','Senha Hash','Token','Criado em','Ativo'
+    sh.getRange(1,1,1,9).setValues([[
+      'ID','Nome','Telefone','Email','Senha Hash','Token','Criado em','Ativo','Senha Temporária'
     ]]);
     sh.setFrozenRows(1);
+  } else {
+    if (sh.getLastColumn() < 9) sh.getRange(1,9).setValue('Senha Temporária');
+    if (sh.getLastRow() > 1) {
+      const flags = sh.getRange(2,9,sh.getLastRow()-1,1).getValues();
+      sh.getRange(2,9,flags.length,1).setValues(flags.map(r=>[r[0] === '' ? false : r[0]]));
+    }
   }
 
   let ph = ss.getSheetByName(SHEET_PEDIDOS);
@@ -827,9 +841,9 @@ function registerClient(ss, d) {
 
   const id = newId('CLI');
   const token = newToken();
-  sh.appendRow([id,nome,telefone,email,hashPassword(senha),token,new Date(),true]);
+  sh.appendRow([id,nome,telefone,email,hashPassword(senha),token,new Date(),true,false]);
 
-  return {token:token, cliente:{id:id,nome:nome,telefone:telefone,email:email}};
+  return {token:token,mustChangePassword:false,cliente:{id:id,nome:nome,telefone:telefone,email:email}};
 }
 
 function loginClient(ss, d) {
@@ -839,7 +853,7 @@ function loginClient(ss, d) {
   if (!login || !senha) throw new Error('Informe login e senha.');
 
   const sh = ss.getSheetByName(SHEET_CLIENTES);
-  const rows = sh.getLastRow() > 1 ? sh.getRange(2,1,sh.getLastRow()-1,8).getValues() : [];
+  const rows = sh.getLastRow() > 1 ? sh.getRange(2,1,sh.getLastRow()-1,9).getValues() : [];
 
   for (let i=0;i<rows.length;i++) {
     const r=rows[i];
@@ -849,10 +863,73 @@ function loginClient(ss, d) {
     if (ativo && (login===email || login.replace(/\D/g,'')===telefone) && hashPassword(senha)===String(r[4]||'')) {
       const token=newToken();
       sh.getRange(i+2,6).setValue(token);
-      return {token:token,cliente:{id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])}};
+      return {token:token,mustChangePassword:r[8] === true,cliente:{id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])}};
     }
   }
   throw new Error('Login ou senha inválidos.');
+}
+
+function changeClientPassword(ss,d) {
+  ensureClientSheets(ss);
+  const client=findClientByToken(ss,d.token);
+  const senha=String(d.novaSenha||'');
+  if(senha.length<6) throw new Error('A nova senha deve ter pelo menos 6 caracteres.');
+  const sh=ss.getSheetByName(SHEET_CLIENTES);
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,9).getValues();
+  for(let i=0;i<rows.length;i++) if(String(rows[i][0])===client.id){
+    const token=newToken();
+    sh.getRange(i+2,5,1,2).setValues([[hashPassword(senha),token]]);
+    sh.getRange(i+2,9).setValue(false);
+    SpreadsheetApp.flush();
+    return {token:token,mustChangePassword:false,cliente:{id:String(rows[i][0]),nome:String(rows[i][1]),telefone:String(rows[i][2]),email:String(rows[i][3])}};
+  }
+  throw new Error('Cliente não encontrado.');
+}
+
+function adminListClients(ss) {
+  ensureClientSheets(ss);
+  const sh=ss.getSheetByName(SHEET_CLIENTES);
+  const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
+  const orders=readOrders(ss);
+  return rows.map(r=>({id:String(r[0]||''),nome:String(r[1]||''),telefone:String(r[2]||''),email:String(r[3]||''),ativo:r[7]!==false,mustChangePassword:r[8]===true,pedidos:orders.filter(o=>o.clienteId===String(r[0]||'')).length}));
+}
+function adminCreateClient(ss,d) {
+  ensureClientSheets(ss);
+  const nome=String(d.nome||'').trim(),telefone=String(d.telefone||'').trim(),email=String(d.email||'').trim().toLowerCase(),senha=String(d.senha||'');
+  if(!nome) throw new Error('Informe o nome do cliente.');
+  if(!email) throw new Error('Informe o e-mail.');
+  if(senha.length<6) throw new Error('A senha inicial deve ter pelo menos 6 caracteres.');
+  const sh=ss.getSheetByName(SHEET_CLIENTES),rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
+  if(rows.some(r=>String(r[3]||'').trim().toLowerCase()===email)) throw new Error('Este e-mail já está cadastrado.');
+  const telNorm=telefone.replace(/\D/g,'');
+  if(telNorm&&rows.some(r=>String(r[2]||'').replace(/\D/g,'')===telNorm)) throw new Error('Este telefone já está cadastrado.');
+  const id=newId('CLI');
+  sh.appendRow([id,nome,telefone,email,hashPassword(senha),'',new Date(),true,true]);
+  const legacyName=String(d.vincularNome||'').trim();let vinculados=0;
+  if(legacyName){
+    const ph=ss.getSheetByName(SHEET_PEDIDOS);
+    if(ph&&ph.getLastRow()>1){
+      const pr=ph.getRange(2,1,ph.getLastRow()-1,9).getValues();
+      pr.forEach((r,i)=>{if(!String(r[1]||'').trim()&&normalize(r[2])===normalize(legacyName)){ph.getRange(i+2,2).setValue(id);ph.getRange(i+2,3).setValue(nome);vinculados++}});
+    }
+  }
+  SpreadsheetApp.flush();
+  return {id:id,nome:nome,email:email,vinculados:vinculados,senhaInicial:senha,mustChangePassword:true};
+}
+function adminEditClient(ss,d) {
+  ensureClientSheets(ss);
+  const id=String(d.id||'');if(!id)throw new Error('Cliente não informado.');
+  const sh=ss.getSheetByName(SHEET_CLIENTES),rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
+  let row=-1,old=null;for(let i=0;i<rows.length;i++)if(String(rows[i][0])===id){row=i+2;old=rows[i];break}
+  if(row<0)throw new Error('Cliente não encontrado.');
+  const nome=String(d.nome||old[1]||'').trim(),telefone=String(d.telefone||old[2]||'').trim(),email=String(d.email||old[3]||'').trim().toLowerCase(),senha=String(d.senha||'');
+  if(!nome||!email)throw new Error('Nome e e-mail são obrigatórios.');
+  if(rows.some((r,i)=>i!==row-2&&String(r[3]||'').trim().toLowerCase()===email))throw new Error('Este e-mail já está cadastrado.');
+  if(senha&&senha.length<6)throw new Error('A nova senha deve ter pelo menos 6 caracteres.');
+  sh.getRange(row,2,1,3).setValues([[nome,telefone,email]]);
+  if(senha){sh.getRange(row,5).setValue(hashPassword(senha));sh.getRange(row,6).setValue('');sh.getRange(row,9).setValue(true)}
+  SpreadsheetApp.flush();
+  return {id:id,nome:nome,telefone:telefone,email:email,senhaRedefinida:!!senha,senhaInicial:senha||'',mustChangePassword:senha?true:old[8]===true};
 }
 
 function findClientByToken(ss, token) {
