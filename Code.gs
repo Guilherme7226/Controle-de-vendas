@@ -5,6 +5,11 @@ const SHEET_VENDAS = 'Vendas';
 const SHEET_CUSTOS = 'Custos';
 const SHEET_RESUMO = 'Resumo';
 const SHEET_RESUMO_PESSOA = 'Resumo por pessoa';
+const SHEET_CLIENTES = 'Clientes';
+const SHEET_PEDIDOS = 'Pedidos';
+const SHEET_PRODUCAO = 'Produção';
+const RECHEIOS = ['Queijo','Frango','Carne','Calabresa'];
+const PRECO_PAODEFINIDO = 8;
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -49,6 +54,17 @@ function doPost(e) {
         break;
       case 'excluir_venda':
         deleteSale(ss, d);
+        break;
+      case 'cliente_cadastro':
+        return json({ok:true,data:registerClient(ss,d)});
+      case 'cliente_login':
+        return json({ok:true,data:loginClient(ss,d)});
+      case 'cliente_pedido':
+        return json({ok:true,data:createClientOrder(ss,d)});
+      case 'cliente_dados':
+        return json({ok:true,data:getClientData(ss,d)});
+      case 'producao':
+        addProduction(ss,d);
         break;
       default:
         throw new Error('Ação desconhecida');
@@ -484,7 +500,10 @@ function readAll() {
     sales: sales,
     costs: costs,
     summary: readSummary(ss),
-    clientSummary: readClientSummary(ss)
+    clientSummary: readClientSummary(ss),
+    production: readProduction(ss),
+    stock: readStock(ss),
+    orders: readOrders(ss)
   };
 }
 
@@ -669,4 +688,224 @@ function json(o) {
   return ContentService
     .createTextOutput(JSON.stringify(o))
     .setMimeType(ContentService.MimeType.JSON);
+}
+
+
+/* =========================
+ * CLIENTES / PEDIDOS / ESTOQUE
+ * ========================= */
+
+function ensureClientSheets(ss) {
+  let sh = ss.getSheetByName(SHEET_CLIENTES);
+  if (!sh) {
+    sh = ss.insertSheet(SHEET_CLIENTES);
+    sh.getRange(1,1,1,8).setValues([[
+      'ID','Nome','Telefone','Email','Senha Hash','Token','Criado em','Ativo'
+    ]]);
+    sh.setFrozenRows(1);
+  }
+
+  let ph = ss.getSheetByName(SHEET_PEDIDOS);
+  if (!ph) {
+    ph = ss.insertSheet(SHEET_PEDIDOS);
+    ph.getRange(1,1,1,9).setValues([[
+      'ID Pedido','Cliente ID','Cliente','Data','Itens','Quantidade Total','Valor Total','Status','Criado em'
+    ]]);
+    ph.setFrozenRows(1);
+  }
+
+  let pr = ss.getSheetByName(SHEET_PRODUCAO);
+  if (!pr) {
+    pr = ss.insertSheet(SHEET_PRODUCAO);
+    pr.getRange(1,1,1,4).setValues([[
+      'Data','Recheio','Quantidade','Criado em'
+    ]]);
+    pr.setFrozenRows(1);
+  }
+}
+
+function hashPassword(password) {
+  const bytes = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    String(password || ''),
+    Utilities.Charset.UTF_8
+  );
+  return bytes.map(b => {
+    const v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+}
+
+function newToken() {
+  return Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
+}
+
+function newId(prefix) {
+  return prefix + Utilities.getUuid().replace(/-/g,'').slice(0,12).toUpperCase();
+}
+
+function registerClient(ss, d) {
+  ensureClientSheets(ss);
+  const nome = String(d.nome || '').trim();
+  const telefone = String(d.telefone || '').trim();
+  const email = String(d.email || '').trim().toLowerCase();
+  const senha = String(d.senha || '');
+
+  if (!nome) throw new Error('Informe seu nome.');
+  if (!email) throw new Error('Informe seu e-mail.');
+  if (senha.length < 6) throw new Error('A senha deve ter pelo menos 6 caracteres.');
+
+  const sh = ss.getSheetByName(SHEET_CLIENTES);
+  const rows = sh.getLastRow() > 1 ? sh.getRange(2,1,sh.getLastRow()-1,8).getValues() : [];
+  if (rows.some(r => String(r[3] || '').trim().toLowerCase() === email)) {
+    throw new Error('Este e-mail já está cadastrado.');
+  }
+
+  const id = newId('CLI');
+  const token = newToken();
+  sh.appendRow([id,nome,telefone,email,hashPassword(senha),token,new Date(),true]);
+
+  return {token:token, cliente:{id:id,nome:nome,telefone:telefone,email:email}};
+}
+
+function loginClient(ss, d) {
+  ensureClientSheets(ss);
+  const login = String(d.login || '').trim().toLowerCase();
+  const senha = String(d.senha || '');
+  if (!login || !senha) throw new Error('Informe login e senha.');
+
+  const sh = ss.getSheetByName(SHEET_CLIENTES);
+  const rows = sh.getLastRow() > 1 ? sh.getRange(2,1,sh.getLastRow()-1,8).getValues() : [];
+
+  for (let i=0;i<rows.length;i++) {
+    const r=rows[i];
+    const email=String(r[3]||'').trim().toLowerCase();
+    const telefone=String(r[2]||'').replace(/\D/g,'');
+    const ativo=r[7] !== false;
+    if (ativo && (login===email || login.replace(/\D/g,'')===telefone) && hashPassword(senha)===String(r[4]||'')) {
+      const token=newToken();
+      sh.getRange(i+2,6).setValue(token);
+      return {token:token,cliente:{id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])}};
+    }
+  }
+  throw new Error('Login ou senha inválidos.');
+}
+
+function findClientByToken(ss, token) {
+  ensureClientSheets(ss);
+  const t=String(token||'').trim();
+  if (!t) throw new Error('Sessão inválida. Faça login novamente.');
+  const sh=ss.getSheetByName(SHEET_CLIENTES);
+  const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,8).getValues():[];
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];
+    if(String(r[5]||'')===t && r[7]!==false){
+      return {row:i+2,id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])};
+    }
+  }
+  throw new Error('Sessão expirada. Faça login novamente.');
+}
+
+function createClientOrder(ss,d) {
+  const client=findClientByToken(ss,d.token);
+  const itens=Array.isArray(d.itens)?d.itens:[];
+  if(!itens.length) throw new Error('Escolha pelo menos um recheio.');
+
+  const stock=readStock(ss);
+  const map={};
+  stock.forEach(x=>map[normalize(x.recheio)]=x.disponivel);
+
+  const clean=[];
+  let totalQtd=0;
+  let total=0;
+
+  itens.forEach(item=>{
+    const recheio=String(item.recheio||'').trim();
+    const qtd=Math.max(0,Math.floor(Number(item.quantidade)||0));
+    if(!recheio || !qtd) return;
+    const key=normalize(recheio);
+    if(!RECHEIOS.some(r=>normalize(r)===key)) throw new Error('Recheio inválido: '+recheio);
+    const disponivel=Number(map[key]||0);
+    if(qtd>disponivel) throw new Error('Não há estoque suficiente de '+recheio+'. Disponível: '+disponivel+'.');
+    clean.push({recheio:RECHEIOS.find(r=>normalize(r)===key),quantidade:qtd,valorUnitario:PRECO_PAODEFINIDO});
+    totalQtd+=qtd;
+    total+=qtd*PRECO_PAODEFINIDO;
+    map[key]=disponivel-qtd;
+  });
+
+  if(!clean.length) throw new Error('Informe quantidades válidas.');
+  const ph=ss.getSheetByName(SHEET_PEDIDOS);
+  const id=newId('PED');
+  const data=String(d.data||formatToday()).slice(0,10);
+  ph.appendRow([id,client.id,client.nome,data,JSON.stringify(clean),totalQtd,total,'Reservado',new Date()]);
+  return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado'};
+}
+
+function getClientData(ss,d) {
+  const client=findClientByToken(ss,d.token);
+  const pedidos=readOrders(ss).filter(x=>x.clienteId===client.id);
+  const totalComprado=pedidos.reduce((a,x)=>a+Number(x.total||0),0);
+  return {cliente:{id:client.id,nome:client.nome,telefone:client.telefone,email:client.email},pedidos:pedidos,totalComprado:totalComprado};
+}
+
+function readOrders(ss) {
+  ensureClientSheets(ss);
+  const sh=ss.getSheetByName(SHEET_PEDIDOS);
+  const out=[];
+  if(sh.getLastRow()<2) return out;
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,9).getValues();
+  rows.forEach(r=>{
+    if(!r[0]) return;
+    let itens=[];
+    try{itens=JSON.parse(String(r[4]||'[]'))}catch(_){}
+    out.push({
+      id:String(r[0]),
+      clienteId:String(r[1]||''),
+      cliente:String(r[2]||''),
+      data:dateValue(r[3]),
+      itens:itens,
+      quantidadeTotal:Number(r[5])||0,
+      total:Number(r[6])||0,
+      status:String(r[7]||'Reservado'),
+      criadoEm:r[8] instanceof Date?Utilities.formatDate(r[8],Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss'):String(r[8]||'')
+    });
+  });
+  return out;
+}
+
+function addProduction(ss,d) {
+  ensureClientSheets(ss);
+  const data=String(d.data||formatToday()).slice(0,10);
+  const itens=Array.isArray(d.itens)?d.itens:[];
+  const sh=ss.getSheetByName(SHEET_PRODUCAO);
+  itens.forEach(item=>{
+    const recheio=String(item.recheio||'').trim();
+    const quantidade=Math.max(0,Math.floor(Number(item.quantidade)||0));
+    if(!quantidade) return;
+    if(!RECHEIOS.some(r=>normalize(r)===normalize(recheio))) throw new Error('Recheio inválido: '+recheio);
+    sh.appendRow([data,RECHEIOS.find(r=>normalize(r)===normalize(recheio)),quantidade,new Date()]);
+  });
+}
+
+function readProduction(ss) {
+  ensureClientSheets(ss);
+  const sh=ss.getSheetByName(SHEET_PRODUCAO);
+  const out=[];
+  if(sh.getLastRow()<2) return out;
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,4).getValues();
+  rows.forEach(r=>{
+    if(!r[0]||!r[1]) return;
+    out.push({data:dateValue(r[0]),recheio:String(r[1]),quantidade:Number(r[2])||0});
+  });
+  return out;
+}
+
+function readStock(ss) {
+  const production=readProduction(ss);
+  const orders=readOrders(ss);
+  const prod={}; const reserved={};
+  RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0});
+  production.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k)prod[k]+=Number(x.quantidade)||0});
+  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k) && ['Reservado','Entregue'].includes(o.status))reserved[k]+=Number(x.quantidade)||0}));
+  return RECHEIOS.map(r=>({recheio:r,produzido:prod[r],reservado:reserved[r],disponivel:Math.max(0,prod[r]-reserved[r])}));
 }
