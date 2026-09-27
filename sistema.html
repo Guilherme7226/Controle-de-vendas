@@ -673,10 +673,18 @@ document.addEventListener('click',e=>{
  if(!btn)return;
  const cli=clients.find(x=>String(x.id)===String(btn.dataset.id));
  if(!cli)return;
- const senha=senhasTemporarias[String(cli.id)]||'';
- if(!senha){showMsg('A senha provisória não está mais disponível nesta sessão. Redefina a senha e depois envie o acesso.','error');return}
+ let senha=senhasTemporarias[String(cli.id)]||'';
+ if(!senha){
+   senha=prompt('Informe a senha provisória de '+cli.nome+':','');
+   if(senha===null)return;
+   senha=String(senha).trim();
+   if(!senha){showMsg('Informe a senha provisória para enviar o acesso.','error');return}
+ }
  const url=clienteAcessoWhatsAppUrl(cli.nome,cli.telefone,senha);
- if(!url){showMsg('O cliente não possui telefone/WhatsApp cadastrado.','error');return}
+ if(!url){
+   showMsg('O cliente não possui telefone/WhatsApp cadastrado.','error');
+   return;
+ }
  const a=document.createElement('a');
  a.href=url;
  a.target='_blank';
