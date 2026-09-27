@@ -746,7 +746,6 @@ $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=p
   const fail=(msg)=>{console.error('Falha ao abrir administração:',msg);if(gate){gate.innerHTML='<div style="max-width:520px;padding:24px;text-align:center"><strong>Não foi possível abrir a administração.</strong><div style="margin-top:10px;font-size:14px;line-height:1.5">'+esc(msg)+'</div><button style="margin-top:16px" onclick="location.href='/'">Voltar ao login</button></div>'}};
   try{
     if(!ADMIN_TOKEN) throw new Error('Sessão administrativa não encontrada.');
-    gate.remove();
     const j=await api('admin_bootstrap',{token:ADMIN_TOKEN});
     if(!j) throw new Error(lastApiError||'O Apps Script não respondeu ao carregamento administrativo.');
     const d=j.data||{};
