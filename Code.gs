@@ -1,5 +1,6 @@
 const SPREADSHEET_ID = '1SGbTg4xfsSsXb0SA3Z8v-mj_5xHV2jexhuZ6vuc9eas';
 const API_KEY = '';
+const ADMIN_SESSION_PROPERTY = 'ADMIN_SESSIONS';
 
 const SHEET_VENDAS = 'Vendas';
 const SHEET_CUSTOS = 'Custos';
@@ -55,6 +56,10 @@ function doPost(e) {
       case 'excluir_venda':
         deleteSale(ss, d);
         break;
+      case 'admin_login':
+        return json({ok:true,data:adminLogin(d)});
+      case 'admin_validar':
+        return json({ok:true,data:adminValidate(d)});
       case 'cliente_cadastro':
         return json({ok:true,data:registerClient(ss,d)});
       case 'cliente_login':
@@ -80,6 +85,49 @@ function doPost(e) {
     console.error(err);
     return json({ok:false, error:String(err.message || err)});
   }
+}
+
+
+function getAdminPassword() {
+  const value = PropertiesService.getScriptProperties().getProperty('ADMIN_PASSWORD');
+  if (!value) throw new Error('Senha administrativa não configurada no servidor.');
+  return String(value);
+}
+
+function getAdminSessions() {
+  const raw = PropertiesService.getScriptProperties().getProperty(ADMIN_SESSION_PROPERTY);
+  if (!raw) return {};
+  try { return JSON.parse(raw) || {}; } catch (_) { return {}; }
+}
+
+function saveAdminSessions(sessions) {
+  PropertiesService.getScriptProperties().setProperty(ADMIN_SESSION_PROPERTY, JSON.stringify(sessions));
+}
+
+function adminLogin(d) {
+  const senha = String(d.senha || '');
+  if (!senha || senha !== getAdminPassword()) throw new Error('Senha incorreta.');
+
+  const token = Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
+  const sessions = getAdminSessions();
+  sessions[token] = Date.now() + 8 * 60 * 60 * 1000;
+  saveAdminSessions(sessions);
+
+  return {token:token};
+}
+
+function adminValidate(d) {
+  const token = String(d.token || '');
+  const sessions = getAdminSessions();
+  const expires = Number(sessions[token] || 0);
+
+  if (!token || !expires || expires < Date.now()) {
+    if (token) delete sessions[token];
+    saveAdminSessions(sessions);
+    throw new Error('Sessão administrativa inválida ou expirada.');
+  }
+
+  return {valid:true};
 }
 
 function setup() {
