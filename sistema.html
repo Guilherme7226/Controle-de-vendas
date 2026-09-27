@@ -323,8 +323,40 @@ async function openWhatsApp(name,telefone){
 function renderReceber(){
  const filtro=String($('receberFiltro')?.value||'').trim().toLowerCase();
  const grupos={};
- sales.forEach(x=>{
-   const nome=String(x.cliente||'').trim()||'Sem nome';
+ const vistosPedidos=new Set();
+ const vistosSemVinculo=new Set();
+
+ // Contas a receber deve considerar cada venda uma única vez.
+ // Se houver uma venda vinculada a pedido e uma cópia legada sem pedidoId
+ // com os mesmos dados, a venda vinculada é a oficial.
+ const vendasReceber=[...sales]
+   .filter(x=>String(x.cliente||'').trim())
+   .filter(x=>{
+     const pedidoId=String(x.pedidoId||'').trim();
+     if(pedidoId){
+       if(vistosPedidos.has(pedidoId))return false;
+       vistosPedidos.add(pedidoId);
+       return true;
+     }
+     const chave=[
+       normalize(x.cliente),String(x.data||''),Number(x.quantidade)||0,
+       Number(x.total)||0,Number(x.valorPago)||0
+     ].join('|');
+     if(vistosSemVinculo.has(chave))return false;
+     // Não duplica uma venda legada quando já existe uma venda vinculada
+     // ao mesmo pedido/cliente/data/quantidade/valor.
+     const duplicada= sales.some(y=>String(y.pedidoId||'').trim() &&
+       normalize(y.cliente)===normalize(x.cliente) &&
+       String(y.data||'')===String(x.data||'') &&
+       Number(y.quantidade||0)===Number(x.quantidade||0) &&
+       Number(y.total||0)===Number(x.total||0));
+     if(duplicada)return false;
+     vistosSemVinculo.add(chave);
+     return true;
+   });
+
+ vendasReceber.forEach(x=>{
+   const nome=String(x.cliente||'').trim();
    const chave=nome.toLowerCase();
    if(!grupos[chave])grupos[chave]={cliente:nome,qtdVendas:0,total:0,pago:0,saldo:0};
    grupos[chave].qtdVendas++;
