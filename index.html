@@ -42,7 +42,7 @@ async function checkAdminPassword(){
     if(!j.ok) throw new Error(j.error||'Senha incorreta.');
     sessionStorage.setItem('admin_token',j.data.token);
     location.href='/sistema.html';
-  }catch(e){err.textContent=e.message||'Não foi possível validar a senha.'}
+  }catch(e){    console.error('Falha no login administrativo:',e);    err.textContent=(e&&e.message==='Failed to fetch')      ? 'Não foi possível conectar ao Apps Script. Confira se a implantação está como “Qualquer pessoa” e se esta é a URL /exec.'      : (e.message||'Não foi possível validar a senha.');  }
 }
 document.getElementById('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminPassword()});
 </script></body>
