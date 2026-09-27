@@ -79,6 +79,8 @@ function doPost(e) {
         return json({ok:true,data:loginClient(ss,d)});
       case 'cliente_pedido':
         return json({ok:true,data:createClientOrder(ss,d)});
+      case 'estoque_atual':
+        return json({ok:true,data:readStock(ss)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
       case 'cliente_confirmar_pedido':
