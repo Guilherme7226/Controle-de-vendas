@@ -898,22 +898,68 @@ function changeClientPassword(ss,d) {
 }
 
 function adminListClients(ss) {
-  // A listagem de clientes deve depender somente da aba Clientes.
-  // A migração de vendas antigas para Pedidos é uma operação separada
-  // e não deve bloquear/impedir a exibição dos logins.
+  // Nunca esconda um cadastro existente e não dependa de migração
+  // para conseguir montar a lista de clientes.
   ensureClientSheets(ss);
   const sh=ss.getSheetByName(SHEET_CLIENTES);
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
   const orders=readOrders(ss);
-  return rows.map(r=>({
-    id:String(r[0]||''),
-    nome:String(r[1]||''),
-    telefone:String(r[2]||''),
-    email:String(r[3]||''),
-    ativo:r[7]!==false,
-    mustChangePassword:r[8]===true,
-    pedidos:orders.filter(o=>o.clienteId===String(r[0]||'') || normalize(o.cliente)===normalize(String(r[1]||''))).length
-  }));
+  const sales=readSales(ss);
+  const result=[];
+  const known={};
+
+  rows.forEach(r=>{
+    const nome=String(r[1]||'').trim();
+    if(!nome)return;
+    const key=normalize(nome);
+    known[key]=true;
+    result.push({
+      id:String(r[0]||''),
+      nome:nome,
+      telefone:String(r[2]||''),
+      email:String(r[3]||''),
+      ativo:r[7]!==false,
+      mustChangePassword:r[8]===true,
+      pedidos:orders.filter(o=>o.clienteId===String(r[0]||'') || normalize(o.cliente)===key).length
+    });
+  });
+
+  // Se houver clientes nas vendas/pedidos sem uma linha correspondente
+  // na aba Clientes, eles continuam visíveis como "Sem login".
+  const historicos={};
+  sales.forEach(v=>{
+    const nome=String(v.cliente||'').trim();
+    if(!nome)return;
+    const key=normalize(nome);
+    if(!historicos[key])historicos[key]={nome:nome,pedidos:0,paes:0};
+    historicos[key].pedidos++;
+    historicos[key].paes+=Number(v.quantidade)||0;
+  });
+  orders.forEach(o=>{
+    const nome=String(o.cliente||'').trim();
+    if(!nome)return;
+    const key=normalize(nome);
+    if(!historicos[key])historicos[key]={nome:nome,pedidos:0,paes:0};
+    historicos[key].pedidos=Math.max(historicos[key].pedidos,1);
+    historicos[key].paes+=Number(o.quantidadeTotal)||0;
+  });
+
+  Object.keys(historicos).forEach(key=>{
+    if(known[key])return;
+    result.push({
+      id:'legacy:'+key,
+      nome:historicos[key].nome,
+      telefone:'',
+      email:'',
+      ativo:false,
+      mustChangePassword:false,
+      pedidos:historicos[key].pedidos,
+      paes:historicos[key].paes,
+      legacy:true
+    });
+  });
+
+  return result;
 }
 function adminCreateClient(ss,d) {
   ensureClientSheets(ss);
