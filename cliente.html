@@ -67,8 +67,15 @@ let stock=[];let quantities={};let editingOrderId=null;
 async function loadClient(){
  const s=session();if(!s){showAuth();return}
  const j=await api('cliente_dados',{token:s.token});
- if(!j){clearSession();showAuth();return}
- saveSession({token:s.token,mustChangePassword:!!s.mustChangePassword,cliente:j.data.cliente});showApp({token:s.token,mustChangePassword:!!s.mustChangePassword,cliente:j.data.cliente});if(!s.mustChangePassword){renderStock(j.data.stock||[]);renderOrders(j.data.pedidos||[])}
+ if(!j)return;
+ const mustChangePassword=!!j.data.mustChangePassword;
+ const sess={token:s.token,mustChangePassword,cliente:j.data.cliente};
+ saveSession(sess);
+ showApp(sess);
+ if(!mustChangePassword){
+   renderStock(j.data.stock||[]);
+   renderOrders(j.data.pedidos||[]);
+ }
 }
 async function refreshStock(){
  const j=await fetch(API_URL,{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
