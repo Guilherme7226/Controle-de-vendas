@@ -21,12 +21,12 @@
 <section id="auth">
 <div class="panel" id="loginBox">
 <h2>Entrar</h2>
-<div class="grid"><div class="field"><label>E-mail ou telefone</label><input id="login" autocomplete="username"></div><div class="field"><label>Senha</label><input id="senha" type="password" autocomplete="current-password"></div></div>
+<div class="grid"><div class="field"><label>Telefone</label><input id="login" inputmode="tel" autocomplete="tel"></div><div class="field"><label>Senha</label><input id="senha" type="password" autocomplete="current-password"></div></div>
 <div class="tabs"><button id="loginBtn" class="primary">Entrar</button><button id="showRegister" class="secondary">Criar conta</button></div>
 </div>
 <div class="panel hidden" id="registerBox">
 <h2>Criar minha conta</h2>
-<div class="grid"><div class="field"><label>Nome</label><input id="rNome" autocomplete="name"></div><div class="field"><label>WhatsApp/telefone</label><input id="rTelefone" autocomplete="tel"></div><div class="field"><label>E-mail</label><input id="rEmail" type="email" autocomplete="email"></div><div class="field"><label>Senha</label><input id="rSenha" type="password" minlength="6" autocomplete="new-password"></div></div>
+<div class="grid"><div class="field"><label>Nome</label><input id="rNome" autocomplete="name"></div><div class="field"><label>WhatsApp/telefone</label><input id="rTelefone" autocomplete="tel"></div><div class="field"><label>Senha</label><input id="rSenha" type="password" minlength="6" autocomplete="new-password"></div></div>
 <div class="tabs"><button id="registerBtn" class="primary">Criar conta</button><button id="showLogin" class="secondary">Voltar</button></div>
 </div>
 </section>
@@ -107,7 +107,7 @@ $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('register
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
 $('loginBtn').onclick=async()=>{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');await loadClient()};
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
-$('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,email:$('rEmail').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
+$('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
 $('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
 $('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();
 document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
