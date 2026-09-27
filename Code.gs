@@ -845,7 +845,7 @@ function getClientData(ss,d) {
   const client=findClientByToken(ss,d.token);
   const pedidos=readOrders(ss).filter(x=>x.clienteId===client.id);
   const totalComprado=pedidos.reduce((a,x)=>a+Number(x.total||0),0);
-  return {cliente:{id:client.id,nome:client.nome,telefone:client.telefone,email:client.email},pedidos:pedidos,totalComprado:totalComprado};
+  return {cliente:{id:client.id,nome:client.nome,telefone:client.telefone,email:client.email},pedidos:pedidos,totalComprado:totalComprado,stock:readStock(ss)};
 }
 
 function readOrders(ss) {
