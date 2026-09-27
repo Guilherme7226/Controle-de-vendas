@@ -1,4 +1,4 @@
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMPMTCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec";
 
 async function proxyToAppsScript(request) {
   let target = APPS_SCRIPT_URL;
@@ -28,10 +28,6 @@ async function proxyToAppsScript(request) {
       if (!location) return response;
 
       target = new URL(location, target).toString();
-
-      // Apps Script ContentService first executes doPost/doGet,
-      // then redirects to a one-time googleusercontent.com URL
-      // containing the generated response. Retrieve that response with GET.
       method = "GET";
       body = undefined;
       continue;
