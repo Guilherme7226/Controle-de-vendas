@@ -633,8 +633,10 @@ function readAll() {
         b === 'DESCRICAO' ||
         a === 'TOTAL' ||
         a === 'TOTAL GERAL' ||
+        a === 'TOTAL DE CUSTOS' ||
         b === 'TOTAL' ||
-        b === 'TOTAL GERAL'
+        b === 'TOTAL GERAL' ||
+        b === 'TOTAL DE CUSTOS'
       ) continue;
 
       if (!r[0] && !r[1] && !r[2]) continue;
@@ -759,7 +761,7 @@ function findTotalRow(sh, startCol, endCol) {
   for (let i = 0; i < values.length; i++) {
     for (let j = 0; j < values[i].length; j++) {
       const value = normalize(values[i][j]);
-      if (value === 'TOTAL' || value === 'TOTAL GERAL') {
+      if (value === 'TOTAL' || value === 'TOTAL GERAL' || value === 'TOTAL DE CUSTOS') {
         return i + 1;
       }
     }
@@ -782,8 +784,10 @@ function isTotalValues(r) {
   return (
     a === 'TOTAL' ||
     a === 'TOTAL GERAL' ||
+    a === 'TOTAL DE CUSTOS' ||
     b === 'TOTAL' ||
-    b === 'TOTAL GERAL'
+    b === 'TOTAL GERAL' ||
+    b === 'TOTAL DE CUSTOS'
   );
 }
 
