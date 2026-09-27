@@ -313,13 +313,29 @@ const term=$('buscaVenda').value.toLowerCase(),fs=$('filtroStatus').value,fd=iso
 renderReceber();
 $('costTable').innerHTML=[...costs].reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo.</td></tr>'}
 function whatsappPhone(value){
- const digits=String(value||'').replace(/\\D/g,'');
+ const digits=String(value||'').replace(/\D/g,'');
  if(!digits)return '';
  if(digits.startsWith('55'))return digits;
  if(digits.length===10||digits.length===11)return '55'+digits;
  return digits;
 }
-async function openWhatsApp(name,telefone){
+function clienteAcessoWhatsAppUrl(nome,telefone,senha){
+ const phone=whatsappPhone(telefone);
+ if(!phone)return '';
+ const login=String(telefone||'').replace(/\D/g,'');
+ const link=window.location.origin+'/';
+ const mensagem='Olá, '+String(nome||'')+'! Tudo bem?\n\nSeu acesso ao sistema foi criado.\n\n🔗 Link: '+link+'\n👤 Login: '+login+'\n🔑 Senha provisória: '+String(senha||'')+'\n\nAo entrar, você poderá consultar seus pedidos e fazer novos pedidos. Por segurança, altere sua senha no primeiro acesso.';
+ return 'https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem);
+}
+function enviarAcessoClienteWhatsApp(nome,telefone,senha){
+ const url=clienteAcessoWhatsAppUrl(nome,telefone,senha);
+ if(!url){
+   showMsg('Login criado, mas o cliente não possui telefone/WhatsApp cadastrado.','error');
+   return;
+ }
+ window.open(url,'_blank','noopener');
+}
+function openWhatsApp(name,telefone){
  const phone=whatsappPhone(telefone);
  if(!phone){showMsg('Este cliente não possui telefone cadastrado para WhatsApp.','error');return}
  // Garante que usamos os dados atuais antes de calcular a cobrança.
@@ -486,45 +502,20 @@ async function confirmSelectedOrders(){
   showOrdersFeedback('Confirmação concluída: '+(r.confirmados||0)+' confirmado'+((r.confirmados||0)===1?'':'s')+'.','success');
 }
 
-function pedidoConfirmadoWhatsAppUrl(o){
-  const cliente=clients.find(c=>normalize(c.nome)===normalize(o.cliente));
-  const phone=whatsappPhone(cliente?.telefone||'');
-  if(!phone)return '';
-  const itens=(o.itens||[]).map(i=>i.quantidade+' × '+i.recheio).join(', ');
-  const mensagem='Olá, '+String(o.cliente||'')+'! Tudo bem?\\n\\nSeu pedido '+String(o.id||'')+' foi confirmado com sucesso!\\n\\nPedido: '+itens+'.\\nTotal: '+brl(o.total)+'.\\n\\nObrigado pela preferência!';
-  return 'https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem);
-}
-
 async function adminConfirmOrder(id,button){
   const o=orders.find(x=>String(x.id)===String(id));
   if(!o||!isPedidoAguardando(o.status))return;
   if(!confirm('Confirmar o pedido '+o.id+' de '+o.cliente+'?'))return;
-
-  // Abre a aba antes da chamada à API para evitar bloqueio de pop-up do navegador.
-  const whatsappUrl=pedidoConfirmadoWhatsAppUrl(o);
-  const whatsappWindow=whatsappUrl?window.open('about:blank','_blank'):null;
-
   if(button){button.disabled=true;button.textContent='⏳ Confirmando...'}
   showOrdersFeedback('Confirmando pedido '+o.id+'...');
   const j=await api('admin_confirmar_pedido',{id:o.id});
   if(!j){
-    if(whatsappWindow)whatsappWindow.close();
     if(button){button.disabled=false;button.textContent='✅ Confirmar pedido'}
     showOrdersFeedback('Não foi possível confirmar o pedido '+o.id+'. '+(lastApiError||'Verifique a implantação do Apps Script.'),'error');
     return
   }
-
   await load();
-
-  if(whatsappUrl){
-    if(whatsappWindow)whatsappWindow.location.href=whatsappUrl;
-    else window.open(whatsappUrl,'_blank','noopener');
-  }else{
-    showOrdersFeedback('Pedido '+o.id+' confirmado, mas o cliente não possui telefone/WhatsApp cadastrado.','error');
-    return;
-  }
-
-  showOrdersFeedback('Pedido '+o.id+' confirmado e mensagem preparada no WhatsApp.','success');
+  showOrdersFeedback('Pedido '+o.id+' confirmado com sucesso.','success');
 }
 
 async function adminEditOrder(id){
@@ -652,7 +643,7 @@ $('pedidoFiltrosLimpar').onclick=()=>{
 renderPedidoClientFilter();
 $('pedidosTabConfirmar').onclick=()=>setPedidosAba('confirmar');
 $('pedidosTabHistorico').onclick=()=>setPedidosAba('historico');
-$('newClient').onclick=async()=>{const nome=prompt('Nome do cliente:','');if(nome===null)return;const telefone=prompt('Telefone/WhatsApp:','');if(telefone===null)return;const email='';const senha=prompt('Senha inicial (mínimo 6 caracteres):','');if(senha===null)return;const vincularNome=prompt('Nome exato usado nos pedidos antigos para vincular (deixe vazio se não houver):',nome);if(vincularNome===null)return;const j=await api('admin_criar_cliente',{nome:nome.trim(),telefone:telefone.trim(),email:'',senha:senha,vincularNome:vincularNome.trim()});if(!j)return;alert('Login criado. Senha inicial: '+j.data.senhaInicial+'\nPedidos vinculados: '+j.data.vinculados+'\n\nO cliente deverá trocar a senha no primeiro acesso.');await loadClients(true)};
+$('newClient').onclick=async()=>{const nome=prompt('Nome do cliente:','');if(nome===null)return;const telefone=prompt('Telefone/WhatsApp:','');if(telefone===null)return;const email='';const senha=prompt('Senha inicial (mínimo 6 caracteres):','');if(senha===null)return;const vincularNome=prompt('Nome exato usado nos pedidos antigos para vincular (deixe vazio se não houver):',nome);if(vincularNome===null)return;const j=await api('admin_criar_cliente',{nome:nome.trim(),telefone:telefone.trim(),email:'',senha:senha,vincularNome:vincularNome.trim()});if(!j)return;enviarAcessoClienteWhatsApp(j.data.nome||nome.trim(),telefone.trim(),j.data.senhaInicial||senha);alert('Login criado. A mensagem de acesso foi preparada no WhatsApp.\n\nLogin: '+telefone.trim()+'\nSenha provisória: '+(j.data.senhaInicial||senha));await loadClients(true)};
 $('refreshClients').onclick=()=>loadClients(true);
 document.addEventListener('click',async e=>{
  if(e.target.matches('.client-create-legacy')){
@@ -662,7 +653,8 @@ document.addEventListener('click',async e=>{
    const senha=prompt('Senha inicial (mínimo 6 caracteres):',''); if(senha===null)return;
    const j=await api('admin_criar_cliente',{nome,telefone:telefone.trim(),email:'',senha,vincularNome:nome});
    if(!j)return;
-   alert('Login criado para '+nome+'.\nSenha inicial: '+j.data.senhaInicial+'\nPedidos/vendas antigos vinculados: '+j.data.vinculados+'\n\nO cliente deverá trocar a senha no primeiro acesso.');
+   enviarAcessoClienteWhatsApp(j.data.nome||nome,telefone.trim(),j.data.senhaInicial||senha);
+   alert('Login criado para '+nome+'. A mensagem de acesso foi preparada no WhatsApp.\n\nLogin: '+telefone.trim()+'\nSenha provisória: '+(j.data.senhaInicial||senha));
    await loadClients(true);
  }
 });
