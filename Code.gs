@@ -84,6 +84,8 @@ function doPost(e) {
         return json({ok:true,data:changeClientPassword(ss,d)});
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
+      case 'admin_migrar_vendas_pedidos':
+        return json({ok:true,data:migrarVendasParaPedidos(ss)});
       case 'admin_criar_cliente':
         return json({ok:true,data:adminCreateClient(ss,d)});
       case 'admin_editar_cliente':
@@ -378,8 +380,7 @@ function appendCost(ss, d) {
   }
 
   const targetRow = totalRow > 0 ? totalRow : sh.getLastRow();
-  sh.getRange(targetRow, 1).setNumberFormat('dd/MM/yyyy');
-  sh.getRange(targetRow, 3).setNumberFormat('R$ #,##0.00');
+  aplicarFormatoCusto(sh,targetRow);
 }
 
 function updatePayment(ss, d) {
@@ -497,7 +498,7 @@ function readAll() {
 
   if (sh && sh.getLastRow() >= 2) {
     const lastRow = sh.getLastRow();
-    const rows = sh.getRange(2,1,lastRow - 1,11).getValues();
+    const rows = sh.getRange(2,1,lastRow - 1,Math.min(12,sh.getMaxColumns())).getValues();
 
     for (let i = 0; i < rows.length; i++) {
       const r = rows[i];
@@ -530,7 +531,8 @@ function readAll() {
         parcial: String(r[8] || 'Não'),
         valorPago: pago,
         deve: saldo,
-        status: saldo <= 0 ? 'Pago' : pago > 0 ? 'Parcial' : 'Pendente'
+        status: saldo <= 0 ? 'Pago' : pago > 0 ? 'Parcial' : 'Pendente',
+        pedidoId: String(r[11] || '')
       });
     }
   }
@@ -788,10 +790,18 @@ function ensureClientSheets(ss) {
   let ph = ss.getSheetByName(SHEET_PEDIDOS);
   if (!ph) {
     ph = ss.insertSheet(SHEET_PEDIDOS);
-    ph.getRange(1,1,1,9).setValues([[
-      'ID Pedido','Cliente ID','Cliente','Data','Itens','Quantidade Total','Valor Total','Status','Criado em'
+    ph.getRange(1,1,1,14).setValues([[
+      'ID Pedido','Cliente ID','Cliente','Data','Itens','Quantidade Total','Valor Total','Status','Criado em',
+      'Valor Pago','Data Pagamento','Saldo','Origem','Referência'
     ]]);
     ph.setFrozenRows(1);
+  } else {
+    if (ph.getLastColumn() < 14) {
+      const headers = [
+        'Valor Pago','Data Pagamento','Saldo','Origem','Referência'
+      ];
+      ph.getRange(1,10,1,headers.length).setValues([headers]);
+    }
   }
 
   let pr = ss.getSheetByName(SHEET_PRODUCAO);
@@ -890,6 +900,7 @@ function changeClientPassword(ss,d) {
 
 function adminListClients(ss) {
   ensureClientSheets(ss);
+  migrarVendasParaPedidos(ss);
   const sh=ss.getSheetByName(SHEET_CLIENTES);
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
   const orders=readOrders(ss);
@@ -1021,9 +1032,10 @@ function createClientOrder(ss,d) {
     const ph=ss.getSheetByName(SHEET_PEDIDOS);
     const id=newId('PED');
     const data=String(d.data||formatToday()).slice(0,10);
-    ph.appendRow([id,client.id,client.nome,data,JSON.stringify(clean),totalQtd,total,'Reservado',new Date()]);
+    ph.appendRow([id,client.id,client.nome,data,JSON.stringify(clean),totalQtd,total,'Reservado',new Date(),0,'',total,'CLIENTE',id]);
+    aplicarFormatoPedido(ph,ph.getLastRow());
     SpreadsheetApp.flush();
-    return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado'};
+    return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado',valorPago:0,dataPagamento:'',saldo:total,origem:'CLIENTE',referencia:id};
   } finally {
     lock.releaseLock();
   }
@@ -1090,6 +1102,8 @@ function editClientOrder(ss,d) {
     for(let i=0;i<rows.length;i++) if(String(rows[i][0])===found.pedido.id){row=i+2;break;}
     if(row<0) throw new Error('Pedido não encontrado.');
     ordersSh.getRange(row,5,1,3).setValues([[JSON.stringify(clean),totalQtd,total]]);
+    ordersSh.getRange(row,12).setValue(Math.max(0,total-(Number(found.pedido.valorPago)||0)));
+    aplicarFormatoPedido(ordersSh,row);
     SpreadsheetApp.flush();
     return {id:found.pedido.id,data:found.pedido.data,cliente:found.client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:found.pedido.status};
   } finally { lock.releaseLock(); }
@@ -1135,6 +1149,8 @@ function adminEditOrder(ss,d) {
     RECHEIOS.forEach(r=>{const k=normalize(r),q=Number(requested[k]||0);if(!q)return;const disponivel=(available[k]||0)+(current[k]||0);if(q>disponivel)throw new Error('Estoque insuficiente de '+r+'. Disponível para edição: '+disponivel+'.');clean.push({recheio:r,quantidade:q,valorUnitario:PRECO_PAODEFINIDO});totalQtd+=q;total+=q*PRECO_PAODEFINIDO});
     if(!clean.length)throw new Error('Informe quantidades válidas.');
     ordersSh.getRange(row,5,1,3).setValues([[JSON.stringify(clean),totalQtd,total]]);
+    ordersSh.getRange(row,12).setValue(Math.max(0,total-(Number(rows[row-2][9])||0)));
+    aplicarFormatoPedido(ordersSh,row);
     SpreadsheetApp.flush();
     return {id:id,cliente:old.cliente,data:old.data,itens:clean,quantidadeTotal:totalQtd,total:total,status:old.status};
   } finally { lock.releaseLock(); }
@@ -1152,14 +1168,23 @@ function adminDeleteOrder(ss,d) {
 }
 function getClientData(ss,d) {
   const client=findClientByToken(ss,d.token);
+
   const todasPedidos=readOrders(ss);
   const nomeCliente=normalize(client.nome);
-  const pedidos=todasPedidos.filter(x=>String(x.clienteId||'')===client.id || normalize(x.cliente)===nomeCliente);
+  const pedidos=todasPedidos.filter(x=>
+    String(x.clienteId||'')===client.id ||
+    normalize(x.cliente)===nomeCliente
+  );
 
   const todasVendas=readAll().sales||[];
-  const vendas=todasVendas.filter(x=>normalize(x.cliente)===nomeCliente);
+  // Vendas que já foram transformadas em pedidos não entram novamente.
+  const vendas=todasVendas.filter(x=>
+    normalize(x.cliente)===nomeCliente &&
+    !String(x.pedidoId||'').trim()
+  );
 
   const totalPedidos=pedidos.reduce((a,x)=>a+Number(x.total||0),0);
+  const pagoPedidos=pedidos.reduce((a,x)=>a+Number(x.valorPago||0),0);
   const totalVendas=vendas.reduce((a,x)=>a+Number(x.total||0),0);
   const pagoVendas=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
 
@@ -1168,8 +1193,12 @@ function getClientData(ss,d) {
     pedidos:pedidos,
     vendas:vendas,
     totalComprado:totalPedidos+totalVendas,
-    totalPago:pagoVendas,
-    totalAberto:Math.max(0,totalPedidos+totalVendas-pagoVendas),
+    totalPago:pagoPedidos+pagoVendas,
+    totalAberto:Math.max(
+      0,
+      pedidos.reduce((a,x)=>a+Number(x.saldo ?? Math.max(0,Number(x.total||0)-Number(x.valorPago||0))),0) +
+      vendas.reduce((a,x)=>a+Number(x.deve||0),0)
+    ),
     stock:readStock(ss),
     mustChangePassword:!!client.mustChangePassword
   };
@@ -1180,11 +1209,18 @@ function readOrders(ss) {
   const sh=ss.getSheetByName(SHEET_PEDIDOS);
   const out=[];
   if(sh.getLastRow()<2) return out;
-  const rows=sh.getRange(2,1,sh.getLastRow()-1,9).getValues();
+
+  const cols=Math.max(14,sh.getLastColumn());
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,Math.min(cols,14)).getValues();
+
   rows.forEach(r=>{
     if(!r[0]) return;
     let itens=[];
     try{itens=JSON.parse(String(r[4]||'[]'))}catch(_){}
+    const total=Number(r[6])||0;
+    const valorPago=Number(r[9])||0;
+    const saldo=Number(r[11])||Math.max(0,total-valorPago);
+
     out.push({
       id:String(r[0]),
       clienteId:String(r[1]||''),
@@ -1192,12 +1228,207 @@ function readOrders(ss) {
       data:dateValue(r[3]),
       itens:itens,
       quantidadeTotal:Number(r[5])||0,
-      total:Number(r[6])||0,
+      total:total,
       status:String(r[7]||'Reservado'),
-      criadoEm:r[8] instanceof Date?Utilities.formatDate(r[8],Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss'):String(r[8]||'')
+      criadoEm:r[8] instanceof Date?Utilities.formatDate(r[8],Session.getScriptTimeZone(),'yyyy-MM-dd HH:mm:ss'):String(r[8]||''),
+      valorPago:valorPago,
+      dataPagamento:dateValue(r[10]),
+      saldo:saldo,
+      origem:String(r[12]||''),
+      referencia:String(r[13]||'')
     });
   });
   return out;
+}
+
+function aplicarFormatoCusto(sh,rowNumber){
+  if(!sh||!rowNumber||rowNumber<1)return;
+  sh.getRange(rowNumber,1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(rowNumber,3).setNumberFormat('R$ #,##0.00');
+}
+
+function aplicarFormatoPedido(sh,rowNumber){
+  if(!sh||!rowNumber||rowNumber<1)return;
+  sh.getRange(rowNumber,4).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(rowNumber,6).setNumberFormat('0');
+  sh.getRange(rowNumber,7).setNumberFormat('R$ #,##0.00');
+  sh.getRange(rowNumber,10).setNumberFormat('R$ #,##0.00');
+  sh.getRange(rowNumber,11).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(rowNumber,12).setNumberFormat('R$ #,##0.00');
+}
+
+function aplicarFormatoProducao(sh,rowNumber){
+  if(!sh||!rowNumber||rowNumber<1)return;
+  sh.getRange(rowNumber,1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(rowNumber,3).setNumberFormat('0');
+}
+
+function clienteIdPorNome(ss,nome){
+  const sh=ss.getSheetByName(SHEET_CLIENTES);
+  if(!sh||sh.getLastRow()<2)return '';
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,9).getValues();
+  const alvo=normalize(nome);
+  for(const r of rows){
+    if(normalize(r[1])===alvo)return String(r[0]||'');
+  }
+  return '';
+}
+
+function atualizarPedidoHistorico(ss,pedidoId,venda){
+  if(!pedidoId)return false;
+  const sh=ss.getSheetByName(SHEET_PEDIDOS);
+  if(!sh||sh.getLastRow()<2)return false;
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,14).getValues();
+  for(let i=0;i<rows.length;i++){
+    if(String(rows[i][0]||'')===String(pedidoId)){
+      const row=i+2;
+      const total=Number(venda.total)||0;
+      const pago=Math.min(Math.max(Number(venda.valorPago)||0,0),total);
+      const saldo=Math.max(0,total-pago);
+      sh.getRange(row,2,1,12).setValues([[
+        clienteIdPorNome(ss,venda.cliente),
+        venda.cliente,
+        venda.data,
+        JSON.stringify([{
+          recheio:'Venda histórica',
+          quantidade:Math.max(0,Math.floor(Number(venda.quantidade)||0)),
+          valorUnitario:Number(venda.valorUnitario)||0
+        }]),
+        Math.max(0,Math.floor(Number(venda.quantidade)||0)),
+        total,
+        'Histórico',
+        rows[i][8]||new Date(),
+        pago,
+        pago>0?(venda.dataPagamento||venda.data||''):'',
+        saldo,
+        'VENDA_HISTORICA'
+      ]]);
+      sh.getRange(row,14).setValue(String(venda.row||rows[i][13]||''));
+      aplicarFormatoPedido(sh,row);
+      return true;
+    }
+  }
+  return false;
+}
+
+function criarPedidoHistoricoDaVenda(ss,venda){
+  const ph=ss.getSheetByName(SHEET_PEDIDOS);
+  if(!ph)throw new Error('Aba Pedidos não encontrada.');
+
+  const quantidade=Math.max(0,Math.floor(Number(venda.quantidade)||0));
+  const total=Math.max(0,Number(venda.total)||0);
+  if(!quantidade||!total)return '';
+
+  const id=newId('PEDH');
+  const pago=Math.min(Math.max(Number(venda.valorPago)||0,0),total);
+  const saldo=Math.max(0,total-pago);
+  const itens=[{
+    recheio:'Venda histórica',
+    quantidade:quantidade,
+    valorUnitario:Number(venda.valorUnitario)||0
+  }];
+
+  ph.appendRow([
+    id,
+    clienteIdPorNome(ss,venda.cliente),
+    venda.cliente||'',
+    venda.data||'',
+    JSON.stringify(itens),
+    quantidade,
+    total,
+    'Histórico',
+    new Date(),
+    pago,
+    pago>0?(venda.dataPagamento||venda.data||''):'',
+    saldo,
+    'VENDA_HISTORICA',
+    String(venda.row||'')
+  ]);
+
+  const row=ph.getLastRow();
+  aplicarFormatoPedido(ph,row);
+  return id;
+}
+
+function migrarVendasParaPedidos(ss){
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try{
+    ensureClientSheets(ss);
+
+    const vsh=ss.getSheetByName(SHEET_VENDAS);
+    const psh=ss.getSheetByName(SHEET_PEDIDOS);
+    if(!vsh||vsh.getLastRow()<5)return {importadas:0,vinculadas:0};
+
+    const pedidoMetaCol=12;
+    if(vsh.getMaxColumns()<pedidoMetaCol){
+      vsh.insertColumnAfter(vsh.getMaxColumns());
+    }
+
+    const salesRows=vsh.getRange(5,1,vsh.getLastRow()-4,12).getValues();
+    const pedidosRows=psh.getLastRow()>1?psh.getRange(2,1,psh.getLastRow()-1,14).getValues():[];
+    const pedidosPorReferencia={};
+
+    pedidosRows.forEach(r=>{
+      const ref=String(r[13]||'').trim();
+      if(ref)pedidosPorReferencia[ref]=String(r[0]||'');
+    });
+
+    let importadas=0,vinculadas=0;
+
+    for(let i=0;i<salesRows.length;i++){
+      const r=salesRows[i];
+      const actualRow=i+5;
+
+      if(isTotalValues(r))break;
+
+      const cliente=String(r[1]||'').trim();
+      const quantidade=Math.max(0,Math.floor(Number(r[3])||0));
+      const total=Number(r[5])||0;
+      if(!cliente||!quantidade||!total)continue;
+
+      let pedidoId=String(r[11]||'').trim();
+
+      if(pedidoId && pedidosPorReferencia[String(actualRow)]===pedidoId)continue;
+      if(pedidoId && !pedidosPorReferencia[String(actualRow)]){
+        atualizarPedidoHistorico(ss,pedidoId,{
+          row:actualRow,data:dateValue(r[0]),cliente:cliente,
+          quantidade:quantidade,valorUnitario:Number(r[4])||0,total:total,
+          valorPago:Number(r[9])||0,dataPagamento:dateValue(r[6])
+        });
+        continue;
+      }
+
+      if(pedidosPorReferencia[String(actualRow)]){
+        pedidoId=pedidosPorReferencia[String(actualRow)];
+        vsh.getRange(actualRow,12).setValue(pedidoId);
+        vinculadas++;
+        continue;
+      }
+
+      const venda={
+        row:actualRow,
+        data:dateValue(r[0]),
+        cliente:cliente,
+        quantidade:quantidade,
+        valorUnitario:Number(r[4])||0,
+        total:total,
+        valorPago:Number(r[9])||0,
+        dataPagamento:dateValue(r[6])
+      };
+
+      pedidoId=criarPedidoHistoricoDaVenda(ss,venda);
+      vsh.getRange(actualRow,12).setValue(pedidoId);
+      pedidosPorReferencia[String(actualRow)]=pedidoId;
+      importadas++;
+    }
+
+    vsh.hideColumns(pedidoMetaCol);
+    SpreadsheetApp.flush();
+    return {importadas:importadas,vinculadas:vinculadas};
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function addProduction(ss,d) {
@@ -1211,7 +1442,9 @@ function addProduction(ss,d) {
     if(!quantidade) return;
     if(!RECHEIOS.some(r=>normalize(r)===normalize(recheio))) throw new Error('Recheio inválido: '+recheio);
     sh.appendRow([data,RECHEIOS.find(r=>normalize(r)===normalize(recheio)),quantidade,new Date()]);
+    aplicarFormatoProducao(sh,sh.getLastRow());
   });
+  SpreadsheetApp.flush();
 }
 
 function readProduction(ss) {
