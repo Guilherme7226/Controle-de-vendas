@@ -62,7 +62,7 @@
 </section>
 </div>
 <script>
-const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;const API_URL='https://script.google.com/macros/s/AKfycbxfSvv3IiaRxKZIZpWhDd5ZgdIEP4NAyIfpDnWw-zpNjEQg25q2Rbn9NnXkHtEjJiWL/exec';
+const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;const API_URL='/api';
 const API_KEY='';
 const PRECO=8;
 const recheios=['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
@@ -70,7 +70,7 @@ const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
-async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'cors',redirect:'follow',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){showMsg(e.message||'Erro de comunicação.','error');return null}}
+async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){showMsg(e.message||'Erro de comunicação.','error');return null}}
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
@@ -91,7 +91,7 @@ async function loadClient(){
  }
 }
 async function refreshStock(){
- const j=await fetch(API_URL,{cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+ const j=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'}).then(r=>r.json()).catch(()=>null);
  if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}
 }
 function renderStock(data){
