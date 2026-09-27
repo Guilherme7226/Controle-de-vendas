@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-27-pedidos-confirmacao-v3';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','producao'];
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','producao'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -106,6 +106,8 @@ function doPost(e) {
         return json({ok:true,data:adminConfirmOrder(ss,d)});
       case 'admin_confirmar_pedidos_lote':
         return json({ok:true,data:adminConfirmOrdersBatch(ss,d)});
+      case 'admin_pagar_cliente':
+        return json({ok:true,data:adminRegistrarPagamentoCliente(ss,d)});
       case 'producao':
         addProduction(ss,d);
         break;
@@ -1396,6 +1398,107 @@ function adminConfirmOrdersBatch(ss,d) {
   SpreadsheetApp.flush();
   return {selecionados:ids.length,confirmados:confirmados,jaConfirmados:jaConfirmados,ignorados:ignorados,naoEncontrados:naoEncontrados,vendasCriadas:vendasCriadas};
 }
+function adminRegistrarPagamentoCliente(ss,d){
+  const nome=String(d.cliente||'').trim();
+  if(!nome) throw new Error('Cliente não informado.');
+
+  const valorInformado=Number(d.valor);
+  if(!Number.isFinite(valorInformado)||valorInformado<=0){
+    throw new Error('Informe um valor de pagamento maior que zero.');
+  }
+
+  const sh=ss.getSheetByName(SHEET_VENDAS);
+  if(!sh||sh.getLastRow()<2) throw new Error('Nenhuma venda encontrada.');
+
+  const lastColumn=Math.min(12,sh.getMaxColumns());
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,lastColumn).getValues();
+  const alvo=[];
+  const nomeNorm=normalize(nome);
+
+  for(let i=0;i<rows.length;i++){
+    const r=rows[i];
+    if(normalize(String(r[1]||''))!==nomeNorm) continue;
+    if(isTotalValues(r)) continue;
+
+    const total=Math.max(0,Number(r[5])||0);
+    const pago=Math.max(0,Number(r[9])||0);
+    const saldo=Math.max(0,total-pago);
+    if(saldo<=0) continue;
+
+    alvo.push({
+      row:i+2,
+      total:total,
+      pago:pago,
+      saldo:saldo,
+      pedidoId:lastColumn>=12?String(r[11]||'').trim():'',
+      data:r[0],
+      cliente:String(r[1]||''),
+      contato:String(r[2]||'')
+    });
+  }
+
+  alvo.sort((a,b)=>a.row-b.row);
+
+  if(!alvo.length) throw new Error('Este cliente não possui saldo pendente.');
+
+  const saldoTotal=alvo.reduce((s,x)=>s+x.saldo,0);
+  const valor=Math.min(valorInformado,saldoTotal);
+
+  // Calcula tudo antes de gravar para evitar uma operação parcial.
+  let restante=valor;
+  const alteracoes=alvo.map(x=>{
+    const pagar=Math.min(restante,x.saldo);
+    restante-=pagar;
+    const novoPago=x.pago+pagar;
+    return {
+      row:x.row,
+      total:x.total,
+      pago:novoPago,
+      saldo:Math.max(0,x.total-novoPago),
+      pedidoId:x.pedidoId,
+      dataPagamento:novoPago>0?formatToday():''
+    };
+  }).filter(x=>x.pago>0);
+
+  alteracoes.forEach(x=>{
+    sh.getRange(x.row,7,1,5).setValues([[
+      x.dataPagamento,
+      x.saldo<=0&&x.total>0,
+      x.pago>0&&x.saldo>0?'Sim':'Não',
+      x.pago,
+      x.saldo
+    ]]);
+    aplicarFormatoVenda(sh,x.row);
+  });
+
+  // Mantém os pedidos novos com seus sabores/status originais.
+  alteracoes.forEach(x=>{
+    if(x.pedidoId){
+      atualizarPedidoHistorico(ss,x.pedidoId,{
+        row:x.row,
+        data:sh.getRange(x.row,1).getValue(),
+        cliente:String(sh.getRange(x.row,2).getValue()||''),
+        quantidade:Number(sh.getRange(x.row,4).getValue())||0,
+        valorUnitario:Number(sh.getRange(x.row,5).getValue())||0,
+        total:x.total,
+        valorPago:x.pago,
+        dataPagamento:x.dataPagamento
+      });
+    }
+  });
+
+  SpreadsheetApp.flush();
+
+  return {
+    cliente:nome,
+    valorSolicitado:valorInformado,
+    valorRegistrado:valor,
+    saldoAnterior:saldoTotal,
+    saldoRestante:Math.max(0,saldoTotal-valor),
+    vendasAtualizadas:alteracoes.length
+  };
+}
+
 function adminEditOrder(ss,d) {
   const lock=LockService.getScriptLock();
   lock.waitLock(10000);
