@@ -253,106 +253,58 @@ function appendSale(ss, d) {
   if (!sh) throw new Error('Aba Vendas não encontrada');
   if (sh.getMaxColumns() < 12) sh.insertColumnAfter(sh.getMaxColumns());
   const pedidoIdVinculado = String(d.pedidoId || '').trim();
+  const naoCriarPedido = d.naoCriarPedido === true;
 
   const quantidade = Math.max(0, Number(d.quantidade) || 0);
   const unit = Math.max(0, Number(d.valorUnitario) || 0);
   const total = quantidade * unit;
-
-  const pago = Math.min(
-    Math.max(Number(d.pago) || 0, 0),
-    total
-  );
-
+  const pago = Math.min(Math.max(Number(d.pago) || 0, 0), total);
   const saldo = Math.max(0, total - pago);
 
   const row = [
-    d.data || '',
-    d.cliente || '',
-    d.contatoEmpresa || '',
-    quantidade,
-    unit,
-    total,
+    d.data || '', d.cliente || '', d.contatoEmpresa || '', quantidade, unit, total,
     pago > 0 ? (d.dataPagamento || d.data || '') : '',
     saldo <= 0 && total > 0,
-    pago > 0 && saldo > 0 ? 'Sim' : 'Não',
-    pago,
-    saldo
+    pago > 0 && saldo > 0 ? 'Sim' : 'Não', pago, saldo
   ];
 
-  /*
-   * A venda nova entra logo abaixo da ÚLTIMA VENDA REAL.
-   * Não usamos a linha TOTAL GERAL como ponto de inserção,
-   * porque podem existir linhas vazias entre a última venda
-   * e o TOTAL.
-   */
-  /*
-   * As vendas ocupam um bloco contínuo a partir da linha 4.
-   * As linhas seguintes ao último registro podem conter fórmulas,
-   * mas não são vendas. Portanto, paramos na PRIMEIRA linha
-   * sem Data e sem Cliente.
-   *
-   * Exemplo:
-   * linha 69 = última venda real
-   * linha 70 = primeira linha livre
-   * nova venda -> linha 70
-   */
   let novaLinha = 4;
-
   for (let rowNumber = 4; rowNumber <= sh.getLastRow(); rowNumber++) {
-    if (isTotalRow(sh, rowNumber)) {
-      novaLinha = rowNumber;
-      break;
-    }
-
+    if (isTotalRow(sh, rowNumber)) { novaLinha = rowNumber; break; }
     const values = sh.getRange(rowNumber, 1, 1, 2).getDisplayValues()[0];
     const data = String(values[0] || '').trim();
     const cliente = String(values[1] || '').trim();
-
-    if (!data && !cliente) {
-      novaLinha = rowNumber;
-      break;
-    }
-
+    if (!data && !cliente) { novaLinha = rowNumber; break; }
     novaLinha = rowNumber + 1;
   }
 
-  /*
-   * Insere uma linha exatamente após a última venda.
-   * Isso faz a próxima venda ficar, por exemplo, na linha 70,
-   * em vez de ser enviada para a linha 151.
-   */
   sh.insertRowsBefore(novaLinha, 1);
-
   sh.getRange(novaLinha, 1, 1, 11).setValues([row]);
-
-  /*
-   * A linha 4 é o modelo visual.
-   * Copiamos SOMENTE a formatação.
-   */
   if (sh.getLastRow() >= 4 && novaLinha !== 4) {
-    sh.getRange(4, 1, 1, 11).copyTo(
-      sh.getRange(novaLinha, 1, 1, 11),
-      SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
-      false
-    );
+    sh.getRange(4, 1, 1, 11).copyTo(sh.getRange(novaLinha, 1, 1, 11), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
   }
-
   aplicarFormatoVenda(sh, novaLinha);
 
-  const pedidoId=pedidoIdVinculado || criarPedidoHistoricoDaVenda(ss,{
-    row:novaLinha,
-    data:dateValue(row[0]),
-    cliente:String(row[1]||''),
-    quantidade:quantidade,
-    valorUnitario:unit,
-    total:total,
-    valorPago:pago,
-    dataPagamento:pago?(d.dataPagamento||d.data||''):''
-  });
-  if(pedidoId)sh.getRange(novaLinha,12).setValue(pedidoId);
-
+  let pedidoId = pedidoIdVinculado;
+  if(!pedidoId && !naoCriarPedido){
+    const pedido=criarPedidoDaVendaDireta(ss,{
+      row:novaLinha,
+      data:dateValue(row[0]),
+      cliente:String(row[1]||''),
+      quantidade:quantidade,
+      valorUnitario:unit,
+      total:total,
+      valorPago:pago,
+      dataPagamento:pago?(d.dataPagamento||d.data||''):'',
+      itens:Array.isArray(d.itens)?d.itens:[]
+    });
+    pedidoId=pedido.id;
+  }
+  if(pedidoId) sh.getRange(novaLinha,12).setValue(pedidoId);
   SpreadsheetApp.flush();
+  return {row:novaLinha,pedidoId:pedidoId};
 }
+
 /*
  * Insere custos antes da linha TOTAL/TOTAL GERAL.
  */
@@ -1087,18 +1039,8 @@ function createClientOrder(ss,d) {
     const pedidoRow=ph.getLastRow();
     aplicarFormatoPedido(ph,pedidoRow);
 
-    // Todo pedido feito pelo cliente também vira uma venda normal.
-    appendSale(ss,{
-      data:data,
-      cliente:client.nome,
-      contatoEmpresa:'',
-      quantidade:totalQtd,
-      valorUnitario:PRECO_PAODEFINIDO,
-      pago:0,
-      dataPagamento:'',
-      pedidoId:id
-    });
-
+    // O pedido fica apenas como "Reservado" até o administrador confirmar.
+    // A venda financeira será criada no momento da confirmação.
     SpreadsheetApp.flush();
     return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado',valorPago:0,dataPagamento:'',saldo:total,origem:'CLIENTE',referencia:id};
   } finally {
@@ -1121,12 +1063,76 @@ function confirmClientOrder(ss,d) {
     const sh=ss.getSheetByName(SHEET_PEDIDOS);
     const row=readOrders(ss).findIndex(x=>x.id===found.pedido.id)+2;
     if(found.pedido.status==='Confirmado') return found.pedido;
-    if(!['Reservado'].includes(found.pedido.status)) throw new Error('Este pedido não pode ser confirmado.');
+    if(found.pedido.status!=='Reservado') throw new Error('Este pedido não pode ser confirmado.');
+
     sh.getRange(row,8).setValue('Confirmado');
+    registrarVendaDoPedido(ss,found.pedido);
     SpreadsheetApp.flush();
     found.pedido.status='Confirmado';
     return found.pedido;
   } finally { lock.releaseLock(); }
+}
+
+function registrarVendaDoPedido(ss,pedido){
+  const id=String(pedido.id||'').trim();
+  if(!id) throw new Error('Pedido sem ID.');
+  const itens=Array.isArray(pedido.itens)?pedido.itens:[];
+  const quantidade=Math.max(0,Math.floor(Number(pedido.quantidadeTotal)||itens.reduce((a,x)=>a+(Number(x.quantidade)||0),0)));
+  const total=Math.max(0,Number(pedido.total)||0);
+  if(!quantidade||!total) throw new Error('Pedido sem quantidade ou valor.');
+
+  const existing=localizarVendaPorPedidoId(ss,id);
+  if(existing) return existing.row;
+
+  const result=appendSale(ss,{
+    data:pedido.data||formatToday(),
+    cliente:pedido.cliente||'',
+    contatoEmpresa:'',
+    quantidade:quantidade,
+    valorUnitario:PRECO_PAODEFINIDO,
+    pago:Number(pedido.valorPago)||0,
+    dataPagamento:pedido.dataPagamento||'',
+    pedidoId:id,
+    naoCriarPedido:true
+  });
+  return result.row;
+}
+
+function criarPedidoDaVendaDireta(ss,venda){
+  const ph=ss.getSheetByName(SHEET_PEDIDOS);
+  if(!ph) throw new Error('Aba Pedidos não encontrada.');
+  const quantidade=Math.max(0,Math.floor(Number(venda.quantidade)||0));
+  const total=Math.max(0,Number(venda.total)||0);
+  if(!quantidade||!total) throw new Error('Venda sem quantidade ou valor.');
+
+  const id=newId('PEDV');
+  const itens=Array.isArray(venda.itens)&&venda.itens.length
+    ? venda.itens.filter(x=>Number(x.quantidade)>0).map(x=>({
+        recheio:String(x.recheio||'Venda direta'),
+        quantidade:Math.max(0,Math.floor(Number(x.quantidade)||0)),
+        valorUnitario:Number(x.valorUnitario)||PRECO_PAODEFINIDO
+      }))
+    : [{recheio:'Venda direta',quantidade:quantidade,valorUnitario:PRECO_PAODEFINIDO}];
+
+  ph.appendRow([
+    id,
+    clienteIdPorNome(ss,venda.cliente),
+    venda.cliente||'',
+    venda.data||'',
+    JSON.stringify(itens),
+    quantidade,
+    total,
+    'Confirmado',
+    new Date(),
+    Math.min(Math.max(Number(venda.valorPago)||0,0),total),
+    Number(venda.valorPago)>0?(venda.dataPagamento||venda.data||''):'',
+    Math.max(0,total-Math.min(Math.max(Number(venda.valorPago)||0,0),total)),
+    'VENDA_DIRETA',
+    String(venda.row||'')
+  ]);
+  const row=ph.getLastRow();
+  aplicarFormatoPedido(ph,row);
+  return {id:id,row:row};
 }
 
 function localizarVendaPorPedidoId(ss,pedidoId){
@@ -1143,12 +1149,14 @@ function localizarVendaPorPedidoId(ss,pedidoId){
 
 function sincronizarVendaDoPedido(ss,pedidoId,pedido){
   const found=localizarVendaPorPedidoId(ss,pedidoId);
-  if(!found)return null;
+  if(!found){
+    return registrarVendaDoPedido(ss,Object.assign({},pedido,{id:pedidoId}));
+  }
   const sh=ss.getSheetByName(SHEET_VENDAS);
   const row=found.row;
   const quantidade=Math.max(0,Math.floor(Number(pedido.quantidadeTotal)||0));
   const total=Math.max(0,Number(pedido.total)||0);
-  const pago=Math.min(Math.max(Number(found.values[9])||0,0),total);
+  const pago=Math.min(Math.max(Number(pedido.valorPago)||0,0),total);
   const saldo=Math.max(0,total-pago);
 
   sh.getRange(row,1,1,11).setValues([[
@@ -1258,48 +1266,45 @@ function adminConfirmOrder(ss,d) {
 
     const rows=sh.getRange(2,1,sh.getLastRow()-1,14).getValues();
     let row=-1, old=null;
-
     for(let i=0;i<rows.length;i++){
       if(String(rows[i][0]||'')===id){
         row=i+2;
         old={
           id:id,
+          clienteId:String(rows[i][1]||''),
           cliente:String(rows[i][2]||''),
           data:dateValue(rows[i][3]),
-          status:String(rows[i][7]||'Reservado'),
+          itens:(()=>{try{return JSON.parse(String(rows[i][4]||'[]'))}catch(_){return []}})(),
           quantidadeTotal:Number(rows[i][5])||0,
           total:Number(rows[i][6])||0,
+          status:String(rows[i][7]||'Reservado'),
+          criadoEm:rows[i][8],
           valorPago:Number(rows[i][9])||0,
           dataPagamento:dateValue(rows[i][10]),
-          saldo:Number(rows[i][11])||Math.max(0,(Number(rows[i][6])||0)-(Number(rows[i][9])||0))
+          saldo:Number(rows[i][11])||Math.max(0,(Number(rows[i][6])||0)-(Number(rows[i][9])||0)),
+          origem:String(rows[i][12]||''),
+          referencia:String(rows[i][13]||'')
         };
         break;
       }
     }
-
     if(row<0) throw new Error('Pedido não encontrado.');
     if(old.status==='Confirmado') return old;
     if(old.status!=='Reservado') throw new Error('Este pedido não está aguardando confirmação.');
 
     sh.getRange(row,8).setValue('Confirmado');
+    old.status='Confirmado';
+    registrarVendaDoPedido(ss,old);
     SpreadsheetApp.flush();
-
-    // A venda vinculada continua sendo a venda financeira normal.
-    // Apenas o status do pedido muda.
-    return Object.assign({},old,{status:'Confirmado'});
-  } finally {
-    lock.releaseLock();
-  }
+    return old;
+  } finally { lock.releaseLock(); }
 }
 
 function adminConfirmOrdersBatch(ss,d) {
   const lock=LockService.getScriptLock();
   lock.waitLock(10000);
   try {
-    const ids=Array.isArray(d.ids)
-      ? [...new Set(d.ids.map(x=>String(x||'').trim()).filter(Boolean))]
-      : [];
-
+    const ids=Array.isArray(d.ids) ? [...new Set(d.ids.map(x=>String(x||'').trim()).filter(Boolean))] : [];
     if(!ids.length) throw new Error('Nenhum pedido selecionado.');
     if(ids.length>100) throw new Error('Selecione no máximo 100 pedidos por vez.');
 
@@ -1308,8 +1313,8 @@ function adminConfirmOrdersBatch(ss,d) {
 
     const rows=sh.getRange(2,1,sh.getLastRow()-1,14).getValues();
     const selected=new Set(ids);
-    let confirmados=0,jaConfirmados=0,ignorados=0;
-    const encontrados=[];
+    let confirmados=0,jaConfirmados=0,ignorados=0,naoEncontrados=0;
+    const vendasCriadas=[];
 
     for(let i=0;i<rows.length;i++){
       const id=String(rows[i][0]||'').trim();
@@ -1317,33 +1322,48 @@ function adminConfirmOrdersBatch(ss,d) {
 
       const status=String(rows[i][7]||'Reservado').trim();
       if(status==='Reservado'){
-        encontrados.push(i+2);
+        const itens=(()=>{try{return JSON.parse(String(rows[i][4]||'[]'))}catch(_){return []}})();
+        const pedido={
+          id:id,
+          clienteId:String(rows[i][1]||''),
+          cliente:String(rows[i][2]||''),
+          data:dateValue(rows[i][3]),
+          itens:itens,
+          quantidadeTotal:Number(rows[i][5])||0,
+          total:Number(rows[i][6])||0,
+          status:'Confirmado',
+          criadoEm:rows[i][8],
+          valorPago:Number(rows[i][9])||0,
+          dataPagamento:dateValue(rows[i][10]),
+          saldo:Number(rows[i][11])||Math.max(0,(Number(rows[i][6])||0)-(Number(rows[i][9])||0)),
+          origem:String(rows[i][12]||''),
+          referencia:String(rows[i][13]||'')
+        };
         rows[i][7]='Confirmado';
+        registrarVendaDoPedido(ss,pedido);
+        vendasCriadas.push(id);
         confirmados++;
       }else if(status==='Confirmado'){
         jaConfirmados++;
+        // Garante que pedidos antigos confirmados também tenham a venda vinculada.
+        const itens=(()=>{try{return JSON.parse(String(rows[i][4]||'[]'))}catch(_){return []}})();
+        registrarVendaDoPedido(ss,{
+          id:id,clienteId:String(rows[i][1]||''),cliente:String(rows[i][2]||''),data:dateValue(rows[i][3]),
+          itens:itens,quantidadeTotal:Number(rows[i][5])||0,total:Number(rows[i][6])||0,status:'Confirmado',
+          valorPago:Number(rows[i][9])||0,dataPagamento:dateValue(rows[i][10]),saldo:Number(rows[i][11])||0,
+          origem:String(rows[i][12]||''),referencia:String(rows[i][13]||'')
+        });
       }else{
         ignorados++;
       }
     }
 
-    if(encontrados.length){
-      sh.getRange(2,8,rows.length,1).setValues(rows.map(r=>[r[7]]));
-      SpreadsheetApp.flush();
-    }
-
-    const encontradosCount=confirmados+jaConfirmados+ignorados;
-    const naoEncontrados=Math.max(0,ids.length-encontradosCount);
-    return {
-      selecionados:ids.length,
-      confirmados:confirmados,
-      jaConfirmados:jaConfirmados,
-      ignorados:ignorados,
-      naoEncontrados:naoEncontrados
-    };
-  } finally {
-    lock.releaseLock();
-  }
+    const foundIds=new Set(rows.map(r=>String(r[0]||'').trim()).filter(Boolean));
+    naoEncontrados=ids.filter(id=>!foundIds.has(id)).length;
+    sh.getRange(2,8,rows.length,1).setValues(rows.map(r=>[r[7]]));
+    SpreadsheetApp.flush();
+    return {selecionados:ids.length,confirmados:confirmados,jaConfirmados:jaConfirmados,ignorados:ignorados,naoEncontrados:naoEncontrados,vendasCriadas:vendasCriadas};
+  } finally { lock.releaseLock(); }
 }
 
 function adminEditOrder(ss,d) {
