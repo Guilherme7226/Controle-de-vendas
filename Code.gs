@@ -1572,16 +1572,16 @@ function adminDeleteOrder(ss,d) {
 }
 function getClientData(ss,d) {
   const client=findClientByToken(ss,d.token);
-
-  const todasPedidos=readOrders(ss);
+  // Uma única leitura da planilha abastece pedidos, vendas e estoque.
+  const painel=readAll();
+  const todasPedidos=painel.orders||[];
+  const todasVendas=painel.sales||[];
   const nomeCliente=normalize(client.nome);
+
   const pedidos=todasPedidos.filter(x=>
     String(x.clienteId||'')===client.id ||
     normalize(x.cliente)===nomeCliente
   );
-
-  const todasVendas=readAll().sales||[];
-  // Vendas que já foram transformadas em pedidos não entram novamente.
   const vendas=todasVendas.filter(x=>
     normalize(x.cliente)===nomeCliente &&
     !String(x.pedidoId||'').trim()
@@ -1603,11 +1603,10 @@ function getClientData(ss,d) {
       pedidos.reduce((a,x)=>a+Number(x.saldo ?? Math.max(0,Number(x.total||0)-Number(x.valorPago||0))),0) +
       vendas.reduce((a,x)=>a+Number(x.deve||0),0)
     ),
-    stock:readStock(ss),
+    stock:painel.stock||[],
     mustChangePassword:!!client.mustChangePassword
   };
 }
-
 function isPedidoAguardando(status){
   const s=normalize(status);
   return s==='RESERVADO' || s==='AGUARDANDO';
