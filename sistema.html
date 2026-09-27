@@ -17,7 +17,7 @@
 <section id="dashboard" class="view active"><div id="msg"></div><div class="cards"><div class="card"><div class="label">Faturamento</div><div class="value" id="fat">R$ 0,00</div></div><div class="card"><div class="label">Custos</div><div class="value" id="cust">R$ 0,00</div></div><div class="card"><div class="label">Lucro</div><div class="value" id="lucro">R$ 0,00</div></div><div class="card"><div class="label">A receber</div><div class="value" id="receber">R$ 0,00</div></div><div class="card"><div class="label">Pães vendidos</div><div class="value" id="qtd">0</div></div><div class="card"><div class="label">Vendas</div><div class="value" id="nvendas">0</div></div><div class="card"><div class="label">Clientes</div><div class="value" id="nclientes">0</div></div><div class="card"><div class="label">Ticket médio</div><div class="value" id="ticket">R$ 0,00</div></div></div><div class="panel"><h2>Resumo</h2><p class="rank-note">Visão geral das vendas, custos, lucro e valores a receber. Os detalhes de cobrança ficam na aba <strong>Contas a receber</strong>.</p></div><div class="panel"><h2>🏆 Ranking de clientes</h2><div class="rank-note">Ranking por quantidade de pães comprados no período selecionado.</div><div class="rank-controls monthly-ranking-controls"><button type="button" class="secondary month-arrow" id="rankMesAnterior" title="Mês anterior">←</button><div class="month-title" id="rankMesTitulo">Setembro de 2026</div><button type="button" class="secondary month-arrow" id="rankMesProximo" title="Próximo mês">→</button><button type="button" class="calendar-btn" id="rankMesBtn" title="Selecionar mês">📅</button><input id="rankMesPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div><div class="table-wrap"><table><thead><tr><th>#</th><th>Cliente</th><th>Pães comprados</th><th>Vendas</th><th>Total comprado</th><th>Ticket médio</th></tr></thead><tbody id="rankingTable"></tbody></table></div></div></section>
 <section id="receber" class="view"><div class="panel"><h2>Contas a receber por cliente</h2><div class="receber-filter"><input id="receberFiltro" type="text" placeholder="Filtrar por nome do cliente"><button type="button" id="receberFiltrar" class="btn">Filtrar</button><button type="button" id="receberLimpar" class="secondary">Limpar</button></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ação</th></tr></thead><tbody id="receberTable"></tbody></table></div></div><div id="clienteHistoricoPanel" class="panel" hidden><button id="fecharHistorico" class="secondary history-close">Fechar</button><h2 id="clienteHistoricoTitulo">Histórico do cliente</h2><div id="clienteResumo" class="history-summary"></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th></tr></thead><tbody id="clienteHistorico"></tbody></table></div></div></section>
 <section id="venda" class="view"><div class="panel"><h2>Registrar venda</h2><div class="notice">Valor padrão: R$ 8,00 por pão.</div><form id="saleForm"><div class="grid">
-<div class="field"><label>Cliente</label><select id="clienteSelect" required><option value="">Selecione o cliente</option></select></div>
+<div class="field"><label>Cliente</label><div style="display:flex;gap:8px"><select id="clienteSelect" required style="flex:1"><option value="">Selecione o cliente</option></select><button type="button" id="newSaleClient" class="secondary" title="Criar novo cliente">➕ Criar</button></div></div>
 
 <div class="field"><label>Frango <span class="sale-stock" id="stockFrango">Disponível: 0</span></label><input id="qFrango" type="number" min="0" step="1" value="0"></div>
 <div class="field"><label>Frango com milho <span class="sale-stock" id="stockFrangoMilho">Disponível: 0</span></label><input id="qFrangoMilho" type="number" min="0" step="1" value="0"></div>
@@ -596,6 +596,22 @@ $('rankMesPicker').onchange=()=>{if(!$('rankMesPicker').value)return;const d=new
 $('receberFiltrar').onclick=renderReceber;$('receberLimpar').onclick=()=>{$('receberFiltro').value='';renderReceber()};$('receberFiltro').oninput=renderReceber;$('receberFiltro').onkeydown=e=>{if(e.key==='Enter')renderReceber()};
 
 $('clienteSelect').onchange=renderSaleOrders;
+$('newSaleClient').onclick=async()=>{
+  const nome=prompt('Nome do cliente:',''); if(nome===null)return;
+  if(!nome.trim()){alert('Informe o nome do cliente.');return}
+  const telefone=prompt('Telefone/WhatsApp:',''); if(telefone===null)return;
+  const senha=prompt('Senha inicial (mínimo 6 caracteres):',''); if(senha===null)return;
+  const j=await api('admin_criar_cliente',{nome:nome.trim(),telefone:telefone.trim(),email:'',senha:senha,vincularNome:nome.trim()});
+  if(!j)return;
+  const novo=j.data||{};
+  await loadClients(true);
+  renderSaleClients();
+  const clienteNovo=clients.find(x=>String(x.id)===String(novo.id));
+  if(clienteNovo)$('clienteSelect').value=clienteNovo.id;
+  renderSaleOrders();
+  enviarAcessoClienteWhatsApp(novo.nome||nome.trim(),telefone.trim(),novo.senhaInicial||senha);
+  alert('Cliente criado e selecionado na venda. A mensagem de acesso foi preparada no WhatsApp.');
+};
 ['qFrango','qFrangoMilho','qFrangoMilhoSalada','qFrangoSemMilhoSalada'].forEach(id=>{$(id).oninput=updateSaleTotal});
 $('saleForm').onreset=()=>{setTimeout(()=>{renderSaleOrders();renderSaleStock()},0)};
 $('saleForm').onsubmit=async e=>{e.preventDefault();const submitBtn=e.submitter||e.target.querySelector('button.primary');if(submitBtn){submitBtn.disabled=true;submitBtn.textContent='⏳ Registrando...'}try{const clientId=$('clienteSelect').value,c=clients.find(x=>String(x.id)===String(clientId));const selectedOption=$('clienteSelect').selectedOptions[0];const clienteNome=c?String(c.nome||'').trim():String(selectedOption?.textContent||'').trim();if(!clienteNome||!clientId){alert('Selecione o cliente.');return}const q=updateSaleTotal();if(q<1){alert('Informe a quantidade de pelo menos um sabor.');return}const u=8,t=q*u,p=Math.min(Math.max(+$('pago').value||0,0),t),itens=[
