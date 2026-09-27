@@ -326,7 +326,7 @@ function clienteAcessoWhatsAppUrl(nome,telefone,senha){
  if(!phone)return '';
  const login=String(telefone||'').replace(/\D/g,'');
  const link=window.location.origin+'/';
- const mensagem='Olá, '+String(nome||'')+'! Tudo bem?\n\nSeu acesso ao sistema foi criado.\n\n🔗 Link: '+link+'\n👤 Login: '+login+'\n🔑 Senha provisória: '+String(senha||'')+'\n\nAo entrar, você poderá consultar seus pedidos e fazer novos pedidos. Por segurança, altere sua senha no primeiro acesso.';
+ const mensagem='Olá, '+String(nome||'')+'! Tudo bem?\n\nSeu acesso ao sistema foi criado.\n\nLink: '+link+'\nLogin: '+login+'\nSenha provisória: '+String(senha||'')+'\n\nAgora você pode pedir seus pães diretamente pelo link do sistema. É só acessar, entrar com seu login e senha e fazer seu pedido.\n\nPor segurança, altere sua senha no primeiro acesso.';
  return 'https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem);
 }
 function enviarAcessoClienteWhatsApp(nome,telefone,senha){
