@@ -278,7 +278,12 @@ function renderOrdersAdmin(){
       : 'Nenhum pedido encontrado para os filtros selecionados.';
   }
 
-  $('ordersAdmin').innerHTML=list.map(o=>'<div class="order-admin"><div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap"><button class="primary admin-order-edit" data-id="'+o.id+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+o.id+'">🗑️ Excluir pedido</button></div></div>').join('')||'<div class="notice">Nenhum pedido encontrado.</div>';
+  $('ordersAdmin').innerHTML=list.map(o=>{
+    const confirmar=o.status==='Reservado'
+      ? '<button class="primary admin-order-confirm" data-id="'+o.id+'">✅ Confirmar pedido</button>'
+      : '';
+    return '<div class="order-admin"><div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+o.id+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+o.id+'">🗑️ Excluir pedido</button></div></div>'
+  }).join('')||'<div class="notice">Nenhum pedido encontrado.</div>';
 }
 function renderPedidoClientFilter(){
   const sel=$('pedidoClienteFiltro');
@@ -297,6 +302,17 @@ function renderPedidoClientFilter(){
   sel.innerHTML='<option value="">Todos os clientes</option>'+lista.map(nome=>'<option value="'+esc(nome)+'">'+esc(nome)+'</option>').join('');
   if(atual&&lista.some(nome=>normalize(nome)===normalize(atual)))sel.value=atual;
 }
+async function adminConfirmOrder(id){
+  const o=orders.find(x=>String(x.id)===String(id));
+  if(!o)return;
+  if(o.status!=='Reservado')return;
+  if(!confirm('Confirmar o pedido '+o.id+' de '+o.cliente+'?'))return;
+  const j=await api('admin_confirmar_pedido',{id:o.id});
+  if(!j){alert('Não foi possível confirmar o pedido.');return}
+  await load();
+  showMsg('Pedido '+o.id+' confirmado com sucesso.','success');
+}
+
 async function adminEditOrder(id){
  const o=orders.find(x=>x.id===id); if(!o)return;
  const itens=[];
@@ -381,6 +397,6 @@ document.addEventListener('click',async e=>{
 });
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{if(e.target.matches('[data-client-receber]'))goToReceber(e.target.dataset.clientReceber);if(e.target.matches('[data-client-history]'))showClientHistory(e.target.dataset.clientHistory);if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.pay-client'))payClient(e.target.dataset.client);if(e.target.matches('.edit-sale'))editSale(e.target.dataset.row);if(e.target.matches('.delete-sale'))deleteSale(e.target.dataset.row)});
+document.addEventListener('click',e=>{if(e.target.matches('[data-client-receber]'))goToReceber(e.target.dataset.clientReceber);if(e.target.matches('[data-client-history]'))showClientHistory(e.target.dataset.clientHistory);if(e.target.matches('.pay'))pay(e.target.dataset.row);if(e.target.matches('.pay-client'))payClient(e.target.dataset.client);if(e.target.matches('.edit-sale'))editSale(e.target.dataset.row);if(e.target.matches('.delete-sale'))deleteSale(e.target.dataset.row);if(e.target.matches('.admin-order-confirm'))adminConfirmOrder(e.target.dataset.id)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();load();loadClients();
 </script><script>(async()=>{try{const api=typeof API_URL!=='undefined'?API_URL:'';const r=await fetch(api,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_validar',data:{token:ADMIN_TOKEN}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'Sessão inválida');document.getElementById('adminGate').remove()}catch(e){sessionStorage.removeItem('admin_token');location.replace('/')}})();</script></body></html>
