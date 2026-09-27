@@ -258,7 +258,11 @@ function whatsappPhone(value){
 function openWhatsApp(name,telefone,saldo){
  const phone=whatsappPhone(telefone);
  if(!phone){showMsg('Este cliente não possui telefone cadastrado para WhatsApp.','error');return}
- const mensagem='Olá, '+String(name||'')+'! 👋\\n\\nSeu saldo em aberto no Paozinhos é de '+brl(saldo)+'.\\n\\nQualquer dúvida, fico à disposição. 🥖';
+ const key=normalize(name);
+ const paesEmAberto=sales
+   .filter(x=>normalize(x.cliente)===key&&Number(x.deve)>0)
+   .reduce((a,x)=>a+(Number(x.quantidade)||0),0);
+ const mensagem='Olá, '+String(name||'')+'! Tudo bem?\\n\\nVocê tem '+paesEmAberto+' pão'+(paesEmAberto===1?'':'s')+' em aberto, no valor de '+brl(saldo)+'.\\n\\nPIX: 44558352883\\n\\nObrigado!';
  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem),'_blank','noopener');
 }
 function renderReceber(){
