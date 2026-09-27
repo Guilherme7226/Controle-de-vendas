@@ -40,6 +40,12 @@ function doPost(e) {
     const ss = getSS();
     const d = body.data || body || {};
 
+    // Somente ações de cliente podem ser chamadas sem sessão administrativa.
+    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','admin_login','admin_validar'];
+    if (!clientActions.includes(body.action)) {
+      adminValidate({token: body.adminToken});
+    }
+
     switch (body.action) {
       case 'venda':
         appendSale(ss, d);
