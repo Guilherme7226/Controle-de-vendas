@@ -101,13 +101,19 @@ function setDates(){
 }
 function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[1]+'-'+m[2]+'-'+m[3]:s.slice(0,10)}
 async function api(action,data){try{lastApiError='';const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.message||'Erro desconhecido';showMsg('Erro ao salvar: '+lastApiError,'error');return null}}
+let stockRealtimeBusy=false;
 async function refreshAdminStockRealtime(){
-  if(document.hidden)return;
-  const j=await api('estoque_atual',{});
-  if(!j)return;
-  stock=j.data||[];
-  renderStockAdmin();
-  renderSaleStock();
+  if(document.hidden||stockRealtimeBusy)return;
+  stockRealtimeBusy=true;
+  try{
+    const j=await api('estoque_atual',{});
+    if(!j)return;
+    stock=j.data||[];
+    renderStockAdmin();
+    renderSaleStock();
+  }finally{
+    stockRealtimeBusy=false;
+  }
 }
 async function loadClients(force=false){
   const now=Date.now();
