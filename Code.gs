@@ -906,6 +906,6 @@ function readStock(ss) {
   const prod={}; const reserved={};
   RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0});
   production.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k)prod[k]+=Number(x.quantidade)||0});
-  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k && ['Reservado','Entregue'].includes(o.status)))reserved[k]+=Number(x.quantidade)||0}));
+  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k && ['Reservado','Entregue'].includes(o.status))reserved[k]+=Number(x.quantidade)||0}));
   return RECHEIOS.map(r=>({recheio:r,produzido:prod[r],reservado:reserved[r],disponivel:Math.max(0,prod[r]-reserved[r])}));
 }
