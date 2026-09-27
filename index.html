@@ -30,14 +30,14 @@ button:hover{filter:brightness(.95)}button:active{transform:scale(.99)}small{dis
 <small>👤 Área do cliente • 🔐 Administração</small>
 <div id="adminModal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.58);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px"><div class="card" style="max-width:390px;text-align:left"><h2 style="margin:0 0 8px">🔐 Administração</h2><p style="margin:0 0 16px">Digite sua senha para continuar.</p><input id="adminPassword" type="password" inputmode="numeric" autocomplete="off" placeholder="Senha" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d6d3d1;border-radius:10px;font-size:16px"><div id="adminError" style="min-height:20px;color:#dc2626;font-size:13px;margin-top:8px"></div><div style="display:flex;gap:8px;margin-top:14px"><button type="button" onclick="closeAdminLogin()" style="background:#f5f5f4;color:#292524">Cancelar</button><button type="button" onclick="checkAdminPassword()" style="background:#292524;color:#fff">Entrar</button></div></div></div></main>
 <script>const theme=localStorage.getItem('vendas_theme')||'light';document.documentElement.classList.toggle('dark',theme==='dark');const b=document.getElementById('themeToggle');function updateTheme(){const d=document.documentElement.classList.contains('dark');b.textContent=d?'☀️ Modo claro':'🌙 Modo escuro'}b.onclick=()=>{const d=!document.documentElement.classList.contains('dark');document.documentElement.classList.toggle('dark',d);localStorage.setItem('vendas_theme',d?'dark':'light');updateTheme()};updateTheme();</script><script>
-const ADMIN_API_URL='https://script.google.com/macros/s/AKfycbxfSvv3IiaRxKZIZpWhDd5ZgdIEP4NAyIfpDnWw-zpNjEQg25q2Rbn9NnXkHtEjJiWL/exec';
+const ADMIN_API_URL='/api';
 function openAdminLogin(){document.getElementById('adminModal').hidden=false;document.getElementById('adminPassword').value='';document.getElementById('adminError').textContent='';setTimeout(()=>document.getElementById('adminPassword').focus(),50)}
 function closeAdminLogin(){document.getElementById('adminModal').hidden=true}
 async function checkAdminPassword(){
   const err=document.getElementById('adminError'), senha=document.getElementById('adminPassword').value;
   err.textContent='Verificando...';
   try{
-    const r=await fetch(ADMIN_API_URL,{method:'POST',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_login',data:{senha}})});
+    const r=await fetch(ADMIN_API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_login',data:{senha}})});
     const j=await r.json();
     if(!j.ok) throw new Error(j.error||'Senha incorreta.');
     sessionStorage.setItem('admin_token',j.data.token);
