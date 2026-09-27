@@ -158,7 +158,7 @@ function renderClients(){
    const nomeBtn='<button type="button" class="client-link" data-client-history="'+esc(c.nome)+'">'+esc(c.nome)+'</button>';
    return c.legacy
      ? '<tr><td>'+nomeBtn+'</td><td>-</td><td>-</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td><span class="badge pending">Sem login</span></td><td><button class="primary client-create-legacy" data-name="'+esc(c.nome)+'">➕ Criar login</button></td></tr>'
-     : '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+(c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>')+'</td><td><button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button> <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
+     : '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+(c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>')+'</td><td><button class="secondary whatsapp-client" data-client="'+esc(c.nome)+'" data-phone="'+esc(c.telefone||'')+'">📱 WhatsApp</button> <button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button> <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
  }).join('')||'<tr><td colspan="7">Nenhum cliente encontrado.</td></tr>';
 }
 function renderSaleClients(){
@@ -248,7 +248,44 @@ function render(){const fat=sales.reduce((a,x)=>a+(Number(x.total)||0),0),cu=cos
 const term=$('buscaVenda').value.toLowerCase(),fs=$('filtroStatus').value,fd=isoDate($('filtroDataVenda')?.value||'');$('salesTable').innerHTML=[...sales].reverse().filter(x=>(!term||String(x.cliente).toLowerCase().includes(term))&&(!fs||x.status===fs)&&(!fd||dateOnly(x.data)===fd)).map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+formatDate(x.dataPagamento)+'</td><td><button class="secondary edit-sale" data-row="'+x.row+'">Editar</button> '+(Number(x.valorPago)>0?'<button class="secondary undo-payment" data-row="'+x.row+'">↩️ Desfazer pagamento</button> ':'')+'<button class="danger-btn delete-sale" data-row="'+x.row+'">Excluir</button></td></tr>').join('')||'<tr><td colspan="10">Nenhuma venda.</td></tr>';
 renderReceber();
 $('costTable').innerHTML=[...costs].reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo.</td></tr>'}
-function renderReceber(){const filtro=String($('receberFiltro')?.value||'').trim().toLowerCase();const grupos={};sales.filter(x=>Number(x.deve)>0).forEach(x=>{const nome=String(x.cliente||'').trim()||'Sem nome',chave=nome.toLowerCase();if(!grupos[chave])grupos[chave]={cliente:nome,qtdVendas:0,total:0,pago:0,saldo:0};grupos[chave].qtdVendas++;grupos[chave].total+=Number(x.total)||0;grupos[chave].pago+=Number(x.valorPago)||0;grupos[chave].saldo+=Number(x.deve)||0});const lista=Object.values(grupos).sort((a,b)=>b.saldo-a.saldo);$('receberTable').innerHTML=lista.map(x=>'<tr><td><button class="client-link" data-client-history="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td>'+x.qtdVendas+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.saldo)+'</td><td><button class="pay-client" data-client="'+esc(x.cliente)+'">Registrar pagamento</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>'}
+function whatsappPhone(value){
+ const digits=String(value||'').replace(/\\D/g,'');
+ if(!digits)return '';
+ if(digits.startsWith('55'))return digits;
+ if(digits.length===10||digits.length===11)return '55'+digits;
+ return digits;
+}
+function openWhatsApp(name,telefone,saldo){
+ const phone=whatsappPhone(telefone);
+ if(!phone){showMsg('Este cliente não possui telefone cadastrado para WhatsApp.','error');return}
+ const mensagem='Olá, '+String(name||'')+'! 👋\\n\\nSeu saldo em aberto no Paozinhos é de '+brl(saldo)+'.\\n\\nQualquer dúvida, fico à disposição. 🥖';
+ window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem),'_blank','noopener');
+}
+function renderReceber(){
+ const filtro=String($('receberFiltro')?.value||'').trim().toLowerCase();
+ const grupos={};
+ sales.filter(x=>Number(x.deve)>0).forEach(x=>{
+   const nome=String(x.cliente||'').trim()||'Sem nome';
+   const chave=nome.toLowerCase();
+   if(!grupos[chave])grupos[chave]={cliente:nome,qtdVendas:0,total:0,pago:0,saldo:0};
+   grupos[chave].qtdVendas++;
+   grupos[chave].total+=Number(x.total)||0;
+   grupos[chave].pago+=Number(x.valorPago)||0;
+   grupos[chave].saldo+=Number(x.deve)||0;
+ });
+ let lista=Object.values(grupos)
+   .filter(x=>!filtro||x.cliente.toLowerCase().includes(filtro))
+   .sort((a,b)=>b.saldo-a.saldo);
+
+ $('receberTable').innerHTML=lista.map(x=>{
+   const cliente=clients.find(c=>normalize(c.nome)===normalize(x.cliente));
+   const telefone=cliente?.telefone||'';
+   const whatsapp=telefone
+     ? '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="'+esc(telefone)+'">📱 WhatsApp</button>'
+     : '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="">📱 Cadastrar telefone</button>';
+   return '<tr><td><button class="client-link" data-client-history="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td>'+x.qtdVendas+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.saldo)+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">'+whatsapp+'<button class="pay-client" data-client="'+esc(x.cliente)+'">Registrar pagamento</button></div></td></tr>';
+ }).join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
+}
 function renderRanking(){if(!$('rankingTable'))return;const inicio=$('rankMesInicio')?.value||'',fim=$('rankMesFim')?.value||'';const filtradas=sales.filter(x=>{const d=dateOnly(x.data);return (!inicio||d>=inicio)&&(!fim||d<=fim)});const grupos={};filtradas.forEach(x=>{const nome=String(x.cliente||'').trim()||'Sem nome',chave=nome.toLowerCase();if(!grupos[chave])grupos[chave]={cliente:nome,qtd:0,vendas:0,total:0};grupos[chave].qtd+=Number(x.quantidade)||0;grupos[chave].vendas++;grupos[chave].total+=Number(x.total)||0});const ranking=Object.values(grupos).sort((a,b)=>b.qtd-a.qtd||b.total-a.total),max=ranking[0]?.qtd||0;const medalhas=['🥇','🥈','🥉'];$('rankingTable').innerHTML=ranking.map((x,i)=>{const pos=i<3?'<span class="medal">'+medalhas[i]+'</span>':'<span class="rank-number">'+(i+1)+'</span>';return '<tr class="'+(i<3?'rank-top':'')+'"><td>'+pos+'</td><td><button class="client-link" data-client-receber="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td><strong>'+x.qtd+'</strong><div class="rank-bar"><span style="width:'+((x.qtd/max)*100).toFixed(1)+'%"></span></div></td><td>'+x.vendas+'</td><td class="rank-total">'+brl(x.total)+'</td><td>'+brl(x.vendas?x.total/x.vendas:0)+'</td></tr>'}).join('')||'<tr><td colspan="6">Nenhuma venda encontrada no mês.</td></tr>'}
 function goToReceber(name){const tab=document.querySelector('[data-view="receber"]');if(tab)tab.click();showClientHistory(name)}
 function showClientHistory(name){const key=String(name).trim().toLowerCase();const itens=[...sales].filter(x=>String(x.cliente).trim().toLowerCase()===key).sort((a,b)=>Number(b.row)-Number(a.row));const total=itens.reduce((a,x)=>a+(Number(x.total)||0),0),pago=itens.reduce((a,x)=>a+(Number(x.valorPago)||0),0),saldo=itens.reduce((a,x)=>a+(Number(x.deve)||0),0),qtd=itens.reduce((a,x)=>a+(Number(x.quantidade)||0),0);$('clienteHistoricoTitulo').textContent='Histórico de vendas — '+name;$('clienteResumo').innerHTML='<div class="card"><div class="label">Vendas</div><div class="value">'+itens.length+'</div></div><div class="card"><div class="label">Pães</div><div class="value">'+qtd+'</div></div><div class="card"><div class="label">Total vendido</div><div class="value">'+brl(total)+'</div></div><div class="card"><div class="label">Saldo atual</div><div class="value">'+brl(saldo)+'</div></div>';$('clienteHistorico').innerHTML=itens.map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td></tr>').join('')||'<tr><td colspan="8">Nenhuma venda encontrada.</td></tr>';$('clienteHistoricoPanel').hidden=false;$('clienteHistoricoPanel').scrollIntoView({behavior:'smooth',block:'start'})}
@@ -481,6 +518,6 @@ document.addEventListener('click',async e=>{
 });
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
+document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone,(()=>{const n=normalize(target.dataset.client||'');return sales.filter(x=>normalize(x.cliente)===n&&Number(x.deve)>0).reduce((a,x)=>a+(Number(x.deve)||0),0)})());if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();load();loadClients();
 </script><script>(async()=>{try{const api=typeof API_URL!=='undefined'?API_URL:'';const r=await fetch(api,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_validar',data:{token:ADMIN_TOKEN}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'Sessão inválida');document.getElementById('adminGate').remove()}catch(e){sessionStorage.removeItem('admin_token');location.replace('/')}})();</script></body></html>
