@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-27-admin-fix-v4';
+const APP_VERSION = '2026-09-27-contabilidade-v5';
 const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','producao'];
 
 const VENDAS_HEADERS = [
@@ -936,7 +936,9 @@ function adminListClients(ss,ordersData,salesData) {
   const pedidoCountByClient={};
   const pedidoCountByName={};
 
-  orders.forEach(o=>{
+  // VENDA_DIRETA é apenas o registro operacional usado para manter os sabores
+  // do estoque. Ela já possui uma venda correspondente e NÃO é um pedido do cliente.
+  orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
     const id=String(o.clienteId||'');
     const key=normalize(o.cliente);
     if(id) pedidoCountByClient[id]=(pedidoCountByClient[id]||0)+1;
@@ -965,13 +967,14 @@ function adminListClients(ss,ordersData,salesData) {
     historicos[key].pedidos++;
     historicos[key].paes+=Number(v.quantidade)||0;
   });
-  orders.forEach(o=>{
+  // Para contabilidade, pães comprados vêm SOMENTE de Vendas.
+  // Pedidos pendentes são operacionais e não representam compra confirmada.
+  orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
     const nome=String(o.cliente||'').trim();
     if(!nome)return;
     const key=normalize(nome);
     if(!historicos[key])historicos[key]={nome:nome,pedidos:0,paes:0};
-    historicos[key].pedidos=Math.max(historicos[key].pedidos,1);
-    historicos[key].paes+=Number(o.quantidadeTotal)||0;
+    historicos[key].pedidos++;
   });
 
   Object.keys(historicos).forEach(key=>{
@@ -1624,34 +1627,33 @@ function getClientData(ss,d) {
 
   const todasPedidos=readOrders(ss);
   const nomeCliente=normalize(client.nome);
+
+  // Pedidos servem para acompanhar o fluxo do cliente. Registros internos
+  // criados por "Nova venda" não aparecem como pedidos do cliente.
   const pedidos=todasPedidos.filter(x=>
-    String(x.clienteId||'')===client.id ||
-    normalize(x.cliente)===nomeCliente
+    normalize(x.origem)!=='VENDA_DIRETA' &&
+    (
+      String(x.clienteId||'')===client.id ||
+      normalize(x.cliente)===nomeCliente
+    )
   );
 
+  // Vendas são a ÚNICA fonte financeira. Um pedido confirmado já possui
+  // uma venda vinculada por pedidoId, então nunca somamos os dois.
   const todasVendas=readAll().sales||[];
-  // Vendas que já foram transformadas em pedidos não entram novamente.
-  const vendas=todasVendas.filter(x=>
-    normalize(x.cliente)===nomeCliente &&
-    !String(x.pedidoId||'').trim()
-  );
+  const vendas=todasVendas.filter(x=>normalize(x.cliente)===nomeCliente);
 
-  const totalPedidos=pedidos.reduce((a,x)=>a+Number(x.total||0),0);
-  const pagoPedidos=pedidos.reduce((a,x)=>a+Number(x.valorPago||0),0);
-  const totalVendas=vendas.reduce((a,x)=>a+Number(x.total||0),0);
-  const pagoVendas=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
+  const totalComprado=vendas.reduce((a,x)=>a+Number(x.total||0),0);
+  const totalPago=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
+  const totalAberto=vendas.reduce((a,x)=>a+Number(x.deve||0),0);
 
   return {
     cliente:{id:client.id,nome:client.nome,telefone:client.telefone,email:client.email},
     pedidos:pedidos,
     vendas:vendas,
-    totalComprado:totalPedidos+totalVendas,
-    totalPago:pagoPedidos+pagoVendas,
-    totalAberto:Math.max(
-      0,
-      pedidos.reduce((a,x)=>a+Number(x.saldo ?? Math.max(0,Number(x.total||0)-Number(x.valorPago||0))),0) +
-      vendas.reduce((a,x)=>a+Number(x.deve||0),0)
-    ),
+    totalComprado:totalComprado,
+    totalPago:totalPago,
+    totalAberto:totalAberto,
     stock:readStock(ss),
     mustChangePassword:!!client.mustChangePassword
   };
