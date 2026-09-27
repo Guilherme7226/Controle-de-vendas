@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-27-estoque-editavel-v1';
+const APP_VERSION = '2026-09-27-estoque-descarte-v2';
 const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','producao'];
 
 const VENDAS_HEADERS = ['Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)','Valor Total (R$)','Data Pagamento','Pago?','Pagamento Parcial?','Valor Pago (R$)','Saldo Devedor (R$)'];
@@ -76,7 +76,7 @@ function ensureClientSheets(ss) {
   let sh=ss.getSheetByName(SHEET_CLIENTES); if(!sh){sh=ss.insertSheet(SHEET_CLIENTES);sh.getRange(1,1,1,9).setValues([['ID','Nome','Telefone','Email','Senha Hash','Token','Criado em','Ativo','Senha Temporária']]);sh.setFrozenRows(1)} else if(sh.getLastColumn()<9)sh.getRange(1,9).setValue('Senha Temporária');
   let ph=ss.getSheetByName(SHEET_PEDIDOS); if(!ph){ph=ss.insertSheet(SHEET_PEDIDOS);ph.getRange(1,1,1,14).setValues([['ID Pedido','Cliente ID','Cliente','Data','Itens','Quantidade Total','Valor Total','Status','Criado em','Valor Pago','Data Pagamento','Saldo','Origem','Referência']]);ph.setFrozenRows(1)} else if(ph.getLastColumn()<14)ph.getRange(1,10,1,5).setValues([['Valor Pago','Data Pagamento','Saldo','Origem','Referência']]);
   let pr=ss.getSheetByName(SHEET_PRODUCAO); if(!pr){pr=ss.insertSheet(SHEET_PRODUCAO);pr.getRange(1,1,1,4).setValues([['Data','Recheio','Quantidade','Criado em']]);pr.setFrozenRows(1)}
-  let aj=ss.getSheetByName(SHEET_AJUSTES_ESTOQUE); if(!aj){aj=ss.insertSheet(SHEET_AJUSTES_ESTOQUE);aj.getRange(1,1,1,5).setValues([['Data','Recheio','Ajuste','Estoque anterior','Novo estoque','Observação']);aj.setFrozenRows(1)}
+  let aj=ss.getSheetByName(SHEET_AJUSTES_ESTOQUE); if(!aj){aj=ss.insertSheet(SHEET_AJUSTES_ESTOQUE);aj.getRange(1,1,1,7).setValues([['Data','Recheio','Descarte','Estoque anterior','Novo estoque','Observação','Tipo']]);aj.setFrozenRows(1)} else if(aj.getLastColumn()<7)aj.getRange(1,7).setValue('Tipo');
 }
 
 function readAll() {
@@ -88,24 +88,102 @@ function readAll() {
 }
 
 function readStockAdjustments(ss){
-  ensureClientSheets(ss); const sh=ss.getSheetByName(SHEET_AJUSTES_ESTOQUE),out=[]; if(!sh||sh.getLastRow()<2)return out;
-  const rows=sh.getRange(2,1,sh.getLastRow()-1,5).getValues(); rows.forEach(r=>{if(!r[1])return;out.push({data:dateValue(r[0]),recheio:String(r[1]),ajuste:Number(r[2])||0,anterior:Number(r[3])||0,novo:Number(r[4])||0,observacao:String(r[5]||'')})}); return out;
+  ensureClientSheets(ss);
+  const sh=ss.getSheetByName(SHEET_AJUSTES_ESTOQUE),out=[];
+  if(!sh||sh.getLastRow()<2)return out;
+  const rows=sh.getRange(2,1,sh.getLastRow()-1,Math.max(6,Math.min(7,sh.getLastColumn()))).getValues();
+  rows.forEach(r=>{
+    if(!r[1])return;
+    const tipo=normalize(r[6]||'');
+    const valor=Math.max(0,Number(r[2])||0);
+    out.push({
+      data:dateValue(r[0]),
+      recheio:String(r[1]),
+      descarte:tipo==='DESCARTE'?valor:0,
+      correcaoLegada:tipo==='DESCARTE'?0:(Number(r[2])||0),
+      anterior:Number(r[3])||0,
+      novo:Number(r[4])||0,
+      observacao:String(r[5]||'')
+    });
+  });
+  return out;
 }
 
 function adminEditStock(ss,d){
-  ensureClientSheets(ss); const recheio=String(d.recheio||'').trim(); const key=normalize(recheio); const canonical=RECHEIOS.find(r=>normalize(r)===key); if(!canonical)throw new Error('Recheio inválido.');
-  const novo=Math.max(0,Math.floor(Number(d.novo)||0)); const stock=calculateStock(readProduction(ss),readOrders(ss),readStockAdjustments(ss)); const atual=stock.find(x=>normalize(x.recheio)===key); if(!atual)throw new Error('Estoque não encontrado.');
-  const ajuste=novo-Number(atual.disponivel||0); if(!ajuste)return {recheio:canonical,anterior:novo,novo:novo,ajuste:0};
-  const sh=ss.getSheetByName(SHEET_AJUSTES_ESTOQUE); sh.appendRow([String(d.data||formatToday()).slice(0,10),canonical,ajuste,Number(atual.disponivel)||0,novo,String(d.observacao||'Ajuste manual')]); sh.getRange(sh.getLastRow(),1).setNumberFormat('dd/MM/yyyy'); sh.getRange(sh.getLastRow(),3,1,3).setNumberFormat('0');
-  return {recheio:canonical,anterior:atual.disponivel,novo:novo,ajuste:ajuste};
+  ensureClientSheets(ss);
+  const recheio=String(d.recheio||'').trim();
+  const key=normalize(recheio);
+  const canonical=RECHEIOS.find(r=>normalize(r)===key);
+  if(!canonical)throw new Error('Recheio inválido.');
+
+  const novo=Math.max(0,Math.floor(Number(d.novo)||0));
+  const stock=calculateStock(readProduction(ss),readOrders(ss),readStockAdjustments(ss));
+  const atual=stock.find(x=>normalize(x.recheio)===key);
+  if(!atual)throw new Error('Estoque não encontrado.');
+
+  const estoqueAtual=Math.max(0,Math.floor(Number(atual.disponivel)||0));
+  if(novo>estoqueAtual){
+    throw new Error('Para aumentar o estoque, registre uma nova produção. O botão Editar estoque registra somente descarte.');
+  }
+
+  const descarte=estoqueAtual-novo;
+  if(!descarte)return {recheio:canonical,anterior:estoqueAtual,novo:novo,descarte:0};
+
+  const sh=ss.getSheetByName(SHEET_AJUSTES_ESTOQUE);
+  sh.appendRow([
+    String(d.data||formatToday()).slice(0,10),
+    canonical,
+    descarte,
+    estoqueAtual,
+    novo,
+    String(d.observacao||'Descarte manual'),
+    'DESCARTE'
+  ]);
+  sh.getRange(sh.getLastRow(),1).setNumberFormat('dd/MM/yyyy');
+  sh.getRange(sh.getLastRow(),3,1,3).setNumberFormat('0');
+  return {recheio:canonical,anterior:estoqueAtual,novo:novo,descarte:descarte};
 }
 
 function calculateStock(production,orders,adjustments) {
-  const prod={},reserved={},sold={},adjusted={}; RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0;sold[r]=0;adjusted[r]=0});
-  (production||[]).forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k)prod[k]+=Number(x.quantidade)||0});
-  (adjustments||[]).forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k)adjusted[k]+=Number(x.ajuste)||0});
-  (orders||[]).forEach(o=>{const status=normalize(o.status),isPending=status==='RESERVADO'||status==='AGUARDANDO'||status==='CONFIRMANDO',isSold=status==='CONFIRMADO'||status==='ENTREGUE';(o.itens||[]).forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(!k)return;const qtd=Math.max(0,Number(x.quantidade)||0);if(isPending)reserved[k]+=qtd;else if(isSold)sold[k]+=qtd})});
-  return RECHEIOS.map(r=>({recheio:r,produzido:prod[r],ajuste:adjusted[r],estoqueBase:prod[r]+adjusted[r],reservado:reserved[r],vendido:sold[r],disponivel:Math.max(0,prod[r]+adjusted[r]-reserved[r]-sold[r])}));
+  const prod={},reserved={},sold={},discarded={},legacyCorrection={};
+  RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0;sold[r]=0;discarded[r]=0;legacyCorrection[r]=0});
+
+  (production||[]).forEach(x=>{
+    const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));
+    if(k)prod[k]+=Math.max(0,Number(x.quantidade)||0);
+  });
+
+  (adjustments||[]).forEach(x=>{
+    const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));
+    if(!k)return;
+    discarded[k]+=Math.max(0,Number(x.descarte)||0);
+    legacyCorrection[k]+=Number(x.correcaoLegada)||0;
+  });
+
+  (orders||[]).forEach(o=>{
+    const status=normalize(o.status);
+    const isPending=status==='RESERVADO'||status==='AGUARDANDO'||status==='CONFIRMANDO';
+    const isSold=status==='CONFIRMADO'||status==='ENTREGUE';
+    (o.itens||[]).forEach(x=>{
+      const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));
+      if(!k)return;
+      const qtd=Math.max(0,Number(x.quantidade)||0);
+      if(isPending)reserved[k]+=qtd;
+      else if(isSold)sold[k]+=qtd;
+    });
+  });
+
+  return RECHEIOS.map(r=>{
+    const disponivel=prod[r]+legacyCorrection[r]-reserved[r]-sold[r]-discarded[r];
+    return {
+      recheio:r,
+      produzido:prod[r],
+      reservado:reserved[r],
+      vendido:sold[r],
+      descartado:discarded[r],
+      disponivel:disponivel
+    };
+  });
 }
 function readStock(ss){return calculateStock(readProduction(ss),readOrders(ss),readStockAdjustments(ss));}
 
