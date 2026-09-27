@@ -1914,7 +1914,7 @@ function readStock(ss) {
 
   orders.forEach(o=>{
     const isPending=isPedidoAguardando(o.status);
-    const isSold=['Confirmado','Entregue'].includes(normalize(o.status).charAt(0).toUpperCase()+normalize(o.status).slice(1).toLowerCase());
+    const isSold=normalize(o.status)==='CONFIRMADO' || normalize(o.status)==='ENTREGUE';
     // Apenas itens com recheio conhecido entram no estoque.
     // Registros históricos antigos ("Venda histórica"/"Venda direta") não inventam sabor.
     o.itens.forEach(x=>{
