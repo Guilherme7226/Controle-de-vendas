@@ -41,7 +41,7 @@ function doPost(e) {
     const d = body.data || body || {};
 
     // Somente ações de cliente podem ser chamadas sem sessão administrativa.
-    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','admin_login','admin_validar'];
+    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','admin_login','admin_validar'];
     if (!clientActions.includes(body.action)) {
       adminValidate({token: body.adminToken});
     }
@@ -74,6 +74,12 @@ function doPost(e) {
         return json({ok:true,data:createClientOrder(ss,d)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
+      case 'cliente_confirmar_pedido':
+        return json({ok:true,data:confirmClientOrder(ss,d)});
+      case 'cliente_editar_pedido':
+        return json({ok:true,data:editClientOrder(ss,d)});
+      case 'cliente_excluir_pedido':
+        return json({ok:true,data:deleteClientOrder(ss,d)});
       case 'producao':
         addProduction(ss,d);
         break;
@@ -901,6 +907,90 @@ function createClientOrder(ss,d) {
     lock.releaseLock();
   }
 }
+function findClientOrder(ss, token, orderId) {
+  const client=findClientByToken(ss,token);
+  const pedidos=readOrders(ss);
+  const pedido=pedidos.find(x=>x.id===String(orderId) && x.clienteId===client.id);
+  if(!pedido) throw new Error('Pedido não encontrado.');
+  return {client:client,pedido:pedido};
+}
+
+function confirmClientOrder(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const found=findClientOrder(ss,d.token,d.id);
+    const sh=ss.getSheetByName(SHEET_PEDIDOS);
+    const row=readOrders(ss).findIndex(x=>x.id===found.pedido.id)+2;
+    if(found.pedido.status==='Confirmado') return found.pedido;
+    if(!['Reservado'].includes(found.pedido.status)) throw new Error('Este pedido não pode ser confirmado.');
+    sh.getRange(row,8).setValue('Confirmado');
+    SpreadsheetApp.flush();
+    found.pedido.status='Confirmado';
+    return found.pedido;
+  } finally { lock.releaseLock(); }
+}
+
+function editClientOrder(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const found=findClientOrder(ss,d.token,d.id);
+    if(!['Reservado','Confirmado'].includes(found.pedido.status)) throw new Error('Este pedido não pode ser editado.');
+    const itens=Array.isArray(d.itens)?d.itens:[];
+    if(!itens.length) throw new Error('Escolha pelo menos um recheio ou exclua o pedido.');
+    const current={};
+    found.pedido.itens.forEach(x=>current[normalize(x.recheio)]=(current[normalize(x.recheio)]||0)+(Number(x.quantidade)||0));
+    const stock=readStock(ss);
+    const available={};
+    stock.forEach(x=>available[normalize(x.recheio)]=Number(x.disponivel)||0);
+    const clean=[]; const requested={}; let totalQtd=0; let total=0;
+    itens.forEach(item=>{
+      const recheio=String(item.recheio||'').trim();
+      const qtd=Math.max(0,Math.floor(Number(item.quantidade)||0));
+      if(!recheio||!qtd) return;
+      const key=normalize(recheio);
+      if(!RECHEIOS.some(r=>normalize(r)===key)) throw new Error('Recheio inválido: '+recheio);
+      requested[key]=(requested[key]||0)+qtd;
+    });
+    RECHEIOS.forEach(r=>{
+      const key=normalize(r);
+      const qtd=Number(requested[key]||0);
+      if(!qtd) return;
+      const disponivelParaEdicao=(available[key]||0)+(current[key]||0);
+      if(qtd>disponivelParaEdicao) throw new Error('Não há estoque suficiente de '+r+'. Disponível para este pedido: '+disponivelParaEdicao+'.');
+      clean.push({recheio:r,quantidade:qtd,valorUnitario:PRECO_PAODEFINIDO});
+      totalQtd+=qtd; total+=qtd*PRECO_PAODEFINIDO;
+    });
+    if(!clean.length) throw new Error('Informe quantidades válidas.');
+    const ordersSh=ss.getSheetByName(SHEET_PEDIDOS);
+    const rows=ordersSh.getRange(2,1,ordersSh.getLastRow()-1,9).getValues();
+    let row=-1;
+    for(let i=0;i<rows.length;i++) if(String(rows[i][0])===found.pedido.id){row=i+2;break;}
+    if(row<0) throw new Error('Pedido não encontrado.');
+    ordersSh.getRange(row,5,1,3).setValues([[JSON.stringify(clean),totalQtd,total]]);
+    SpreadsheetApp.flush();
+    return {id:found.pedido.id,data:found.pedido.data,cliente:found.client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:found.pedido.status};
+  } finally { lock.releaseLock(); }
+}
+
+function deleteClientOrder(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const found=findClientOrder(ss,d.token,d.id);
+    if(!['Reservado','Confirmado'].includes(found.pedido.status)) throw new Error('Este pedido não pode ser excluído.');
+    const sh=ss.getSheetByName(SHEET_PEDIDOS);
+    const rows=sh.getRange(2,1,sh.getLastRow()-1,9).getValues();
+    let row=-1;
+    for(let i=0;i<rows.length;i++) if(String(rows[i][0])===found.pedido.id){row=i+2;break;}
+    if(row<0) throw new Error('Pedido não encontrado.');
+    sh.deleteRow(row);
+    SpreadsheetApp.flush();
+    return {id:found.pedido.id};
+  } finally { lock.releaseLock(); }
+}
+
 function getClientData(ss,d) {
   const client=findClientByToken(ss,d.token);
   const pedidos=readOrders(ss).filter(x=>x.clienteId===client.id);
@@ -966,6 +1056,6 @@ function readStock(ss) {
   const prod={}; const reserved={};
   RECHEIOS.forEach(r=>{prod[r]=0;reserved[r]=0});
   production.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k)prod[k]+=Number(x.quantidade)||0});
-  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k && ['Reservado','Entregue'].includes(o.status))reserved[k]+=Number(x.quantidade)||0}));
+  orders.forEach(o=>o.itens.forEach(x=>{const k=RECHEIOS.find(r=>normalize(r)===normalize(x.recheio));if(k && ['Reservado','Confirmado','Entregue'].includes(o.status))reserved[k]+=Number(x.quantidade)||0}));
   return RECHEIOS.map(r=>({recheio:r,produzido:prod[r],reservado:reserved[r],disponivel:Math.max(0,prod[r]-reserved[r])}));
 }
