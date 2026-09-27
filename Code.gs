@@ -899,7 +899,7 @@ function adminListClients(ss,ordersData,salesData) {
   const sh=ss.getSheetByName(SHEET_CLIENTES);
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
   const orders=ordersData || readOrders(ss);
-  const sales=salesData || readSales(ss);
+  const sales=salesData || readAll().sales;
   const result=[];
   const known={};
   const pedidoCountByClient={};
