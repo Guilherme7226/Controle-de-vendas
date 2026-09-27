@@ -86,10 +86,14 @@ function renderClients(){
  const nomesCadastrados={};
  clients.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomesCadastrados[normalize(nome)]=true});
  const historicos={};
- sales.forEach(v=>{const nome=String(v.cliente||'').trim();if(nome&&!historicos[normalize(nome)])historicos[normalize(nome)]={nome:nome,pedidos:0}});
+ sales.forEach(v=>{const nome=String(v.cliente||'').trim();if(nome&&!historicos[normalize(nome)])historicos[normalize(nome)]={nome:nome,pedidos:0};if(nome)historicos[normalize(nome)].pedidos++});
  orders.forEach(o=>{const nome=String(o.cliente||'').trim();if(nome&&!historicos[normalize(nome)])historicos[normalize(nome)]={nome:nome,pedidos:0}});
- const lista=[...ativos];
- Object.keys(historicos).forEach(k=>{if(!registrados[k]&&!nomesCadastrados[k])lista.push({id:'legacy:'+k,nome:historicos[k].nome,telefone:'',email:'',pedidos:0,legacy:true})});
+ const lista=ativos.map(c=>{
+   const chave=normalize(c.nome);
+   const vendasAntigas=Number(historicos[chave]?.pedidos||0);
+   return Object.assign({},c,{pedidos:Math.max(Number(c.pedidos)||0,vendasAntigas)});
+ });
+ Object.keys(historicos).forEach(k=>{if(!registrados[k]&&!nomesCadastrados[k])lista.push({id:'legacy:'+k,nome:historicos[k].nome,telefone:'',email:'',pedidos:historicos[k].pedidos,legacy:true})});
  $('clientsTable').innerHTML=lista.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(c=>c.legacy
  ? '<tr><td>'+esc(c.nome)+'</td><td>-</td><td>-</td><td>'+c.pedidos+'</td><td><span class="badge pending">Sem login</span></td><td><button class="primary client-create-legacy" data-name="'+esc(c.nome)+'">➕ Criar login</button></td></tr>'
  : '<tr><td>'+esc(c.nome)+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+(c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>')+'</td><td><button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button> <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>').join('')||'<tr><td colspan="6">Nenhum cliente encontrado.</td></tr>';
