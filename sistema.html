@@ -64,25 +64,34 @@ function renderClients(){if(!$('clientsTable'))return;$('clientsTable').innerHTM
 function renderSaleClients(){
  const sel=$('clienteSelect'), orderSel=$('pedidoSelect'); if(!sel||!orderSel)return;
  const current=sel.value;
- sel.innerHTML='<option value="">Selecione o cliente</option>'+clients.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
- if(current && clients.some(c=>c.id===current))sel.value=current;
+ const nomes={};
+ clients.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomes[nome.toLowerCase()]={id:c.id,nome:nome,telefone:c.telefone||'',email:c.email||''}});
+ sales.forEach(x=>{const nome=String(x.cliente||'').trim();if(nome&&!nomes[nome.toLowerCase()])nomes[nome.toLowerCase()]={id:'legacy:'+nome.toLowerCase(),nome:nome,telefone:'',email:'',legacy:true}});
+ const lista=Object.values(nomes).sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR'));
+ sel.innerHTML='<option value="">Selecione o cliente</option>'+lista.map(c=>'<option value="'+esc(c.id)+'">'+esc(c.nome)+'</option>').join('');
+ if(current && lista.some(c=>c.id===current))sel.value=current;
  renderSaleOrders();
 }
 function renderSaleOrders(){
  const clientId=$('clienteSelect')?.value, sel=$('pedidoSelect'); if(!sel)return;
  if(!clientId){sel.innerHTML='<option value="">Selecione primeiro o cliente</option>';clearSaleOrderFields();return}
- const list=orders.filter(o=>String(o.clienteId)===String(clientId)&&['Reservado','Confirmado'].includes(o.status));
- sel.innerHTML='<option value="">Selecione o pedido</option>'+list.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.id)+' • '+formatDate(o.data)+' • '+o.quantidadeTotal+' pães • '+brl(o.total)+'</option>').join('');
- if(!list.length)sel.innerHTML='<option value="">Nenhum pedido em aberto para este cliente</option>';
+ const c=clients.find(x=>String(x.id)===String(clientId));
+ const list=c?orders.filter(o=>String(o.clienteId)===String(clientId)&&['Reservado','Confirmado'].includes(o.status)):[];
+ if(list.length){
+   sel.innerHTML='<option value="">Selecione o pedido</option>'+list.map(o=>'<option value="'+esc(o.id)+'">'+esc(o.id)+' • '+formatDate(o.data)+' • '+o.quantidadeTotal+' pães • '+brl(o.total)+'</option>').join('');
+ }else{
+   sel.innerHTML='<option value="">Sem pedido cadastrado — informar quantidade</option>';
+ }
  clearSaleOrderFields();
 }
-function clearSaleOrderFields(){if($('quantidade'))$('quantidade').value='';if($('contatoEmpresa'))$('contatoEmpresa').value='';if($('valor'))$('valor').value='8.00'}
+function clearSaleOrderFields(){if($('quantidade')){$('quantidade').value='';$('quantidade').readOnly=false}if($('contatoEmpresa'))$('contatoEmpresa').value='';if($('valor'))$('valor').value='8.00'}
 function fillSaleFromOrder(){
  const clientId=$('clienteSelect')?.value, orderId=$('pedidoSelect')?.value;
  const c=clients.find(x=>String(x.id)===String(clientId)),o=orders.find(x=>String(x.id)===String(orderId));
- if(!c||!o){clearSaleOrderFields();return}
- $('contatoEmpresa').value=c.telefone||c.email||'';
+ if(!o){clearSaleOrderFields();if(c)$('contatoEmpresa').value=c.telefone||c.email||'';return}
+ $('contatoEmpresa').value=c?(c.telefone||c.email||''):'';
  $('quantidade').value=o.quantidadeTotal;
+ $('quantidade').readOnly=true;
  $('valor').value=8;
  $('data').value=formatDate(o.data);
 }
