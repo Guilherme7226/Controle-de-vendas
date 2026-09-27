@@ -650,8 +650,7 @@ $('pedidoDataInicio').oninput=renderOrdersAdmin;
 $('pedidoDataFim').oninput=renderOrdersAdmin;
 $('pedidoClienteFiltro').onchange=renderOrdersAdmin;
 $('orderSelectAll').onclick=()=>{
-  const inicio=isoDate($('pedidoDataInicio')?.value||''),fim=isoDate($('pedidoDataFim')?.value||''),clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
-  const aguardando=orders.filter(o=>isPedidoAguardando(o.status)&&(!inicio||dateOnly(o.data)>=inicio)&&(!fim||dateOnly(o.data)<=fim)&&(!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro)));
+  const aguardando=orders.filter(o=>isPedidoAguardando(o.status));
   const todosMarcados=aguardando.length>0&&aguardando.every(o=>selectedOrderIds.has(String(o.id)));
   if(todosMarcados)aguardando.forEach(o=>selectedOrderIds.delete(String(o.id)));else aguardando.forEach(o=>selectedOrderIds.add(String(o.id)));
   renderOrdersAdmin();
