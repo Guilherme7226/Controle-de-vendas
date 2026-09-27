@@ -261,14 +261,19 @@ function whatsappPhone(value){
  if(digits.length===10||digits.length===11)return '55'+digits;
  return digits;
 }
-function openWhatsApp(name,telefone,saldo){
+async function openWhatsApp(name,telefone){
  const phone=whatsappPhone(telefone);
  if(!phone){showMsg('Este cliente não possui telefone cadastrado para WhatsApp.','error');return}
+ // Garante que usamos os dados atuais antes de calcular a cobrança.
+ if(!Array.isArray(sales)||!sales.length){
+   await load();
+ }
  const key=normalize(name);
- const paesEmAberto=sales
-   .filter(x=>normalize(x.cliente)===key&&Number(x.deve)>0)
-   .reduce((a,x)=>a+(Number(x.quantidade)||0),0);
- const mensagem='Olá, '+String(name||'')+'! Tudo bem?\\n\\nVocê tem '+paesEmAberto+' pão'+(paesEmAberto===1?'':'s')+' em aberto, no valor de '+brl(saldo)+'.\\n\\nPIX: 44558352883\\n\\nObrigado!';
+ const vendasAbertas=(sales||[]).filter(x=>normalize(x.cliente)===key&&Number(x.deve)>0);
+ const paesEmAberto=vendasAbertas.reduce((a,x)=>a+(Number(x.quantidade)||0),0);
+ const saldo=vendasAbertas.reduce((a,x)=>a+(Number(x.deve)||0),0);
+ const palavraPaes=paesEmAberto===1?'pão':'pães';
+ const mensagem='Olá, '+String(name||'')+'! Tudo bem?\n\nVocê tem '+paesEmAberto+' '+palavraPaes+' em aberto, no valor de '+brl(saldo)+'.\n\nPIX: 44558352883\n\nObrigado!';
  window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem),'_blank','noopener');
 }
 function renderReceber(){
@@ -528,6 +533,6 @@ document.addEventListener('click',async e=>{
 });
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone,(()=>{const n=normalize(target.dataset.client||'');return sales.filter(x=>normalize(x.cliente)===n&&Number(x.deve)>0).reduce((a,x)=>a+(Number(x.deve)||0),0)})());if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
+document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();load();loadClients();
 </script><script>(async()=>{try{const api=typeof API_URL!=='undefined'?API_URL:'';const r=await fetch(api,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_validar',data:{token:ADMIN_TOKEN}})});const j=await r.json();if(!j.ok)throw new Error(j.error||'Sessão inválida');document.getElementById('adminGate').remove()}catch(e){sessionStorage.removeItem('admin_token');location.replace('/')}})();</script></body></html>
