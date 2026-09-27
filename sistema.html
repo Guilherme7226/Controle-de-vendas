@@ -360,9 +360,7 @@ function renderOrdersAdmin(){
   const fim=isoDate($('pedidoDataFim')?.value||'');
   const clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
 
-  // VENDA_DIRETA é um registro interno da venda e não aparece como pedido.
   let list=orders.filter(o=>{
-    if(normalize(o.origem)==='VENDA_DIRETA')return false;
     const d=dateOnly(o.data);
     const clienteOk=!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro);
     const inicioOk=!inicio||d>=inicio;
@@ -384,7 +382,8 @@ function renderOrdersAdmin(){
     const confirmar=reservado
       ? '<button class="primary admin-order-confirm" data-id="'+esc(o.id)+'">✅ Confirmar pedido</button>'
       : '';
-    return '<div class="order-admin">'+checkbox+'<div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(isPedidoAguardando(o.status)?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+esc(o.id)+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+esc(o.id)+'">🗑️ Excluir pedido</button></div></div>'
+    const origem=normalize(o.origem)==='CLIENTE'?'👤 Cliente':'🛠️ ADM';
+    return '<div class="order-admin">'+checkbox+'<div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(isPedidoAguardando(o.status)?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+' • <strong>'+origem+'</strong></div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+esc(o.id)+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+esc(o.id)+'">🗑️ Excluir pedido</button></div></div>'
   }).join('')||'<div class="notice">Nenhum pedido encontrado.</div>';
   updateOrderBatchUI(aguardando);
 }
@@ -397,7 +396,7 @@ function renderPedidoClientFilter(){
     const nome=String(c.nome||'').trim();
     if(nome)nomes[normalize(nome)]=nome;
   });
-  orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
+  orders.forEach(o=>{
     const nome=String(o.cliente||'').trim();
     if(nome)nomes[normalize(nome)]=nome;
   });
