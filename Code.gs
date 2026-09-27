@@ -98,6 +98,8 @@ function doPost(e) {
         return json({ok:true,data:adminDeleteOrder(ss,d)});
       case 'admin_confirmar_pedido':
         return json({ok:true,data:adminConfirmOrder(ss,d)});
+      case 'admin_confirmar_pedidos_lote':
+        return json({ok:true,data:adminConfirmOrdersBatch(ss,d)});
       case 'producao':
         addProduction(ss,d);
         break;
@@ -1285,6 +1287,60 @@ function adminConfirmOrder(ss,d) {
     // A venda vinculada continua sendo a venda financeira normal.
     // Apenas o status do pedido muda.
     return Object.assign({},old,{status:'Confirmado'});
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function adminConfirmOrdersBatch(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
+    const ids=Array.isArray(d.ids)
+      ? [...new Set(d.ids.map(x=>String(x||'').trim()).filter(Boolean))]
+      : [];
+
+    if(!ids.length) throw new Error('Nenhum pedido selecionado.');
+    if(ids.length>100) throw new Error('Selecione no máximo 100 pedidos por vez.');
+
+    const sh=ss.getSheetByName(SHEET_PEDIDOS);
+    if(!sh||sh.getLastRow()<2) throw new Error('Nenhum pedido encontrado.');
+
+    const rows=sh.getRange(2,1,sh.getLastRow()-1,14).getValues();
+    const selected=new Set(ids);
+    let confirmados=0,jaConfirmados=0,ignorados=0;
+    const encontrados=[];
+
+    for(let i=0;i<rows.length;i++){
+      const id=String(rows[i][0]||'').trim();
+      if(!selected.has(id)) continue;
+
+      const status=String(rows[i][7]||'Reservado').trim();
+      if(status==='Reservado'){
+        encontrados.push(i+2);
+        rows[i][7]='Confirmado';
+        confirmados++;
+      }else if(status==='Confirmado'){
+        jaConfirmados++;
+      }else{
+        ignorados++;
+      }
+    }
+
+    if(encontrados.length){
+      sh.getRange(2,8,rows.length,1).setValues(rows.map(r=>[r[7]]));
+      SpreadsheetApp.flush();
+    }
+
+    const encontradosCount=confirmados+jaConfirmados+ignorados;
+    const naoEncontrados=Math.max(0,ids.length-encontradosCount);
+    return {
+      selecionados:ids.length,
+      confirmados:confirmados,
+      jaConfirmados:jaConfirmados,
+      ignorados:ignorados,
+      naoEncontrados:naoEncontrados
+    };
   } finally {
     lock.releaseLock();
   }
