@@ -97,7 +97,7 @@ $('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=do
 document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
 document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});
 $('goOrder').onclick=()=>{$('orderArea').scrollIntoView({behavior:'smooth',block:'start'})};
-$('goOrder').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('orderArea').scrollIntoView({behavior:'smooth',block:'start')}};
+$('goOrder').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('orderArea').scrollIntoView({behavior:'smooth',block:'start'})}};
 $('orderBtn').onclick=async()=>{const s=session();const itens=recheios.map(r=>({recheio:r,quantidade:Number(quantities[r]||0)})).filter(x=>x.quantidade>0);if(!itens.length){showMsg('Escolha pelo menos um recheio.','error');return}const j=await api('cliente_pedido',{token:s.token,data:today(),itens});if(!j)return;quantities={};showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');await loadClient()};
 loadClient();
 </script>
