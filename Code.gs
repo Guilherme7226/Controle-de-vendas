@@ -1437,28 +1437,41 @@ function adminRegistrarPagamentoCliente(ss,d){
     });
   }
 
-  alvo.sort((a,b)=>a.row-b.row);
+  // FIFO: a dívida com a data mais antiga é quitada primeiro.
+  // Em caso de mesma data, usa a linha mais antiga da planilha como desempate.
+  alvo.sort((a,b)=>{
+    const da=dateValue(a.data)||'9999-12-31';
+    const db=dateValue(b.data)||'9999-12-31';
+    return da.localeCompare(db)||a.row-b.row;
+  });
 
   if(!alvo.length) throw new Error('Este cliente não possui saldo pendente.');
 
   const saldoTotal=alvo.reduce((s,x)=>s+x.saldo,0);
   const valor=Math.min(valorInformado,saldoTotal);
 
-  // Calcula tudo antes de gravar para evitar uma operação parcial.
+  // Aplica o pagamento sequencialmente:
+  // 1) quita a dívida mais antiga;
+  // 2) somente o restante passa para a próxima;
+  // 3) nunca divide o valor proporcionalmente entre todas as vendas.
   let restante=valor;
-  const alteracoes=alvo.map(x=>{
+  const alteracoes=[];
+  for(const x of alvo){
+    if(restante<=0)break;
+
     const pagar=Math.min(restante,x.saldo);
     restante-=pagar;
+
     const novoPago=x.pago+pagar;
-    return {
+    alteracoes.push({
       row:x.row,
       total:x.total,
       pago:novoPago,
       saldo:Math.max(0,x.total-novoPago),
       pedidoId:x.pedidoId,
       dataPagamento:novoPago>0?formatToday():''
-    };
-  }).filter(x=>x.pago>0);
+    });
+  }
 
   alteracoes.forEach(x=>{
     sh.getRange(x.row,7,1,5).setValues([[
