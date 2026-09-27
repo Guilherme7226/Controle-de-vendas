@@ -9,7 +9,7 @@
 :root{--bg:#f7f8fb;--card:#fff;--text:#172033;--muted:#687386;--line:#e2e6ee;--primary:#ea580c;--primary2:#c2410c;--ok:#16a34a;--danger:#dc2626;--input:#fff;--theme-bg:#fff;--theme-text:#172033;--shadow:0 10px 30px rgba(15,23,42,.07)}[data-theme="dark"]{--bg:#0b1120;--card:#111827;--text:#f3f4f6;--muted:#9ca3af;--line:#263244;--input:#172033;--theme-bg:#172033;--theme-text:#f3f4f6;--shadow:0 10px 30px rgba(0,0,0,.24)}
 *{box-sizing:border-box}body{margin:0;background:linear-gradient(135deg,#fff7ed,#fef3c7);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Roboto,Arial;min-height:100vh;transition:background .2s,color .2s} [data-theme="dark"] body{background:linear-gradient(135deg,#0b1120,#111827)}
 .wrap{max-width:900px;margin:auto;padding:18px 16px 40px}header{padding:16px 0 8px}header .top{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{margin:0;font-size:24px}header small{color:var(--muted)}
-.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);margin-top:14px}.hidden{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;color:var(--muted)}input{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--input);color:var(--text);font:inherit;outline:none}button{border:0;border-radius:11px;padding:11px 15px;cursor:pointer;font:inherit;font-weight:700}.primary{background:var(--primary);color:#fff}.secondary{background:var(--card);color:var(--text);border:1px solid var(--line)}[data-theme="dark"] .secondary{background:#172033;color:#f3f4f6;border-color:#334155}.danger{background:#fee2e2;color:#991b1b}[data-theme="dark"] .danger{background:#451a1a;color:#fecaca}.tabs{display:flex;gap:8px;margin-top:16px}.tabs button.active{background:var(--primary);color:#fff}.notice{padding:11px 13px;border-radius:11px;background:#eff6ff;color:#1e40af;margin:10px 0;font-size:13px}.success{background:#f0fdf4;color:#166534}.error{background:#fef2f2;color:#991b1b}[data-theme="dark"] .notice{background:#172554;color:#bfdbfe}[data-theme="dark"] .success{background:#052e16;color:#86efac}[data-theme="dark"] .error{background:#450a0a;color:#fecaca}.stock-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.stock-card{border:1px solid var(--line);border-radius:15px;padding:14px}.stock-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.stock-name{font-weight:800;font-size:17px}.available{color:var(--ok);font-weight:700;font-size:13px}.soldout{color:var(--danger)}.qty{display:flex;align-items:center;gap:8px;margin-top:12px}.qty button{width:42px;height:42px;padding:0;font-size:21px}.qty input{width:80px;text-align:center;font-weight:800}.summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;margin-top:14px}[data-theme="dark"] .summary{background:#291b0e;border-color:#7c3d12}.total{font-size:24px;font-weight:850;color:var(--primary)}.order{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px}.order-top{display:flex;justify-content:space-between;gap:10px}.badge{border-radius:999px;padding:4px 9px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700}.badge.confirmed{background:#dcfce7;color:#166534}[data-theme="dark"] .badge{background:#422f0c;color:#fcd34d}[data-theme="dark"] .badge.confirmed{background:#12351f;color:#86efac}.order-items{color:var(--muted);margin-top:7px;line-height:1.6}.logout{font-size:13px}.account-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}.account-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--card)}.account-label{font-size:12px;color:var(--muted);margin-bottom:5px}.account-value{font-size:21px;font-weight:850}.account-card.open{border-color:#fed7aa;background:#fff7ed}.account-card.open .account-value{color:var(--primary)}.account-note{margin-top:12px;color:var(--muted);font-size:12px}.order-cta{margin-top:14px;position:sticky;top:10px;z-index:10;padding:17px 18px;border-radius:15px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 8px 20px rgba(234,88,60,.22);cursor:pointer}.order-cta strong{font-size:18px}.order-cta span{font-size:13px;opacity:.92}.theme-btn{background:var(--theme-bg);color:var(--theme-text);border:1px solid var(--line);font-size:13px;padding:9px 12px;box-shadow:0 1px 2px rgba(15,23,42,.08)}[data-theme="dark"] .theme-btn{border-color:#475569;box-shadow:0 1px 3px rgba(0,0,0,.35)}
+.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);margin-top:14px}.hidden{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.field{display:flex;flex-direction:column;gap:6px}.field label{font-size:13px;color:var(--muted)}input{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--input);color:var(--text);font:inherit;outline:none}button{border:0;border-radius:11px;padding:11px 15px;cursor:pointer;font:inherit;font-weight:700}.primary{background:var(--primary);color:#fff}.secondary{background:var(--card);color:var(--text);border:1px solid var(--line)}[data-theme="dark"] .secondary{background:#172033;color:#f3f4f6;border-color:#334155}.danger{background:#fee2e2;color:#991b1b}[data-theme="dark"] .danger{background:#451a1a;color:#fecaca}.tabs{display:flex;gap:8px;margin-top:16px}.tabs button.active{background:var(--primary);color:#fff}.notice{padding:11px 13px;border-radius:11px;background:#eff6ff;color:#1e40af;margin:10px 0;font-size:13px}.success{background:#f0fdf4;color:#166534}.error{background:#fef2f2;color:#991b1b}[data-theme="dark"] .notice{background:#172554;color:#bfdbfe}[data-theme="dark"] .success{background:#052e16;color:#86efac}[data-theme="dark"] .error{background:#450a0a;color:#fecaca}.stock-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.stock-card{border:1px solid var(--line);border-radius:15px;padding:14px}.stock-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.stock-name{font-weight:800;font-size:17px}.available{color:var(--ok);font-weight:700;font-size:13px}.soldout{color:var(--danger)}.qty{display:flex;align-items:center;gap:8px;margin-top:12px}.qty button{width:42px;height:42px;padding:0;font-size:21px}.qty input{width:80px;text-align:center;font-weight:800}.summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;margin-top:14px}[data-theme="dark"] .summary{background:#291b0e;border-color:#7c3d12}.total{font-size:24px;font-weight:850;color:var(--primary)}.order{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px}.order-top{display:flex;justify-content:space-between;gap:10px}.badge{border-radius:999px;padding:4px 9px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700}[data-theme="dark"] .badge{background:#422f0c;color:#fcd34d}.order-items{color:var(--muted);margin-top:7px;line-height:1.6}.logout{font-size:13px}.account-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}.account-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--card)}.account-label{font-size:12px;color:var(--muted);margin-bottom:5px}.account-value{font-size:21px;font-weight:850}.account-card.open{border-color:#fed7aa;background:#fff7ed}.account-card.open .account-value{color:var(--primary)}.account-note{margin-top:12px;color:var(--muted);font-size:12px}.order-cta{margin-top:14px;position:sticky;top:10px;z-index:10;padding:17px 18px;border-radius:15px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 8px 20px rgba(234,88,12,.22);cursor:pointer}.order-cta strong{font-size:18px}.order-cta span{font-size:13px;opacity:.92}.theme-btn{background:var(--theme-bg);color:var(--theme-text);border:1px solid var(--line);font-size:13px;padding:9px 12px;box-shadow:0 1px 2px rgba(15,23,42,.08)}[data-theme="dark"] .theme-btn{border-color:#475569;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 @media(max-width:600px){.grid,.stock-grid,.account-grid{grid-template-columns:1fr 1fr}.account-value{font-size:19px}.summary{align-items:flex-start;flex-direction:column}.wrap{padding:12px}.panel{padding:15px}}
 </style>
 </head>
@@ -69,7 +69,7 @@ const recheios=['Frango','Frango com milho','Frango com milho e salada','Frango 
 const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
-function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>\"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','\"':'&quot;'}[m]))+'</div>'}
+function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
 async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){showMsg(e.message||'Erro de comunicação.','error');return null}}
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
@@ -80,25 +80,178 @@ let stock=[];let quantities={};let editingOrderId=null;let currentPedidos=[];let
 async function loadClient(prefetched=null){
  const s=session();if(!s){showAuth();return}
  const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:s.token});
- if(!j){const atual=session();if(atual)showApp(atual);return}
- const mustChangePassword=!!j.data.mustChangePassword;const sess={token:s.token,mustChangePassword,cliente:j.data.cliente};saveSession(sess);showApp(sess);
- if(!mustChangePassword){currentPedidos=j.data.pedidos||[];currentVendas=j.data.vendas||[];renderStock(j.data.stock||[]);renderOrders(currentPedidos,currentVendas)}
+ if(!j){
+   const atual=session();
+   if(atual)showApp(atual);
+   return;
+ }
+ const mustChangePassword=!!j.data.mustChangePassword;
+ const sess={token:s.token,mustChangePassword,cliente:j.data.cliente};
+ saveSession(sess);
+ showApp(sess);
+ if(!mustChangePassword){
+   currentPedidos=j.data.pedidos||[];
+   currentVendas=j.data.vendas||[];
+   renderStock(j.data.stock||[]);
+   renderOrders(currentPedidos,currentVendas);
+ }
 }
-async function refreshStock(){const j=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'}).then(r=>r.json()).catch(()=>null);if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}}
-function renderStock(data){stock=data;const map={};data.forEach(x=>map[x.recheio]=x);$('stockGrid').innerHTML=recheios.map(r=>{const x=map[r]||{disponivel:0};const q=Math.min(quantities[r]||0,Number(x.disponivel)||0);quantities[r]=q;return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+r+'</div><div class="available '+(x.disponivel?'':'soldout')+'">'+(x.disponivel?'Estoque: '+x.disponivel:'Estoque: 0')+'</div></div><div class="qty"><button type="button" class="secondary minus" data-r="'+r+'">−</button><input inputmode="numeric" min="0" max="'+(x.disponivel||0)+'" value="'+q+'" data-q="'+r+'"><button type="button" class="secondary plus" data-r="'+r+'">+</button></div></div>'}).join('');updateTotal()}
+async function refreshStock(){
+ const j=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+ if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}
+}
+function renderStock(data){
+ stock=data;const map={};data.forEach(x=>map[x.recheio]=x);
+ $('stockGrid').innerHTML=recheios.map(r=>{const x=map[r]||{disponivel:0};const q=Math.min(quantities[r]||0,Number(x.disponivel)||0);quantities[r]=q;return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+r+'</div><div class="available '+(x.disponivel?'':'soldout')+'">'+(x.disponivel?'Estoque: '+x.disponivel:'Estoque: 0')+'</div></div><div class="qty"><button type="button" class="secondary minus" data-r="'+r+'">−</button><input inputmode="numeric" min="0" max="'+(x.disponivel||0)+'" value="'+q+'" data-q="'+r+'"><button type="button" class="secondary plus" data-r="'+r+'">+</button></div></div>'}).join('');updateTotal()
+}
 function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
-function renderOrders(list,vendas=[]){const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));const registros=[...list.map(o=>({type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,total:Number(o.total)||0,valorPago:Number(o.valorPago)||0,saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,dataPagamento:o.dataPagamento||'',status:o.status,origem:o.origem||''})),...vendas.filter(v=>!v.pedidoId||!pedidosIds.has(String(v.pedidoId).trim())).map(v=>({type:'venda',data:v.data,id:'VENDA #'+v.row,cliente:v.cliente,itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],quantidadeTotal:Number(v.quantidade)||0,total:Number(v.total)||0,valorPago:Number(v.valorPago)||0,saldo:Number(v.deve)||0,dataPagamento:v.dataPagamento||'',status:v.status,origem:'VENDA'}))];const atuais=registros.filter(x=>Number(x.saldo)>0);const totalAtual=atuais.reduce((a,x)=>a+(Number(x.total)||0),0);const pagoAtual=atuais.reduce((a,x)=>a+(Number(x.valorPago)||0),0);const abertoAtual=atuais.reduce((a,x)=>a+(Number(x.saldo)||0),0);$('accountOrders').textContent=atuais.length;$('accountTotal').textContent=brl(totalAtual);$('accountPaid').textContent=brl(pagoAtual);$('accountOpen').textContent=brl(abertoAtual);if(!atuais.length){$('orders').innerHTML='<div class="notice success">✅ Nenhuma pendência no momento. Sua conta está zerada.</div>'}else{$('orders').innerHTML=[...atuais].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{const actions=o.type==='pedido'&&o.origem!=='VENDA_HISTORICA'&&(o.status==='Reservado'||o.status==='Confirmado')?'<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>':'';const pagamento=o.valorPago>0?'<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>':'';const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>'+((o.origem==='VENDA_HISTORICA')?'<div class="order-items">'+o.quantidadeTotal+' pães</div>':'<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>')+pagamento+actions+'</div>'}).join('')}
-const totalHistorico=registros.reduce((a,x)=>a+(Number(x.total)||0),0);const pagoHistorico=registros.reduce((a,x)=>a+(Number(x.valorPago)||0),0);const paesHistorico=registros.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);$('historyOrders').textContent=registros.length;$('historyBreads').textContent=paesHistorico;$('historyBought').textContent=brl(totalHistorico);$('historyPaid').textContent=brl(pagoHistorico);if(!registros.length){$('historyList').innerHTML='<div class="notice">Nenhum histórico disponível.</div>'}else{$('historyList').innerHTML=[...registros].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{const status=o.saldo<=0?'Pago':(o.status==='Reservado'?'Aguardando':o.status);const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';const badgeClass=status==='Confirmado'?'badge confirmed':'badge';return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>'+((o.origem==='VENDA_HISTORICA')?'<div class="order-items">'+o.quantidadeTotal+' pães</div>':'<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>')+pagamento+'</div>'}).join('')}}
-function setClientTab(tab){const atual=tab==='atual';$('currentPanel').classList.toggle('hidden',!atual);$('historyPanel').classList.toggle('hidden',atual);$('tabAtual').className=atual?'primary':'secondary';$('tabHistorico').className=atual?'secondary':'primary'}
-$('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};$('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
+function renderOrders(list, vendas=[]){
+  // Cada pedido confirmado já possui uma venda vinculada pelo pedidoId.
+  // A venda vinculada não pode aparecer como um segundo registro no cliente.
+  const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));
+  const registros=[
+    ...list.map(o=>({
+      type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
+      total:Number(o.total)||0,valorPago:Number(o.valorPago)||0,
+      saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,
+      dataPagamento:o.dataPagamento||'',status:o.status,origem:o.origem||''
+    })),
+    // Só mostra uma venda separadamente quando ela NÃO pertence a um pedido.
+    ...vendas.filter(v=>!v.pedidoId || !pedidosIds.has(String(v.pedidoId).trim())).map(v=>({
+      type:'venda',data:v.data,id:'VENDA #'+v.row,cliente:v.cliente,itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],
+      quantidadeTotal:Number(v.quantidade)||0,total:Number(v.total)||0,valorPago:Number(v.valorPago)||0,
+      saldo:Number(v.deve)||0,dataPagamento:v.dataPagamento||'',status:v.status,origem:'VENDA'
+    }))
+  ];
+
+  const atuais=registros.filter(x=>Number(x.saldo)>0);
+  const totalAtual=atuais.reduce((a,x)=>a+(Number(x.total)||0),0);
+  const pagoAtual=atuais.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
+  const abertoAtual=atuais.reduce((a,x)=>a+(Number(x.saldo)||0),0);
+  const paesAtuais=atuais.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);
+
+  $('accountOrders').textContent=atuais.length;
+  $('accountTotal').textContent=brl(totalAtual);
+  $('accountPaid').textContent=brl(pagoAtual);
+  $('accountOpen').textContent=brl(abertoAtual);
+
+  if(!atuais.length){
+    $('orders').innerHTML='<div class="notice success">✅ Nenhuma pendência no momento. Sua conta está zerada.</div>';
+  }else{
+    $('orders').innerHTML=[...atuais].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
+      const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (o.status==='Reservado'||o.status==='Confirmado')
+        ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
+        : '';
+      const pagamento=o.valorPago>0
+        ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
+        : '';
+      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="badge">'+(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
+    }).join('');
+  }
+
+  const totalHistorico=registros.reduce((a,x)=>a+(Number(x.total)||0),0);
+  const pagoHistorico=registros.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
+  const paesHistorico=registros.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);
+  $('historyOrders').textContent=registros.length;
+  $('historyBreads').textContent=paesHistorico;
+  $('historyBought').textContent=brl(totalHistorico);
+  $('historyPaid').textContent=brl(pagoHistorico);
+
+  if(!registros.length){
+    $('historyList').innerHTML='<div class="notice">Nenhum histórico disponível.</div>';
+  }else{
+    $('historyList').innerHTML=[...registros].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
+      const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Aguardando':o.status);
+      const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';
+      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="badge">'+status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + '</div>';
+    }).join('');
+  }
+}
+function setClientTab(tab){
+  const atual=tab==='atual';
+  $('currentPanel').classList.toggle('hidden',!atual);
+  $('historyPanel').classList.toggle('hidden',atual);
+  $('tabAtual').className=atual?'primary':'secondary';
+  $('tabHistorico').className=atual?'secondary':'primary';
+}
+
+$('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
+$('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
 $('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');await loadClient()}finally{btn.disabled=false;btn.textContent='Entrar'}};
-$('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};$('tabAtual').onclick=()=>setClientTab('atual');$('tabHistorico').onclick=()=>setClientTab('historico');
-$('clientSettings').onclick=()=>{$('clientSettingsPanel').classList.remove('hidden');$('settingsPassword').value='';$('settingsPassword2').value='';$('clientSettingsPanel').scrollIntoView({behavior:'smooth',block:'start'})};$('closeClientSettings').onclick=()=>{$('clientSettingsPanel').classList.add('hidden')};$('saveSettingsPassword').onclick=async()=>{const s=session(),a=$('settingsPassword').value,b=$('settingsPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('clientSettingsPanel').classList.add('hidden');$('settingsPassword').value='';$('settingsPassword2').value='';showMsg('Senha alterada com sucesso.','success')};
-$('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};$('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};$('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();
-document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});$('goOrder').onclick=()=>{$('orderArea').scrollIntoView({behavior:'smooth',block:'start'})};$('goOrder').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('orderArea').scrollIntoView({behavior:'smooth',block:'start')}}};
-$('orderBtn').onclick=async()=>{const s=session();const itens=recheios.map(r=>({recheio:r,quantidade:Number(quantities[r]||0)})).filter(x=>x.quantidade>0);if(!itens.length){showMsg('Escolha pelo menos um recheio.','error');return}let j;if(editingOrderId){j=await api('cliente_editar_pedido',{token:s.token,id:editingOrderId,itens});if(!j)return;showMsg('Pedido '+j.data.id+' atualizado com sucesso.','success')}else{j=await api('cliente_pedido',{token:s.token,data:today(),itens});if(!j)return;showMsg('Pedido '+j.data.id+' reservado com sucesso!','success')}if(j.data&&j.data.id){const novo=Object.assign({},j.data);const idx=currentPedidos.findIndex(o=>String(o.id)===String(novo.id));if(idx>=0)currentPedidos[idx]=novo;else currentPedidos.push(novo)}editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');if(j.data&&j.data.stock)renderStock(j.data.stock);renderOrders(currentPedidos,currentVendas)};
-$('cancelEdit').onclick=()=>{editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');renderStock(stock)};document.addEventListener('click',async e=>{const id=e.target.dataset.id;if(!id)return;const s=session();if(!s)return;if(e.target.classList.contains('order-edit')){const j=await api('cliente_dados',{token:s.token});if(!j)return;const o=(j.data.pedidos||[]).find(x=>x.id===id);if(!o)return;editingOrderId=id;quantities={};o.itens.forEach(i=>quantities[i.recheio]=Number(i.quantidade)||0);$('orderBtn').textContent='Salvar alterações';$('cancelEdit').classList.remove('hidden');renderStock(j.data.stock||stock);$('orderArea').scrollIntoView({behavior:'smooth',block:'start')}}});
-loadClient();let clientRefreshBusy=false;setInterval(()=>{if(document.hidden||clientRefreshBusy||!session())return;clientRefreshBusy=true;loadClient().finally(()=>{clientRefreshBusy=false})},60000);
+$('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
+$('tabAtual').onclick=()=>setClientTab('atual');
+$('tabHistorico').onclick=()=>setClientTab('historico');
+$('clientSettings').onclick=()=>{
+  $('clientSettingsPanel').classList.remove('hidden');
+  $('settingsPassword').value='';
+  $('settingsPassword2').value='';
+  $('clientSettingsPanel').scrollIntoView({behavior:'smooth',block:'start'});
+};
+$('closeClientSettings').onclick=()=>{$('clientSettingsPanel').classList.add('hidden')};
+$('saveSettingsPassword').onclick=async()=>{
+  const s=session(),a=$('settingsPassword').value,b=$('settingsPassword2').value;
+  if(!s)return;
+  if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}
+  if(a!==b){showMsg('As senhas não conferem.','error');return}
+  const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});
+  if(!j)return;
+  saveSession(j.data);
+  $('clientSettingsPanel').classList.add('hidden');
+  $('settingsPassword').value='';
+  $('settingsPassword2').value='';
+  showMsg('Senha alterada com sucesso.','success');
+};
+
+$('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
+$('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
+$('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();
+document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
+document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});
+$('goOrder').onclick=()=>{
+  $('orderArea').scrollIntoView({behavior:'smooth',block:'start'});
+};
+$('goOrder').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('orderArea').scrollIntoView({behavior:'smooth',block:'start'})}};
+$('orderBtn').onclick=async()=>{
+ const s=session();
+ const itens=recheios.map(r=>({recheio:r,quantidade:Number(quantities[r]||0)})).filter(x=>x.quantidade>0);
+ if(!itens.length){showMsg('Escolha pelo menos um recheio.','error');return}
+ let j;
+ if(editingOrderId){
+   j=await api('cliente_editar_pedido',{token:s.token,id:editingOrderId,itens});
+   if(!j)return;
+   showMsg('Pedido '+j.data.id+' atualizado com sucesso.','success');
+ }else{
+   j=await api('cliente_pedido',{token:s.token,data:today(),itens});
+   if(!j)return;
+   showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');
+ }
+ if(j.data&&j.data.id){
+   const novo=Object.assign({},j.data);
+   const idx=currentPedidos.findIndex(o=>String(o.id)===String(novo.id));
+   if(idx>=0)currentPedidos[idx]=novo;else currentPedidos.push(novo);
+ }
+ editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');
+ if(j.data&&j.data.stock)renderStock(j.data.stock);
+ renderOrders(currentPedidos,currentVendas)
+};
+$('cancelEdit').onclick=()=>{editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');renderStock(stock)};
+document.addEventListener('click',async e=>{
+ const id=e.target.dataset.id;if(!id)return;
+ const s=session();if(!s)return;
+ if(e.target.classList.contains('order-edit')){
+   const j=await api('cliente_dados',{token:s.token});if(!j)return;
+   const o=(j.data.pedidos||[]).find(x=>x.id===id);if(!o)return;
+   editingOrderId=id;quantities={};o.itens.forEach(i=>quantities[i.recheio]=Number(i.quantidade)||0);
+   $('orderBtn').textContent='Salvar alterações';$('cancelEdit').classList.remove('hidden');renderStock(j.data.stock||stock);$('orderArea').scrollIntoView({behavior:'smooth',block:'start'});
+ }
+});
+loadClient();
+let clientRefreshBusy=false;
+setInterval(()=>{
+  if(document.hidden || clientRefreshBusy || !session())return;
+  clientRefreshBusy=true;
+  loadClient().finally(()=>{clientRefreshBusy=false});
+},60000);
 </script>
 </body>
 </html>
