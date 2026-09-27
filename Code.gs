@@ -11,6 +11,8 @@ const SHEET_PEDIDOS = 'Pedidos';
 const SHEET_PRODUCAO = 'Produção';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
+const APP_VERSION = '2026-09-27-pedidos-confirmacao-v3';
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','producao'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -23,7 +25,7 @@ function doGet(e) {
     if (API_KEY && e?.parameter?.apiKey !== API_KEY) {
       throw new Error('Chave inválida');
     }
-    return json({ok:true, service:'Controle de Vendas', data:readAll()});
+    return json({ok:true, service:'Controle de Vendas', version:APP_VERSION, data:readAll()});
   } catch (err) {
     return json({ok:false, error:String(err.message || err)});
   }
@@ -44,6 +46,10 @@ function doPost(e) {
     const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar'];
     if (!clientActions.includes(body.action)) {
       adminValidate({token: body.adminToken});
+    }
+
+    if (!SUPPORTED_ACTIONS.includes(body.action)) {
+      throw new Error('Ação desconhecida: '+String(body.action||'')+'. Esta implantação precisa da versão '+APP_VERSION+'.');
     }
 
     switch (body.action) {
