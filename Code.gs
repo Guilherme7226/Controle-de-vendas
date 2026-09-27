@@ -557,7 +557,6 @@ function deleteSale(ss, d) {
 function readAll() {
   const ss = getSS();
   const sales = [];
-  const salesPedidoIds = new Set();
   const sh = ss.getSheetByName(SHEET_VENDAS);
 
   if (sh && sh.getLastRow() >= 2) {
@@ -579,7 +578,7 @@ function readAll() {
       // Um pedido pode ter somente uma venda. Se houver registros duplicados
       // com o mesmo pedidoId (legado ou clique repetido), a primeira venda
       // continua sendo a venda oficial e as demais não entram na contabilidade.
-      if(pedidoIdAtual && salesPedidoIds.has(pedidoIdAtual)) continue;
+      if(pedidoIdAtual && sales.some(x=>String(x.pedidoId||'').trim()===pedidoIdAtual)) return;
 
       sales.push({
         row: actualRow,
@@ -597,7 +596,6 @@ function readAll() {
         status: saldo <= 0 ? 'Pago' : pago > 0 ? 'Parcial' : 'Pendente',
         pedidoId: pedidoIdAtual
       });
-      if(pedidoIdAtual) salesPedidoIds.add(pedidoIdAtual);
     }
   }
 
