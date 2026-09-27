@@ -74,7 +74,7 @@ async function loadClient(){
  showApp(sess);
  if(!mustChangePassword){
    renderStock(j.data.stock||[]);
-   renderOrders(j.data.pedidos||[]);
+   renderOrders(j.data.pedidos||[],j.data.vendas||[]);
  }
 }
 async function refreshStock(){
