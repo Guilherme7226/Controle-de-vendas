@@ -273,6 +273,7 @@ async function load(){
     renderOrdersAdmin();
     renderClients();
     renderSaleClients();
+    renderSaleStock();
   }catch(e){
     console.error('API conectada, mas houve erro ao atualizar a interface:',e);
     showMsg('🟢 API conectada. Erro ao atualizar a tela: '+(e.message||'erro desconhecido'),'error');
@@ -638,7 +639,7 @@ $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=p
     sales=d.sales||[];costs=d.costs||[];summary=d.summary||{};clientSummary=d.clientSummary||[];
     production=d.production||[];stock=d.stock||[];orders=d.orders||[];clients=d.clients||[];
     clientsLoadedAt=Date.now();
-    render();renderRanking();renderStockAdmin();renderProduction();renderOrdersAdmin();renderClients();renderSaleClients();
+    render();renderRanking();renderStockAdmin();renderProduction();renderOrdersAdmin();renderClients();renderSaleClients();renderSaleStock();
     gate.remove();
   }catch(e){
     sessionStorage.removeItem('admin_token');
