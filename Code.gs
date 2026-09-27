@@ -120,8 +120,6 @@ function doPost(e) {
         throw new Error('Ação desconhecida');
     }
 
-    SpreadsheetApp.flush();
-
     // Não recarrega toda a planilha depois de cada gravação.
     // Isso deixa o POST muito mais rápido; o site atualiza os dados
     // em segundo plano através do GET.
@@ -215,8 +213,6 @@ function padronizarPlanilha() {
       false
     );
   }
-
-  SpreadsheetApp.flush();
   return 'Formatação das vendas padronizada usando a linha 4 como modelo.';
 }
 
@@ -252,8 +248,6 @@ function limparTestes() {
       apagadas++;
     }
   }
-
-  SpreadsheetApp.flush();
   return 'Vendas de teste apagadas: ' + apagadas;
 }
 
@@ -314,7 +308,6 @@ function appendSale(ss, d) {
     pedidoId=pedido.id;
   }
   if(pedidoId) sh.getRange(novaLinha,12).setValue(pedidoId);
-  SpreadsheetApp.flush();
   return {row:novaLinha,pedidoId:pedidoId};
 }
 
@@ -497,8 +490,6 @@ function deleteSale(ss, d) {
   sh.deleteRow(rowNumber);
 
   if(pedidoId)excluirPedidoHistorico(ss,pedidoId);
-
-  SpreadsheetApp.flush();
 
   return 'Venda de ' + cliente + ' excluída com sucesso.';
 }
@@ -896,7 +887,6 @@ function changeClientPassword(ss,d) {
     const token=newToken();
     sh.getRange(i+2,5,1,2).setValues([[hashPassword(senha),token]]);
     sh.getRange(i+2,9).setValue(false);
-    SpreadsheetApp.flush();
     return {token:token,mustChangePassword:false,cliente:{id:String(rows[i][0]),nome:String(rows[i][1]),telefone:String(rows[i][2]),email:String(rows[i][3])}};
   }
   throw new Error('Cliente não encontrado.');
@@ -980,7 +970,6 @@ function adminCreateClient(ss,d) {
       pr.forEach((r,i)=>{if(normalize(r[2])===normalize(legacyName)){ph.getRange(i+2,2).setValue(id);ph.getRange(i+2,3).setValue(nome);vinculados++}});
     }
   }
-  SpreadsheetApp.flush();
   return {id:id,nome:nome,email:email,vinculados:vinculados,senhaInicial:senha,mustChangePassword:true};
 }
 function adminEditClient(ss,d) {
@@ -997,7 +986,6 @@ function adminEditClient(ss,d) {
   if(senha&&senha.length<6)throw new Error('A nova senha deve ter pelo menos 6 caracteres.');
   sh.getRange(row,2,1,3).setValues([[nome,telefone,email]]);
   if(senha){sh.getRange(row,5).setValue(hashPassword(senha));sh.getRange(row,6).setValue('');sh.getRange(row,9).setValue(true)}
-  SpreadsheetApp.flush();
   return {id:id,nome:nome,telefone:telefone,email:email,senhaRedefinida:!!senha,senhaInicial:senha||'',mustChangePassword:senha?true:old[8]===true};
 }
 
@@ -1025,8 +1013,6 @@ function adminDeleteClient(ss,d) {
   sh.getRange(row,6).setValue('');
   sh.getRange(row,8).setValue(false);
   sh.getRange(row,9).setValue(false);
-
-  SpreadsheetApp.flush();
   return {id:id,nome:nome,excluido:true};
 }
 
@@ -1085,7 +1071,6 @@ function createClientOrder(ss,d) {
 
     // O pedido fica apenas como "Reservado" até o administrador confirmar.
     // A venda financeira será criada no momento da confirmação.
-    SpreadsheetApp.flush();
     return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado',valorPago:0,dataPagamento:'',saldo:total,origem:'CLIENTE',referencia:id};
   } finally {
     lock.releaseLock();
@@ -1108,7 +1093,6 @@ function confirmClientOrder(ss,d) {
     const row=readOrders(ss).findIndex(x=>x.id===found.pedido.id)+2;
     if(found.pedido.status==='Confirmado'){
       registrarVendaDoPedido(ss,found.pedido);
-      SpreadsheetApp.flush();
       return found.pedido;
     }
     if(!isPedidoAguardando(found.pedido.status)) throw new Error('Este pedido não pode ser confirmado.');
@@ -1116,7 +1100,6 @@ function confirmClientOrder(ss,d) {
     // Cria a venda primeiro. Se falhar, o pedido continua aguardando.
     registrarVendaDoPedido(ss,found.pedido);
     sh.getRange(row,8).setValue('Confirmado');
-    SpreadsheetApp.flush();
     found.pedido.status='Confirmado';
     return found.pedido;
   } finally { lock.releaseLock(); }
@@ -1283,7 +1266,6 @@ function editClientOrder(ss,d) {
       total:total,
       dataPagamento:found.pedido.dataPagamento||''
     });
-    SpreadsheetApp.flush();
     return {id:found.pedido.id,data:found.pedido.data,cliente:found.client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:found.pedido.status};
   } finally { lock.releaseLock(); }
 }
@@ -1301,7 +1283,6 @@ function deleteClientOrder(ss,d) {
     if(row<0) throw new Error('Pedido não encontrado.');
     sh.deleteRow(row);
     excluirVendaDoPedido(ss,found.pedido.id);
-    SpreadsheetApp.flush();
     return {id:found.pedido.id};
   } finally { lock.releaseLock(); }
 }
@@ -1343,7 +1324,6 @@ function adminConfirmOrder(ss,d) {
   // Já confirmado: garante somente que a venda vinculada exista.
   if(old.status==='Confirmado'){
     registrarVendaDoPedido(ss,old);
-    SpreadsheetApp.flush();
     return old;
   }
 
@@ -1356,7 +1336,6 @@ function adminConfirmOrder(ss,d) {
   // outra confirmação do mesmo pedido enquanto esta estiver em andamento.
   if(old.status!=='Confirmando'){
     sh.getRange(row,8).setValue('Confirmando');
-    SpreadsheetApp.flush();
   }
 
   // A operação é idempotente: registrarVendaDoPedido procura pelo pedidoId
@@ -1365,7 +1344,6 @@ function adminConfirmOrder(ss,d) {
 
   sh.getRange(row,8).setValue('Confirmado');
   old.status='Confirmado';
-  SpreadsheetApp.flush();
   return old;
 }
 function adminConfirmOrdersBatch(ss,d) {
@@ -1408,7 +1386,6 @@ function adminConfirmOrdersBatch(ss,d) {
 
       // Reserva logicamente o pedido antes de criar a venda.
       sh.getRange(i+2,8).setValue('Confirmando');
-      SpreadsheetApp.flush();
 
       registrarVendaDoPedido(ss,pedido);
 
@@ -1431,7 +1408,6 @@ function adminConfirmOrdersBatch(ss,d) {
 
   const foundIds=new Set(rows.map(r=>String(r[0]||'').trim()).filter(Boolean));
   naoEncontrados=ids.filter(id=>!foundIds.has(id)).length;
-  SpreadsheetApp.flush();
   return {selecionados:ids.length,confirmados:confirmados,jaConfirmados:jaConfirmados,ignorados:ignorados,naoEncontrados:naoEncontrados,vendasCriadas:vendasCriadas};
 }
 function adminRegistrarPagamentoCliente(ss,d){
@@ -1536,8 +1512,6 @@ function adminRegistrarPagamentoCliente(ss,d){
     }
   });
 
-  SpreadsheetApp.flush();
-
   return {
     cliente:nome,
     valorSolicitado:valorInformado,
@@ -1580,7 +1554,6 @@ function adminEditOrder(ss,d) {
       total:total,
       dataPagamento:dateValue(rows[row-2][10]||'')
     });
-    SpreadsheetApp.flush();
     return {id:id,cliente:old.cliente,data:old.data,itens:clean,quantidadeTotal:totalQtd,total:total,status:old.status};
   } finally { lock.releaseLock(); }
 }
@@ -1594,7 +1567,6 @@ function adminDeleteOrder(ss,d) {
     if(row<0)throw new Error('Pedido não encontrado.');
     sh.deleteRow(row);
     excluirVendaDoPedido(ss,id);
-    SpreadsheetApp.flush();
     return {id:id};
   } finally { lock.releaseLock(); }
 }
@@ -1901,7 +1873,6 @@ function migrarVendasParaPedidos(ss){
     }
 
     vsh.hideColumns(pedidoMetaCol);
-    SpreadsheetApp.flush();
     return {importadas:importadas,vinculadas:vinculadas};
   } finally {
     lock.releaseLock();
@@ -1921,7 +1892,6 @@ function addProduction(ss,d) {
     sh.appendRow([data,RECHEIOS.find(r=>normalize(r)===normalize(recheio)),quantidade,new Date()]);
     aplicarFormatoProducao(sh,sh.getLastRow());
   });
-  SpreadsheetApp.flush();
 }
 
 function readProduction(ss) {
