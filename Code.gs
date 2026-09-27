@@ -1062,11 +1062,16 @@ function confirmClientOrder(ss,d) {
     const found=findClientOrder(ss,d.token,d.id);
     const sh=ss.getSheetByName(SHEET_PEDIDOS);
     const row=readOrders(ss).findIndex(x=>x.id===found.pedido.id)+2;
-    if(found.pedido.status==='Confirmado') return found.pedido;
+    if(found.pedido.status==='Confirmado'){
+      registrarVendaDoPedido(ss,found.pedido);
+      SpreadsheetApp.flush();
+      return found.pedido;
+    }
     if(!isPedidoAguardando(found.pedido.status)) throw new Error('Este pedido não pode ser confirmado.');
 
-    sh.getRange(row,8).setValue('Confirmado');
+    // Cria a venda primeiro. Se falhar, o pedido continua aguardando.
     registrarVendaDoPedido(ss,found.pedido);
+    sh.getRange(row,8).setValue('Confirmado');
     SpreadsheetApp.flush();
     found.pedido.status='Confirmado';
     return found.pedido;
@@ -1292,12 +1297,17 @@ function adminConfirmOrder(ss,d) {
       }
     }
     if(row<0) throw new Error('Pedido não encontrado.');
-    if(old.status==='Confirmado') return old;
+    if(old.status==='Confirmado'){
+      registrarVendaDoPedido(ss,old);
+      SpreadsheetApp.flush();
+      return old;
+    }
     if(!isPedidoAguardando(old.status)) throw new Error('Este pedido não está aguardando confirmação.');
 
+    // Cria a venda primeiro. Se falhar, o pedido continua aguardando.
+    registrarVendaDoPedido(ss,old);
     sh.getRange(row,8).setValue('Confirmado');
     old.status='Confirmado';
-    registrarVendaDoPedido(ss,old);
     SpreadsheetApp.flush();
     return old;
   } finally { lock.releaseLock(); }
