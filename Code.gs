@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-27-contabilidade-v6';
+const APP_VERSION = '2026-09-27-contabilidade-v7';
 const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','producao'];
 
 const VENDAS_HEADERS = [
@@ -547,6 +547,12 @@ function readAll() {
       const pago = parseMoney(r[9]) || 0;
       const saldo = Number(r[10]) || Math.max(0,total-pago);
 
+      const pedidoIdAtual=String(r[11] || '').trim();
+      // Um pedido pode ter somente uma venda. Se houver registros duplicados
+      // com o mesmo pedidoId (legado ou clique repetido), a primeira venda
+      // continua sendo a venda oficial e as demais não entram na contabilidade.
+      if(pedidoIdAtual && sales.some(x=>String(x.pedidoId||'').trim()===pedidoIdAtual)) return;
+
       sales.push({
         row: actualRow,
         data: dateValue(r[0]),
@@ -561,7 +567,7 @@ function readAll() {
         valorPago: pago,
         deve: saldo,
         status: saldo <= 0 ? 'Pago' : pago > 0 ? 'Parcial' : 'Pendente',
-        pedidoId: String(r[11] || '')
+        pedidoId: pedidoIdAtual
       });
     }
   }
