@@ -263,10 +263,10 @@ function appendSale(ss, d) {
   const pedidoIdVinculado = String(d.pedidoId || '').trim();
   const naoCriarPedido = d.naoCriarPedido === true;
 
-  const quantidade = Math.max(0, Number(d.quantidade) || 0);
-  const unit = Math.max(0, Number(d.valorUnitario) || 0);
+  const quantidade = Math.max(0, parseNumber(d.quantidade));
+  const unit = Math.max(0, parseMoney(d.valorUnitario));
   const total = quantidade * unit;
-  const pago = Math.min(Math.max(Number(d.pago) || 0, 0), total);
+  const pago = Math.min(Math.max(parseMoney(d.pago), 0), total);
   const saldo = Math.max(0, total - pago);
 
   const row = [
@@ -430,7 +430,7 @@ function updateSale(ss, d) {
   const total = quantidade * unit;
 
   const pago = Math.min(
-    Math.max(Number(d.pago) || 0, 0),
+    Math.max(parseMoney(d.pago), 0),
     total
   );
 
@@ -1438,7 +1438,7 @@ function adminRegistrarPagamentoCliente(ss,d){
   const nome=String(d.cliente||'').trim();
   if(!nome) throw new Error('Cliente não informado.');
 
-  const valorInformado=Number(d.valor);
+  const valorInformado=parseMoney(d.valor);
   if(!Number.isFinite(valorInformado)||valorInformado<=0){
     throw new Error('Informe um valor de pagamento maior que zero.');
   }
@@ -1457,7 +1457,7 @@ function adminRegistrarPagamentoCliente(ss,d){
     if(isTotalValues(r)) continue;
 
     const total=Math.max(0,Number(r[5])||0);
-    const pago=Math.max(0,Number(r[9])||0);
+    const pago=Math.max(0,parseMoney(r[9]));
     const saldo=Math.max(0,total-pago);
     if(saldo<=0) continue;
 
