@@ -140,13 +140,12 @@ function renderClients(){
    historicos[chave].pedidos++;
    historicos[chave].paes+=Number(v.quantidade)||0;
  });
- orders.forEach(o=>{
+ orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
    const nome=String(o.cliente||'').trim();
    if(!nome)return;
    const chave=normalize(nome);
    if(!historicos[chave])historicos[chave]={nome:nome,pedidos:0,paes:0};
-   historicos[chave].pedidos=Math.max(historicos[chave].pedidos,1);
-   if(!historicos[chave].paes)historicos[chave].paes+=Number(o.quantidadeTotal)||0;
+   historicos[chave].pedidos++;
  });
 
  const lista=cadastrados.map(c=>{
@@ -361,7 +360,9 @@ function renderOrdersAdmin(){
   const fim=isoDate($('pedidoDataFim')?.value||'');
   const clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
 
+  // VENDA_DIRETA é um registro interno da venda e não aparece como pedido.
   let list=orders.filter(o=>{
+    if(normalize(o.origem)==='VENDA_DIRETA')return false;
     const d=dateOnly(o.data);
     const clienteOk=!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro);
     const inicioOk=!inicio||d>=inicio;
@@ -396,7 +397,7 @@ function renderPedidoClientFilter(){
     const nome=String(c.nome||'').trim();
     if(nome)nomes[normalize(nome)]=nome;
   });
-  orders.forEach(o=>{
+  orders.filter(o=>normalize(o.origem)!=='VENDA_DIRETA').forEach(o=>{
     const nome=String(o.cliente||'').trim();
     if(nome)nomes[normalize(nome)]=nome;
   });
