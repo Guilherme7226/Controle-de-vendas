@@ -46,6 +46,7 @@
 </div>
 <div class="actions"><button type="button" id="pedidoFiltrosLimpar" class="secondary">Limpar filtros</button></div>
 <div id="ordersSummary" class="notice" style="margin-top:14px"></div>
+<div id="orderBatchActions" class="actions" style="margin-top:10px;align-items:center;flex-wrap:wrap"><span id="orderBatchCount" class="notice" style="margin:0">0 selecionados</span><button type="button" id="orderSelectAll" class="secondary">☑️ Selecionar todos</button><button type="button" id="orderClearSelection" class="secondary" disabled>Limpar seleção</button><button type="button" id="orderConfirmSelected" class="primary" disabled>✅ Confirmar selecionados</button></div>
 <div id="ordersAdmin" class="order-list"></div>
 </div>
 </section>
@@ -59,6 +60,7 @@ const DEFAULT_API_URL='https://script.google.com/macros/s/AKfycbx5XRAfHo3_1wa80W
 const OLD_API_URL='https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec';
 let savedApiUrl=localStorage.getItem('vendas_api_url')||'';if(savedApiUrl===OLD_API_URL){localStorage.setItem('vendas_api_url',DEFAULT_API_URL);savedApiUrl=DEFAULT_API_URL}const API_URL=savedApiUrl||DEFAULT_API_URL;
 let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];
+let selectedOrderIds=new Set();
 const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;
 const $=id=>document.getElementById(id),brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0),today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return p(d.getDate())+'-'+p(d.getMonth()+1)+'-'+d.getFullYear()};
 function formatDate(v){const s=String(v||'').trim();if(!s)return '-';let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);return m?m[1]+'-'+m[2]+'-'+m[3]:s}
@@ -278,13 +280,21 @@ function renderOrdersAdmin(){
       : 'Nenhum pedido encontrado para os filtros selecionados.';
   }
 
+  const aguardando=list.filter(o=>o.status==='Reservado');
+  const idsVisiveis=new Set(aguardando.map(o=>String(o.id)));
+  selectedOrderIds=new Set([...selectedOrderIds].filter(id=>idsVisiveis.has(String(id))));
+
   $('ordersAdmin').innerHTML=list.map(o=>{
-    const confirmar=o.status==='Reservado'
-      ? '<button class="primary admin-order-confirm" data-id="'+o.id+'">✅ Confirmar pedido</button>'
+    const reservado=o.status==='Reservado';
+    const checkbox=reservado
+      ? '<label style="display:flex;align-items:center;gap:8px;margin-bottom:8px"><input type="checkbox" class="order-select-checkbox" data-id="'+esc(o.id)+'" '+(selectedOrderIds.has(String(o.id))?'checked':'')+' aria-label="Selecionar pedido '+esc(o.id)+'"></label>'
       : '';
-    return '<div class="order-admin"><div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+o.id+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+o.id+'">🗑️ Excluir pedido</button></div></div>'
+    const confirmar=reservado
+      ? '<button class="primary admin-order-confirm" data-id="'+esc(o.id)+'">✅ Confirmar pedido</button>'
+      : '';
+    return '<div class="order-admin">'+checkbox+'<div class="order-admin-head"><strong>'+esc(o.cliente)+'</strong><span class="badge">'+esc(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:6px">Pedido <strong>'+esc(o.id)+'</strong> • '+formatDate(o.data)+'</div><div class="order-items-admin">'+o.itens.map(i=>i.quantidade+' × '+esc(i.recheio)).join('<br>')+'</div><div class="order-total-admin">'+o.quantidadeTotal+' pães • '+brl(o.total)+'</div><div style="display:flex;gap:8px;margin-top:10px;flex-wrap:wrap">'+confirmar+'<button class="primary admin-order-edit" data-id="'+esc(o.id)+'">✏️ Editar pedido</button><button class="danger admin-order-delete" data-id="'+esc(o.id)+'">🗑️ Excluir pedido</button></div></div>'
   }).join('')||'<div class="notice">Nenhum pedido encontrado.</div>';
-}
+  updateOrderBatchUI(aguardando);
 function renderPedidoClientFilter(){
   const sel=$('pedidoClienteFiltro');
   if(!sel)return;
@@ -302,6 +312,27 @@ function renderPedidoClientFilter(){
   sel.innerHTML='<option value="">Todos os clientes</option>'+lista.map(nome=>'<option value="'+esc(nome)+'">'+esc(nome)+'</option>').join('');
   if(atual&&lista.some(nome=>normalize(nome)===normalize(atual)))sel.value=atual;
 }
+function updateOrderBatchUI(aguardando){
+  const count=$('orderBatchCount'),confirmBtn=$('orderConfirmSelected'),selectAll=$('orderSelectAll'),clearBtn=$('orderClearSelection');
+  const selecionados=[...selectedOrderIds].filter(id=>aguardando.some(o=>String(o.id)===String(id)));
+  if(count)count.textContent=selecionados.length+' selecionado'+(selecionados.length===1?'':'s');
+  if(confirmBtn){confirmBtn.disabled=selecionados.length===0;confirmBtn.textContent=selecionados.length?'✅ Confirmar '+selecionados.length+' selecionado'+(selecionados.length===1?'':'s'):'✅ Confirmar selecionados';}
+  if(selectAll){selectAll.disabled=aguardando.length===0;selectAll.textContent=aguardando.length&&selecionados.length===aguardando.length?'☑️ Desmarcar todos':'☑️ Selecionar todos';}
+  if(clearBtn)clearBtn.disabled=selecionados.length===0;
+}
+
+async function confirmSelectedOrders(){
+  const ids=[...selectedOrderIds];
+  if(!ids.length)return;
+  if(!confirm('Confirmar '+ids.length+' pedido'+(ids.length===1?'':'s')+' selecionado'+(ids.length===1?'':'s')+'?'))return;
+  const j=await api('admin_confirmar_pedidos_lote',{ids});
+  if(!j)return;
+  const r=j.data||{};
+  selectedOrderIds.clear();
+  await load();
+  showMsg('Confirmação concluída: '+(r.confirmados||0)+' confirmado'+((r.confirmados||0)===1?'':'s')+'.','success');
+}
+
 async function adminConfirmOrder(id){
   const o=orders.find(x=>String(x.id)===String(id));
   if(!o)return;
@@ -359,6 +390,24 @@ $('filtroDataVenda').onkeydown=e=>{if(e.key==='Enter')render()};
 $('pedidoDataInicio').oninput=renderOrdersAdmin;
 $('pedidoDataFim').oninput=renderOrdersAdmin;
 $('pedidoClienteFiltro').onchange=renderOrdersAdmin;
+$('orderSelectAll').onclick=()=>{
+  const inicio=isoDate($('pedidoDataInicio')?.value||''),fim=isoDate($('pedidoDataFim')?.value||''),clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
+  const aguardando=orders.filter(o=>o.status==='Reservado'&&(!inicio||dateOnly(o.data)>=inicio)&&(!fim||dateOnly(o.data)<=fim)&&(!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro)));
+  const todosMarcados=aguardando.length>0&&aguardando.every(o=>selectedOrderIds.has(String(o.id)));
+  if(todosMarcados)aguardando.forEach(o=>selectedOrderIds.delete(String(o.id)));else aguardando.forEach(o=>selectedOrderIds.add(String(o.id)));
+  renderOrdersAdmin();
+};
+$('orderClearSelection').onclick=()=>{selectedOrderIds.clear();renderOrdersAdmin()};
+$('orderConfirmSelected').onclick=confirmSelectedOrders;
+document.addEventListener('change',e=>{
+  if(!e.target.matches('.order-select-checkbox'))return;
+  const id=String(e.target.dataset.id||'');
+  if(!id)return;
+  if(e.target.checked)selectedOrderIds.add(id);else selectedOrderIds.delete(id);
+  const inicio=isoDate($('pedidoDataInicio')?.value||''),fim=isoDate($('pedidoDataFim')?.value||''),clienteFiltro=String($('pedidoClienteFiltro')?.value||'').trim();
+  const aguardando=orders.filter(o=>o.status==='Reservado'&&(!inicio||dateOnly(o.data)>=inicio)&&(!fim||dateOnly(o.data)<=fim)&&(!clienteFiltro||normalize(o.cliente)===normalize(clienteFiltro)));
+  updateOrderBatchUI(aguardando);
+});
 $('pedidoFiltrosLimpar').onclick=()=>{
   $('pedidoDataInicio').value='';
   $('pedidoDataFim').value='';
