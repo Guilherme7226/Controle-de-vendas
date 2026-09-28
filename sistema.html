@@ -220,21 +220,20 @@ async function load(){
     if(!j)return false;
     const d=j.data||{};
     sales=d.sales||[];
+    costs=d.costs||[];
     summary=d.summary||{};
-    // A abertura não carrega custos, produção, pedidos e clientes completos.
-    // Essas abas fazem carregamento sob demanda.
-    costs=[];
-    clientSummary=[];
-    production=[];
-    stock=[];
-    orders=[];
-    clients=[];
-    fullDataLoaded=false;
+    clientSummary=d.clientSummary||[];
+    production=d.production||[];
+    stock=d.stock||[];
+    orders=d.orders||[];
+    // Clientes continuam sendo carregados separadamente pela aba Clientes/Nova venda.
+    fullDataLoaded=true;
     clientsLoadedAt=0;
     render();
     renderRanking();
-    // O estoque é carregado separadamente apenas quando necessário.
     renderStockAdmin();
+    renderProduction();
+    renderOrdersAdmin();
     renderSaleStock();
     return true;
   })().finally(()=>{fullDataPromise=null});
