@@ -1118,7 +1118,7 @@ function adminListClientsFast(ss) {
       email:String(r[3]||''),
       ativo:r[7]!==false,
       mustChangePassword:r[8]===true,
-      pedidos:pedidosPorId+pedidosLegados+vendas,
+      pedidos:Math.max(pedidosPorId+pedidosLegados,vendas),
       paes:breadsByClient[id]||breadsByName[key]||0
     });
   }
