@@ -13,7 +13,7 @@ const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-27-contabilidade-v10';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao'];
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -93,12 +93,13 @@ function doPost(e) {
         return json({ok:true,data:changeClientPassword(ss,d)});
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
-      case 'admin_bootstrap': {
-        // Não executa limpeza de linhas na abertura do Dashboard.
-        // Essa operação era pesada porque podia excluir várias linhas da planilha
-        // uma por uma e deixava a tela administrativa presa no carregamento.
+      case 'admin_bootstrap':
+        // Carregamento inicial ultraleve: o Dashboard precisa apenas
+        // dos indicadores e das vendas para o ranking.
+        return json({ok:true,data:readDashboardData(ss)});
+      case 'admin_full_data':
+        // Dados completos só são carregados quando alguma aba realmente precisa deles.
         return json({ok:true,data:readAll()});
-      }
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
       case 'admin_criar_cliente':
@@ -571,6 +572,55 @@ function deleteSale(ss, d) {
  * Lê SOMENTE as vendas que estão acima do TOTAL.
  * Assim nenhuma fórmula/linha abaixo do TOTAL vira venda.
  */
+function readDashboardData(ss) {
+  const sales = [];
+  const sh = ss.getSheetByName(SHEET_VENDAS);
+
+  if (sh && sh.getLastRow() >= 2) {
+    const lastRow = sh.getLastRow();
+    const rows = sh.getRange(2,1,lastRow - 1,Math.min(12,sh.getMaxColumns())).getValues();
+    const pedidoIdsVistos = new Set();
+
+    for (let i = 0; i < rows.length; i++) {
+      const r = rows[i];
+      if (isTotalValues(r)) break;
+      if (!r[0] && !r[1] && !r[3] && !r[5]) continue;
+
+      const pedidoId = String(r[11] || '').trim();
+      if (pedidoId) {
+        if (pedidoIdsVistos.has(pedidoId)) continue;
+        pedidoIdsVistos.add(pedidoId);
+      }
+
+      const total = Number(r[5]) || 0;
+      const valorPago = parseMoney(r[9]) || 0;
+      const saldo = Number(r[10]) || Math.max(0,total-valorPago);
+
+      sales.push({
+        row: i + 2,
+        data: dateValue(r[0]),
+        cliente: String(r[1] || ''),
+        contatoEmpresa: String(r[2] || ''),
+        quantidade: Number(r[3]) || 0,
+        valorUnitario: Number(r[4]) || 0,
+        total: total,
+        dataPagamento: dateValue(r[6]),
+        pago: !!r[7],
+        parcial: String(r[8] || 'Não'),
+        valorPago: valorPago,
+        deve: saldo,
+        status: saldo <= 0 ? 'Pago' : valorPago > 0 ? 'Parcial' : 'Pendente',
+        pedidoId: pedidoId
+      });
+    }
+  }
+
+  return {
+    sales: sales,
+    summary: readSummary(ss)
+  };
+}
+
 function readAll() {
   const ss = getSS();
   const sales = [];
