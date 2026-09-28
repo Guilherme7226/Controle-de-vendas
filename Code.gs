@@ -933,7 +933,7 @@ function ensureClientSheets(ss) {
   let ph = ss.getSheetByName(SHEET_PEDIDOS);
   if (!ph) {
     ph = ss.insertSheet(SHEET_PEDIDOS);
-    ph.getRange(1,1,1,14).setValues([[
+    ph.getRange(1,1,1,15).setValues([[
       'ID Pedido','Cliente ID','Cliente','Data','Itens','Quantidade Total','Valor Total','Status','Criado em',
       'Valor Pago','Data Pagamento','Saldo','Origem','Referência','Chave Idempotência'
     ]]);
