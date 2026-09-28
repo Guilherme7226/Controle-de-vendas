@@ -13,7 +13,7 @@ const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-28-contabilidade-v13';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_recalcular_resumo'];
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_recalcular_resumo','admin_historico_custos','admin_historico_estoque'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -147,6 +147,10 @@ function doPost(e) {
       case 'producao':
         addProduction(ss,d);
         break;
+      case 'admin_historico_custos':
+        return json({ok:true,data:{costs:readCostHistory(ss)}});
+      case 'admin_historico_estoque':
+        return json({ok:true,data:{history:readStockHistory(ss)}});
       default:
         throw new Error('Ação desconhecida');
     }
@@ -2347,6 +2351,34 @@ function addProduction(ss,d) {
   sh.getRange(startRow,1,rows.length,4).setValues(rows);
   sh.getRange(startRow,1,rows.length,1).setNumberFormat('dd/MM/yyyy');
   sh.getRange(startRow,3,rows.length,1).setNumberFormat('0');
+}
+
+function readCostHistory(ss) {
+  const sh=ss.getSheetByName(SHEET_CUSTOS);
+  const out=[];
+  if(!sh||sh.getLastRow()<1)return out;
+  const rows=sh.getRange(1,1,sh.getLastRow(),3).getValues();
+  rows.forEach((r,i)=>{
+    const a=normalize(r[0]), b=normalize(r[1]);
+    if(a==='DATA'||b==='DESCRICAO'||isTotalValues(r))return;
+    if(!r[0]&&!r[1]&&!r[2])return;
+    out.push({row:i+1,data:dateValue(r[0]),descricao:String(r[1]||''),valor:Number(r[2])||0});
+  });
+  return out;
+}
+
+function readStockHistory(ss) {
+  const out=[];
+  readProduction(ss).forEach(x=>out.push({
+    data:x.data,tipo:'Produção',recheio:x.recheio,quantidade:Number(x.quantidade)||0,observacao:'Produção registrada'
+  }));
+  readStockAdjustments(ss).forEach(x=>{
+    const q=Number(x.descarte)||0;
+    if(q>0)out.push({
+      data:x.data,tipo:'Descarte',recheio:x.recheio,quantidade:q,observacao:x.observacao||''
+    });
+  });
+  return out;
 }
 
 function readProduction(ss) {
