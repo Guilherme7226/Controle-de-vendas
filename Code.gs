@@ -13,7 +13,7 @@ const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-27-contabilidade-v10';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao'];
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -93,6 +93,8 @@ function doPost(e) {
         return json({ok:true,data:changeClientPassword(ss,d)});
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
+      case 'admin_listar_clientes_rapido':
+        return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
         // Carregamento inicial ultraleve: o Dashboard precisa apenas
         // dos indicadores e das vendas para o ranking.
@@ -1040,6 +1042,139 @@ function changeClientPassword(ss,d) {
     return {token:token,mustChangePassword:false,cliente:{id:String(rows[i][0]),nome:String(rows[i][1]),telefone:String(rows[i][2]),email:String(rows[i][3])}};
   }
   throw new Error('Cliente não encontrado.');
+}
+
+function adminListClientsFast(ss) {
+  // Lista rápida para a aba Clientes.
+  // Lê somente o necessário: Clientes (A:I), Pedidos (A:C) e Vendas (A:B,D,L).
+  // Não chama readAll(), evitando carregar custos, estoque, produção e demais dados.
+  ensureClientSheets(ss);
+
+  const clientSh=ss.getSheetByName(SHEET_CLIENTES);
+  const clientRows=clientSh && clientSh.getLastRow()>1
+    ? clientSh.getRange(2,1,clientSh.getLastRow()-1,9).getValues()
+    : [];
+
+  const orderSh=ss.getSheetByName(SHEET_PEDIDOS);
+  const orderRows=orderSh && orderSh.getLastRow()>1
+    ? orderSh.getRange(2,1,orderSh.getLastRow()-1,3).getValues()
+    : [];
+
+  const saleSh=ss.getSheetByName(SHEET_VENDAS);
+  const saleRows=saleSh && saleSh.getLastRow()>1
+    ? saleSh.getRange(2,1,saleSh.getLastRow()-1,Math.min(12,saleSh.getMaxColumns())).getValues()
+    : [];
+
+  const result=[];
+  const known={};
+  const orderCountByClient={};
+  const orderCountByName={};
+  const salesCountByName={};
+  const breadsByName={};
+  const soldOrderIds=new Set();
+  const seenSaleOrderIds=new Set();
+
+  // Pedidos: somente ID, Cliente ID e Nome.
+  for(let i=0;i<orderRows.length;i++){
+    const r=orderRows[i];
+    const id=String(r[0]||'').trim();
+    const clienteId=String(r[1]||'').trim();
+    const nome=String(r[2]||'').trim();
+    const key=normalize(nome);
+    if(clienteId)orderCountByClient[clienteId]=(orderCountByClient[clienteId]||0)+1;
+    if(key)orderCountByName[key]=(orderCountByName[key]||0)+1;
+  }
+
+  // Vendas: uma venda por pedidoId; vendas sem pedidoId usam a própria linha.
+  // Para a aba Clientes precisamos apenas de cliente, quantidade e vínculo do pedido.
+  for(let i=0;i<saleRows.length;i++){
+    const r=saleRows[i];
+    if(isTotalValues(r))break;
+    if(!r[0] && !r[1] && !r[3] && !r[5])continue;
+
+    const nome=String(r[1]||'').trim();
+    if(!nome)continue;
+    const key=normalize(nome);
+    const pedidoId=String(r[11]||'').trim();
+
+    if(pedidoId){
+      if(seenSaleOrderIds.has(pedidoId))continue;
+      seenSaleOrderIds.add(pedidoId);
+      soldOrderIds.add(pedidoId);
+    }
+
+    salesCountByName[key]=(salesCountByName[key]||0)+1;
+    breadsByName[key]=(breadsByName[key]||0)+(Number(r[3])||0);
+  }
+
+  // Clientes cadastrados.
+  for(let i=0;i<clientRows.length;i++){
+    const r=clientRows[i];
+    const nome=String(r[1]||'').trim();
+    if(!nome)continue;
+
+    const id=String(r[0]||'');
+    const key=normalize(nome);
+    known[key]=true;
+
+    const pedidosPorId=orderCountByClient[id]||0;
+    const pedidosPorNome=orderCountByName[key]||0;
+    const vendas=salesCountByName[key]||0;
+
+    result.push({
+      id:id,
+      nome:nome,
+      telefone:String(r[2]||''),
+      email:String(r[3]||''),
+      ativo:r[7]!==false,
+      mustChangePassword:r[8]===true,
+      pedidos:Math.max(pedidosPorId,pedidosPorNome,vendas),
+      paes:breadsByName[key]||0
+    });
+  }
+
+  // Clientes sem login, mas que aparecem no histórico.
+  const legacy={};
+  for(let i=0;i<orderRows.length;i++){
+    const r=orderRows[i];
+    const id=String(r[0]||'').trim();
+    const nome=String(r[2]||'').trim();
+    if(!nome)continue;
+    const key=normalize(nome);
+    if(known[key])continue;
+    if(!legacy[key])legacy[key]={nome:nome,pedidos:0};
+    if(!id || !soldOrderIds.has(id))legacy[key].pedidos++;
+  }
+
+  Object.keys(salesCountByName).forEach(key=>{
+    if(known[key])return;
+    if(!legacy[key]){
+      // Recupera o nome original da venda.
+      let nome=key;
+      for(let i=0;i<saleRows.length;i++){
+        const n=String(saleRows[i][1]||'').trim();
+        if(n && normalize(n)===key){nome=n;break}
+      }
+      legacy[key]={nome:nome,pedidos:0};
+    }
+    legacy[key].pedidos+=salesCountByName[key];
+  });
+
+  Object.keys(legacy).forEach(key=>{
+    result.push({
+      id:'legacy:'+key,
+      nome:legacy[key].nome,
+      telefone:'',
+      email:'',
+      ativo:false,
+      mustChangePassword:false,
+      pedidos:legacy[key].pedidos,
+      paes:breadsByName[key]||0,
+      legacy:true
+    });
+  });
+
+  return result;
 }
 
 function adminListClients(ss,ordersData,salesData) {
