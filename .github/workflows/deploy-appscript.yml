@@ -41,17 +41,17 @@ jobs:
       - name: Baixar projeto atual do Apps Script
         run: npx clasp pull
 
-      - name: Substituir o código principal pelo GitHub
+      - name: Substituir arquivo principal pelo GitHub
         run: |
-          MAIN_FILE="$(grep -l "function doPost" --include='*.gs' . | head -n 1 || true)"
-
-          if [ -n "$MAIN_FILE" ]; then
-            cp /tmp/Code.gs.github "$MAIN_FILE"
-            echo "Arquivo principal atualizado: $MAIN_FILE"
+          if [ -f "Código.js" ]; then
+            cp /tmp/Code.gs.github "Código.js"
+            echo "Arquivo principal atualizado: Código.js"
           else
-            cp /tmp/Code.gs.github Code.gs
-            echo "Arquivo principal não identificado; usando Code.gs."
+            echo "Arquivo Código.js não encontrado após clasp pull."
+            exit 1
           fi
+
+          rm -f Code.gs
 
       - name: Enviar código para o Apps Script
         run: npx clasp push --force
