@@ -76,7 +76,7 @@ function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
 function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome;$('clientSettingsPanel').classList.add('hidden');setClientTab('atual')}
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
-let stock=[];let quantities={};let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
+let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
  const s=session();if(!s){showAuth();return}
  const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:s.token});
@@ -214,27 +214,58 @@ $('goOrder').onclick=()=>{
 };
 $('goOrder').onkeydown=e=>{if(e.key==='Enter'||e.key===' '){e.preventDefault();$('orderArea').scrollIntoView({behavior:'smooth',block:'start'})}};
 $('orderBtn').onclick=async()=>{
+ const btn=$('orderBtn');
+ if(btn.disabled)return;
+
  const s=session();
+ if(!s)return;
+
  const itens=recheios.map(r=>({recheio:r,quantidade:Number(quantities[r]||0)})).filter(x=>x.quantidade>0);
  if(!itens.length){showMsg('Escolha pelo menos um recheio.','error');return}
+
+ // Bloqueia imediatamente para evitar duplo clique.
+ btn.disabled=true;
+ const fingerprint=JSON.stringify(itens);
  let j;
- if(editingOrderId){
-   j=await api('cliente_editar_pedido',{token:s.token,id:editingOrderId,itens});
-   if(!j)return;
-   showMsg('Pedido '+j.data.id+' atualizado com sucesso.','success');
- }else{
-   j=await api('cliente_pedido',{token:s.token,data:today(),itens});
-   if(!j)return;
-   showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');
+
+ try{
+   if(editingOrderId){
+     btn.textContent='Salvando...';
+     j=await api('cliente_editar_pedido',{token:s.token,id:editingOrderId,itens});
+     if(!j)return;
+     showMsg('Pedido '+j.data.id+' atualizado com sucesso.','success');
+   }else{
+     // A mesma chave é reutilizada se a primeira requisição demorar ou expirar
+     // no navegador. Assim um novo clique/reenvio não cria outro pedido.
+     if(pendingOrderFingerprint!==fingerprint){
+       pendingOrderFingerprint=fingerprint;
+       pendingOrderRequestId=(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random());
+     }
+     btn.textContent='Enviando...';
+     j=await api('cliente_pedido',{token:s.token,data:today(),itens,requestId:pendingOrderRequestId});
+     if(!j)return;
+     showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');
+   }
+
+   if(j.data&&j.data.id){
+     const novo=Object.assign({},j.data);
+     const idx=currentPedidos.findIndex(o=>String(o.id)===String(novo.id));
+     if(idx>=0)currentPedidos[idx]=novo;else currentPedidos.push(novo);
+   }
+
+   pendingOrderRequestId=null;
+   pendingOrderFingerprint='';
+   editingOrderId=null;
+   quantities={};
+   btn.textContent='Reservar meu pedido';
+   $('cancelEdit').classList.add('hidden');
+   if(j.data&&j.data.stock)renderStock(j.data.stock);
+   renderOrders(currentPedidos,currentVendas);
+ }finally{
+   btn.disabled=false;
+   if(editingOrderId)btn.textContent='Salvar alterações';
+   else btn.textContent='Reservar meu pedido';
  }
- if(j.data&&j.data.id){
-   const novo=Object.assign({},j.data);
-   const idx=currentPedidos.findIndex(o=>String(o.id)===String(novo.id));
-   if(idx>=0)currentPedidos[idx]=novo;else currentPedidos.push(novo);
- }
- editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');
- if(j.data&&j.data.stock)renderStock(j.data.stock);
- renderOrders(currentPedidos,currentVendas)
 };
 $('cancelEdit').onclick=()=>{editingOrderId=null;quantities={};$('orderBtn').textContent='Reservar meu pedido';$('cancelEdit').classList.add('hidden');renderStock(stock)};
 document.addEventListener('click',async e=>{
