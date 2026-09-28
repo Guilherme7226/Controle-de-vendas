@@ -704,10 +704,23 @@ $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=p
     if(!j) throw new Error(lastApiError||'O Apps Script não respondeu ao carregamento administrativo.');
     const d=j.data||{};
     sales=d.sales||[];
+    costs=d.costs||[];
     summary=d.summary||{};
-    fullDataLoaded=false;
+    clientSummary=d.clientSummary||[];
+    production=d.production||[];
+    stock=d.stock||[];
+    orders=d.orders||[];
+    clients=d.clients||[];
+    fullDataLoaded=true;
+    clientsLoadedAt=Date.now();
     render();
     renderRanking();
+    renderStockAdmin();
+    renderProduction();
+    renderOrdersAdmin();
+    renderClients();
+    renderSaleClients();
+    renderSaleStock();
     gate.remove();
     setInterval(()=>{
       const view=document.querySelector('.view.active')?.id||'dashboard';
