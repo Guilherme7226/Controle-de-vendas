@@ -1,0 +1,6 @@
+# Arquivos que não pertencem ao projeto Google Apps Script
+worker.gs
+worker.js
+wrangler.toml
+.github/
+README.md
