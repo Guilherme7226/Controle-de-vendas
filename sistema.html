@@ -757,7 +757,7 @@ $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=p
     setInterval(()=>{
       const view=document.querySelector('.view.active')?.id||'dashboard';
       if(!document.hidden && (view==='estoque'||view==='venda'||view==='pedidos')) refreshAdminStockRealtime();
-    },10000);
+    },5000);
   }catch(e){
     sessionStorage.removeItem('admin_token');
     fail(e&&e.message?e.message:'Erro desconhecido.');
