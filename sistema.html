@@ -82,7 +82,36 @@ const $=id=>document.getElementById(id),brl=n=>new Intl.NumberFormat('pt-BR',{st
 function formatDate(v){const s=String(v||'').trim();if(!s)return '-';let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);return m?m[1]+'-'+m[2]+'-'+m[3]:s}
 function isoDate(v){const s=String(v||'').trim();let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);return m?m[3]+'-'+m[2]+'-'+m[1]:s}
 function maskDateInput(el){if(!el)return;el.addEventListener('input',()=>{let v=el.value.replace(/\D/g,'').slice(0,8);if(v.length>4)v=v.slice(0,2)+'-'+v.slice(2,4)+'-'+v.slice(4);else if(v.length>2)v=v.slice(0,2)+'-'+v.slice(2);el.value=v;});el.addEventListener('blur',()=>{const v=el.value.replace(/\D/g,'');if(v.length===8)el.value=v.slice(0,2)+'-'+v.slice(2,4)+'-'+v.slice(4);});}
-function bindDatePicker(textId,pickerId,buttonId,after){const textEl=$(textId),picker=$(pickerId),button=$(buttonId);if(!textEl||!picker||!button)return;button.onclick=()=>{if(picker.showPicker)picker.showPicker();else picker.click()};picker.onchange=()=>{if(picker.value){textEl.value=formatDate(picker.value);if(typeof after==='function')after()}}}
+function bindDatePicker(textId,pickerId,buttonId,after){
+ const textEl=$(textId),picker=$(pickerId),button=$(buttonId);
+ if(!textEl||!picker||!button)return;
+ button.onclick=(e)=>{
+   e.preventDefault();
+   try{
+     if(typeof picker.showPicker==='function'){
+       picker.showPicker();
+       return;
+     }
+   }catch(_){}
+   // Safari/iPhone pode não expor showPicker(). O fallback precisa
+   // permitir o clique no input nativo, que estava bloqueado por pointer-events:none.
+   const oldPointer=picker.style.pointerEvents;
+   const oldOpacity=picker.style.opacity;
+   picker.style.pointerEvents='auto';
+   picker.style.opacity='0.01';
+   try{picker.focus();picker.click();}catch(_){}
+   setTimeout(()=>{
+     picker.style.pointerEvents=oldPointer;
+     picker.style.opacity=oldOpacity;
+   },300);
+ };
+ picker.onchange=()=>{
+   if(picker.value){
+     textEl.value=formatDate(picker.value);
+     if(typeof after==='function')after();
+   }
+ };
+}
 
 function esc(s){return String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]))}
 function statusBadge(s){return '<span class="badge '+(s==='Pago'?'paid':s==='Parcial'?'partial':'pending')+'">'+s+'</span>'}
