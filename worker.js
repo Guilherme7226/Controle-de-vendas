@@ -2,7 +2,7 @@ const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAM
 
 async function proxyToAppsScript(request) {
   let target = APPS_SCRIPT_URL;
-  let method = request.method;
+  const method = request.method;
   let body;
 
   if (method !== "GET" && method !== "HEAD") body = await request.arrayBuffer();
@@ -20,8 +20,7 @@ async function proxyToAppsScript(request) {
       target = new URL(location, target).toString();
       if (visited.has(target)) return new Response(JSON.stringify({ok:false,error:"O Apps Script entrou em um redirecionamento circular."}), {status:502,headers:{"content-type":"application/json;charset=UTF-8"}});
       visited.add(target);
-      method = "GET";
-      body = undefined;
+      // Mantém POST e corpo original ao seguir o redirect do Apps Script.
       continue;
     }
     return response;
@@ -31,8 +30,6 @@ async function proxyToAppsScript(request) {
 }
 
 async function handleApi(request) {
-  // Autorização e regras de negócio são validadas no Apps Script.
-  // O Worker apenas faz o proxy, evitando uma segunda consulta por operação.
   return proxyToAppsScript(request);
 }
 
