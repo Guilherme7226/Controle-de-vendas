@@ -1,0 +1,74 @@
+name: Deploy Apps Script
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "Code.gs"
+      - ".github/workflows/deploy-appscript.yml"
+  workflow_dispatch:
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Baixar repositório
+        uses: actions/checkout@v4
+
+      - name: Configurar Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+
+      - name: Instalar clasp
+        run: npm install -g @google/clasp
+
+      - name: Configurar autenticação do Google
+        env:
+          CLASPRC_JSON: ${{ secrets.CLASPRC_JSON }}
+          CLASP_JSON: ${{ secrets.CLASP_JSON }}
+        run: |
+          test -n "$CLASPRC_JSON" || (echo "Secret CLASPRC_JSON não configurado." && exit 1)
+          test -n "$CLASP_JSON" || (echo "Secret CLASP_JSON não configurado." && exit 1)
+          printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
+          printf '%s' "$CLASP_JSON" > .clasp.json
+
+      - name: Preservar Code.gs do GitHub
+        run: cp Code.gs /tmp/Code.gs.github
+
+      - name: Baixar projeto atual do Apps Script
+        run: npx clasp pull
+
+      - name: Substituir o código principal pelo GitHub
+        run: |
+          cp /tmp/Code.gs.github Code.gs.github.tmp
+          MAIN_FILE="$(grep -l "function doPost" --include='*.gs' . | head -n 1 || true)"
+
+          if [ -n "$MAIN_FILE" ]; then
+            cp /tmp/Code.gs.github "$MAIN_FILE"
+            echo "Arquivo principal atualizado: $MAIN_FILE"
+          else
+            cp /tmp/Code.gs.github Code.gs
+            echo "Arquivo principal não identificado; usando Code.gs."
+          fi
+
+      - name: Enviar código para o Apps Script
+        run: npx clasp push --force
+
+      - name: Criar nova versão
+        id: version
+        run: |
+          VERSION="$(npx clasp version "GitHub $GITHUB_SHA" | tail -n 1 | tr -cd '0-9')"
+          test -n "$VERSION" || (echo "Não foi possível obter o número da versão." && exit 1)
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "Versão criada: $VERSION"
+
+      - name: Atualizar deployment da aplicação
+        env:
+          DEPLOYMENT_ID: ${{ secrets.CLASP_DEPLOYMENT_ID }}
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          test -n "$DEPLOYMENT_ID" || (echo "Secret CLASP_DEPLOYMENT_ID não configurado." && exit 1)
+          npx clasp redeploy "$DEPLOYMENT_ID" "$VERSION" "GitHub $GITHUB_SHA"
