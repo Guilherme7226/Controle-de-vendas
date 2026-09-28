@@ -66,13 +66,16 @@ jobs:
           done
 
           # O Apps Script não deve receber arquivos do Worker/Cloudflare.
+          # O clasp pull pode baixar arquivos antigos que já existem no projeto
+          # remoto, portanto removemos explicitamente a pasta Functions antes do push.
+          rm -rf functions
           rm -f Code.gs worker.gs worker.js wrangler.toml
 
-          echo "Arquivos .gs que serão enviados:"
-          find . -maxdepth 1 -type f -name "*.gs" -print
+          echo "Arquivos que serão enviados:"
+          find . -maxdepth 2 -type f \( -name "*.gs" -o -name "*.html" -o -name "appsscript.json" \) -print
 
-          if [ -f "worker.gs" ]; then
-            echo "ERRO: worker.gs ainda está presente."
+          if [ -d "functions" ]; then
+            echo "ERRO: a pasta functions ainda está presente."
             exit 1
           fi
 
@@ -104,8 +107,7 @@ jobs:
           }
 
           # clasp 3.x usa create-deployment --deploymentId para atualizar
-          # um deployment existente. O antigo "clasp redeploy ID VERSION DESC"
-          # não é compatível com a CLI instalada pelo workflow.
+          # um deployment existente.
           npx clasp create-deployment \
             --deploymentId "$DEPLOYMENT_ID" \
             --versionNumber "$VERSION" \
