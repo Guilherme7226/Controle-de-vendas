@@ -1,4 +1,5 @@
 name: Deploy Apps Script
+# teste de sincronização automática
 
 on:
   push:
