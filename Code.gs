@@ -1335,7 +1335,7 @@ function editClientOrder(ss,d) {
   lock.waitLock(10000);
   try {
     const found=findClientOrder(ss,d.token,d.id);
-    if(!(isPedidoAguardando(found.pedido.status) || found.pedido.status==='Confirmado')) throw new Error('Este pedido não pode ser editado.');
+    if(!isPedidoAguardando(found.pedido.status)) throw new Error('Este pedido já foi confirmado e não pode mais ser editado pelo cliente.');
     const itens=Array.isArray(d.itens)?d.itens:[];
     if(!itens.length) throw new Error('Escolha pelo menos um recheio ou exclua o pedido.');
     const current={};
@@ -1387,7 +1387,7 @@ function deleteClientOrder(ss,d) {
   lock.waitLock(10000);
   try {
     const found=findClientOrder(ss,d.token,d.id);
-    if(!(isPedidoAguardando(found.pedido.status) || found.pedido.status==='Confirmado')) throw new Error('Este pedido não pode ser excluído.');
+    if(!isPedidoAguardando(found.pedido.status)) throw new Error('Este pedido já foi confirmado e não pode mais ser excluído pelo cliente.');
     const sh=ss.getSheetByName(SHEET_PEDIDOS);
     const rows=sh.getRange(2,1,sh.getLastRow()-1,9).getValues();
     let row=-1;
