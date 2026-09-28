@@ -29,12 +29,12 @@
 <div class="field"><label>Valor pago</label><input id="pago" type="number" min="0" step=".01" value="0"></div>
 </div><div class="actions"><button class="primary">Registrar venda</button><button type="reset" class="secondary">Limpar</button></div></form></div></section>
 <section id="vendas" class="view"><div class="panel"><h2>Histórico de vendas</h2><div class="grid"><div class="field"><label>Pesquisar</label><input id="buscaVenda" placeholder="Cliente"></div><div class="field"><label>Status</label><select id="filtroStatus"><option value="">Todos</option><option>Pago</option><option>Parcial</option><option>Pendente</option></select></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="filtroDataVenda" type="text" placeholder="26-09-2026"><button type="button" id="filtroDataVendaBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="filtroDataVendaPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
-<section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="cdata" type="text" placeholder="26-09-2026" required><button type="button" id="cdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="cdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="actions"><button class="primary">Registrar custo</button><button type="button" id="loadCostHistory" class="secondary">📋 Ver histórico</button></div></form></div><div id="costHistoryPanel" class="panel" hidden><button type="button" id="closeCostHistory" class="secondary history-close">Fechar</button><h2>Histórico de custos</h2><div id="costHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
+<section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="cdata" type="text" placeholder="26-09-2026" required><button type="button" id="cdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="cdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="actions"><button class="primary">Registrar custo</button></div></form></div><div class="panel"><h2>Últimos 10 custos</h2><div id="recentCostsMsg" class="rank-note">Carregando custos recentes...</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="recentCostTable"></tbody></table></div><div class="actions"><button type="button" id="loadCostHistory" class="secondary">📋 Abrir histórico completo</button></div></div><div id="costHistoryPanel" class="panel" hidden><button type="button" id="closeCostHistory" class="secondary history-close">Fechar</button><h2>Histórico de custos</h2><div id="costHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
 <section id="estoque" class="view">
 <div class="panel"><h2>📦 Produção e estoque</h2><p class="rank-note">Cadastre a produção de cada dia. O estoque disponível desconta reservas, vendas confirmadas e descartes. <strong>Editar estoque registra descarte</strong>; para aumentar o estoque, registre uma nova produção.</p>
 <form id="productionForm"><div class="grid"><div class="field"><label>Data da produção</label><div class="date-picker-row"><input id="pdata" type="text" placeholder="26-09-2026" required><button type="button" id="pdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="pdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div><div class="field"><label>Frango</label><input id="pfrango" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho</label><input id="pfrangomilho" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho e salada</label><input id="pfrangomilhosalada" type="number" min="0" value="0"></div><div class="field"><label>Frango sem milho com salada</label><input id="pfrangosemmilhosalada" type="number" min="0" value="0"></div></div><div class="actions"><button class="primary">Registrar produção</button></div></form></div>
 <div class="panel"><h2>Estoque atual</h2><div id="stockAdmin" class="stock-admin"></div></div>
-<div class="actions"><button type="button" id="loadStockHistory" class="secondary">📋 Ver histórico de estoque</button></div><div id="stockHistoryPanel" class="panel" hidden><button type="button" id="closeStockHistory" class="secondary history-close">Fechar</button><h2>Histórico de estoque</h2><div id="stockHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Tipo</th><th>Recheio</th><th>Quantidade</th><th>Observação</th></tr></thead><tbody id="productionTable"></tbody></table></div></div>
+<div class="actions"><button type="button" id="loadProductionHistory" class="secondary">📋 Ver histórico de produção</button></div><div id="productionHistoryPanel" class="panel" hidden><button type="button" id="closeProductionHistory" class="secondary history-close">Fechar</button><h2>Histórico de produção</h2><div id="productionHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Tipo</th><th>Recheio</th><th>Quantidade</th><th>Observação</th></tr></thead><tbody id="productionTable"></tbody></table></div></div>
 </section>
 <section id="pedidos" class="view">
 <div class="panel">
@@ -254,14 +254,23 @@ async function loadCostHistory(){
   if(msg)msg.textContent=costs.length+' registro(s) carregado(s).';
   if($('costTable'))$('costTable').innerHTML=[...costs].reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo registrado.</td></tr>';
 }
-async function loadStockHistory(){
-  const panel=$('stockHistoryPanel'); if(panel)panel.hidden=false;
-  const msg=$('stockHistoryMsg'); if(msg)msg.textContent='Carregando histórico...';
-  const j=await api('admin_historico_estoque',{});
+async function loadRecentCosts(){
+  const msg=$('recentCostsMsg');
+  if(msg)msg.textContent='Carregando...';
+  const j=await api('admin_custos_recentes',{});
+  if(!j){if(msg)msg.textContent=lastApiError||'Não foi possível carregar os custos.';return}
+  const rows=(j.data&&j.data.costs)||[];
+  if(msg)msg.textContent=rows.length+' de no máximo 10 custos recentes.';
+  if($('recentCostTable'))$('recentCostTable').innerHTML=rows.slice().reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo registrado.</td></tr>';
+}
+async function loadProductionHistory(){
+  const panel=$('productionHistoryPanel'); if(panel)panel.hidden=false;
+  const msg=$('productionHistoryMsg'); if(msg)msg.textContent='Carregando histórico...';
+  const j=await api('admin_historico_producao',{});
   if(!j){if(msg)msg.textContent=lastApiError||'Não foi possível carregar o histórico.';return}
   const rows=(j.data&&j.data.history)||[];
-  if(msg)msg.textContent=rows.length+' movimentação(ões) carregada(s).';
-  if($('productionTable'))$('productionTable').innerHTML=rows.slice().reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.tipo)+'</td><td>'+esc(x.recheio)+'</td><td>'+x.quantidade+'</td><td>'+esc(x.observacao||'-')+'</td></tr>').join('')||'<tr><td colspan="5">Nenhuma movimentação registrada.</td></tr>';
+  if(msg)msg.textContent=rows.length+' registro(s) carregado(s).';
+  if($('productionTable'))$('productionTable').innerHTML=rows.slice().reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.recheio)+'</td><td>'+x.quantidade+'</td></tr>').join('')||'<tr><td colspan="3">Nenhuma produção registrada.</td></tr>';
 }
 function render(){
   const s=summary||{};
@@ -584,8 +593,8 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
 });
 $('fecharHistorico').onclick=()=>{$('clienteHistoricoPanel').hidden=true};$('loadCostHistory').onclick=loadCostHistory;
 $('closeCostHistory').onclick=()=>{$('costHistoryPanel').hidden=true};
-$('loadStockHistory').onclick=loadStockHistory;
-$('closeStockHistory').onclick=()=>{$('stockHistoryPanel').hidden=true};
+$('loadProductionHistory').onclick=loadProductionHistory;
+$('closeProductionHistory').onclick=()=>{$('productionHistoryPanel').hidden=true};
 let rankMes=new Date();rankMes.setDate(1);function rankMesPeriodo(){const y=rankMes.getFullYear(),m=rankMes.getMonth();const p=n=>String(n).padStart(2,'0');$('rankMesTitulo').textContent=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m]+' de '+y;const ini=y+'-'+p(m+1)+'-01',fim=y+'-'+p(m+1)+'-'+p(new Date(y,m+1,0).getDate());$('rankMesInicio')?.remove();$('rankMesFim')?.remove();const a=document.createElement('input');a.type='hidden';a.id='rankMesInicio';a.value=ini;const b=document.createElement('input');b.type='hidden';b.id='rankMesFim';b.value=fim;document.body.append(a,b);renderRanking()}$('rankMesAnterior').onclick=()=>{rankMes.setMonth(rankMes.getMonth()-1);rankMesPeriodo()};$('rankMesProximo').onclick=()=>{rankMes.setMonth(rankMes.getMonth()+1);rankMesPeriodo()};rankMesPeriodo();
 $('rankMesBtn').onclick=()=>{const p=$('rankMesPicker');p.value=rankMes.getFullYear()+'-'+String(rankMes.getMonth()+1).padStart(2,'0')+'-01';if(p.showPicker)p.showPicker();else p.click()};
 $('rankMesPicker').onchange=()=>{if(!$('rankMesPicker').value)return;const d=new Date($('rankMesPicker').value+'T00:00:00');rankMes.setFullYear(d.getFullYear(),d.getMonth(),1);rankMesPeriodo()};
