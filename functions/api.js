@@ -15,6 +15,7 @@ function jsonResponse(data, status, request) {
     status,
     headers: {
       "Content-Type": "application/json; charset=utf-8",
+      "Cache-Control": "no-store",
       ...corsHeaders(request)
     }
   });
@@ -24,21 +25,20 @@ async function proxyToAppsScript(request) {
   const method = request.method;
   const body = method === "GET" || method === "HEAD"
     ? undefined
-    : await request.arrayBuffer();
+    : await request.text();
 
   const headers = new Headers();
-  const contentType = request.headers.get("Content-Type");
-  if (contentType && method !== "GET" && method !== "HEAD") {
-    headers.set("Content-Type", contentType);
+  headers.set("Accept", "application/json");
+  if (body !== undefined) {
+    headers.set("Content-Type", "text/plain;charset=UTF-8");
   }
-  const accept = request.headers.get("Accept");
-  if (accept) headers.set("Accept", accept);
 
   const response = await fetch(APPS_SCRIPT_URL, {
     method,
     headers,
     body,
-    redirect: "follow"
+    redirect: "follow",
+    cf: { cacheTtl: 0, cacheEverything: false }
   });
 
   const text = await response.text();
@@ -52,8 +52,7 @@ async function proxyToAppsScript(request) {
   }
 
   try {
-    const parsed = JSON.parse(text);
-    return jsonResponse(parsed, response.status, request);
+    return jsonResponse(JSON.parse(text), response.status, request);
   } catch (_) {
     return jsonResponse({
       ok: false,
