@@ -12,7 +12,7 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-28-contabilidade-v11';
+const APP_VERSION = '2026-09-28-contabilidade-v13';
 const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao'];
 
 const VENDAS_HEADERS = [
@@ -96,10 +96,9 @@ function doPost(e) {
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
-        // O painel administrativo carrega todos os dados de uma vez.
-        // Assim Dashboard, vendas, custos, estoque, pedidos e clientes
-        // ficam sincronizados logo na abertura.
-        return json({ok:true,data:readAll()});
+        // A abertura carrega somente o necessário para o Dashboard.
+        // As abas pesadas continuam com carregamento sob demanda.
+        return json({ok:true,data:readDashboardData(ss)});
       case 'admin_full_data':
         // Mantido para compatibilidade com as abas que ainda solicitarem
         // uma atualização completa após alterações.
@@ -333,6 +332,11 @@ function registrarVendaDiretaProtegida(ss,d){
       const key=normalize(recheio);
       const qtd=Number(solicitado[key]||0);
       if(qtd>Number(disponivel[key]||0)) throw new Error('Estoque insuficiente de '+recheio+'. Disponível: '+(disponivel[key]||0)+'.');
+    }
+    const qtdItens=itens.reduce((s,item)=>s+Math.max(0,Math.floor(Number(item.quantidade)||0)),0);
+    if(qtdItens<=0) throw new Error('Informe quantidades válidas.');
+    if(Number(d.quantidade||0)!==qtdItens){
+      d=Object.assign({},d,{quantidade:qtdItens});
     }
     return appendSale(ss,d);
   } finally { lock.releaseLock(); }
@@ -634,52 +638,12 @@ function readDashboardData(ss) {
 
 function readAll() {
   const ss = getSS();
-  const sales = [];
-  const pedidoIdsVistos = new Set();
-  const sh = ss.getSheetByName(SHEET_VENDAS);
 
-  if (sh && sh.getLastRow() >= 2) {
-    const lastRow = sh.getLastRow();
-    const rows = sh.getRange(2,1,lastRow - 1,Math.min(12,sh.getMaxColumns())).getValues();
-
-    for (let i = 0; i < rows.length; i++) {
-      const r = rows[i];
-      const actualRow = i + 2;
-
-      if (isTotalValues(r)) break;
-      if (!r[0] && !r[1] && !r[3] && !r[5]) continue;
-
-      const total = Number(r[5]) || 0;
-      const pago = parseMoney(r[9]) || 0;
-      const saldo = Number(r[10]) || Math.max(0,total-pago);
-
-      const pedidoIdAtual=String(r[11] || '').trim();
-      // Um pedido pode ter somente uma venda. Se houver registros duplicados
-      // com o mesmo pedidoId (legado ou clique repetido), a primeira venda
-      // continua sendo a venda oficial e as demais não entram na contabilidade.
-      if(pedidoIdAtual){
-        if(pedidoIdsVistos.has(pedidoIdAtual)) continue;
-        pedidoIdsVistos.add(pedidoIdAtual);
-      }
-
-      sales.push({
-        row: actualRow,
-        data: dateValue(r[0]),
-        cliente: String(r[1] || ''),
-        contatoEmpresa: String(r[2] || ''),
-        quantidade: Number(r[3]) || 0,
-        valorUnitario: Number(r[4]) || 0,
-        total: total,
-        dataPagamento: dateValue(r[6]),
-        pago: !!r[7],
-        parcial: String(r[8] || 'Não'),
-        valorPago: pago,
-        deve: saldo,
-        status: saldo <= 0 ? 'Pago' : pago > 0 ? 'Parcial' : 'Pendente',
-        pedidoId: pedidoIdAtual
-      });
-    }
-  }
+  // Reaproveita a mesma leitura de vendas/resumo usada pelo Dashboard.
+  // Evita manter duas rotinas quase idênticas percorrendo Vendas.
+  const dashboard = readDashboardData(ss);
+  const sales = dashboard.sales || [];
+  const summary = dashboard.summary || {};
 
   const costs = [];
   const cs = ss.getSheetByName(SHEET_CUSTOS);
@@ -725,7 +689,7 @@ function readAll() {
   return {
     sales: sales,
     costs: costs,
-    summary: readSummary(ss),
+    summary: summary,
     clientSummary: readClientSummary(ss),
     production: production,
     stock: calculateStock(production,orders,adjustments),
@@ -1750,7 +1714,8 @@ function adminConfirmOrdersBatch(ss,d) {
 }
 function adminRegistrarPagamentoCliente(ss,d){
   const nome=String(d.cliente||'').trim();
-  if(!nome) throw new Error('Cliente não informado.');
+  const clienteId=String(d.clienteId||'').trim();
+  if(!nome && !clienteId) throw new Error('Cliente não informado.');
 
   const valorInformado=parseMoney(d.valor);
   if(!Number.isFinite(valorInformado)||valorInformado<=0){
@@ -1765,9 +1730,25 @@ function adminRegistrarPagamentoCliente(ss,d){
   const alvo=[];
   const nomeNorm=normalize(nome);
 
+  // Para clientes cadastrados, usa o ID através do pedido vinculado.
+  // O nome continua como fallback somente para vendas legadas/sem vínculo.
+  const pedidosPorId={};
+  const ph=ss.getSheetByName(SHEET_PEDIDOS);
+  if(clienteId && ph && ph.getLastRow()>1){
+    const pr=ph.getRange(2,1,ph.getLastRow()-1,3).getValues();
+    pr.forEach(r=>{
+      const pedidoId=String(r[0]||'').trim();
+      const id=String(r[1]||'').trim();
+      if(pedidoId && id)pedidosPorId[pedidoId]=id;
+    });
+  }
+
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
-    if(normalize(String(r[1]||''))!==nomeNorm) continue;
+    const pedidoId=lastColumn>=12?String(r[11]||'').trim():'';
+    const pertencePorId=clienteId && pedidoId && pedidosPorId[pedidoId]===clienteId;
+    const vendaLegada=(!pedidoId);
+    if(clienteId ? (!pertencePorId && !(vendaLegada && normalize(String(r[1]||''))===nomeNorm)) : normalize(String(r[1]||''))!==nomeNorm) continue;
     if(isTotalValues(r)) continue;
 
     const total=Math.max(0,Number(r[5])||0);
@@ -1780,7 +1761,7 @@ function adminRegistrarPagamentoCliente(ss,d){
       total:total,
       pago:pago,
       saldo:saldo,
-      pedidoId:lastColumn>=12?String(r[11]||'').trim():'',
+      pedidoId:pedidoId,
       data:r[0],
       cliente:String(r[1]||''),
       contato:String(r[2]||'')
@@ -1853,7 +1834,7 @@ function adminRegistrarPagamentoCliente(ss,d){
   SpreadsheetApp.flush();
 
   return {
-    cliente:nome,
+    cliente:nome || (clienteId ? 'Cliente' : ''),
     valorSolicitado:valorInformado,
     valorRegistrado:valor,
     saldoAnterior:saldoTotal,
@@ -2358,14 +2339,19 @@ function calculateStock(production,orders,adjustments) {
     });
   });
 
-  return RECHEIOS.map(r=>({
-    recheio:r,
-    produzido:prod[r],
-    reservado:reserved[r],
-    vendido:sold[r],
-    descartado:discarded[r],
-    disponivel:prod[r]+legacyCorrection[r]-reserved[r]-sold[r]-discarded[r]
-  }));
+  return RECHEIOS.map(r=>{
+    const bruto=prod[r]+legacyCorrection[r]-reserved[r]-sold[r]-discarded[r];
+    return {
+      recheio:r,
+      produzido:prod[r],
+      reservado:reserved[r],
+      vendido:sold[r],
+      descartado:discarded[r],
+      // Nunca permitimos que a API apresente estoque disponível negativo.
+      // As rotinas de gravação também validam disponibilidade antes de alterar dados.
+      disponivel:Math.max(0,bruto)
+    };
+  });
 }
 
 function readStock(ss) {
