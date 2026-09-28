@@ -133,7 +133,7 @@ async function loadClients(force=false){
   const now=Date.now();
   if(!force && clients.length && (now-clientsLoadedAt)<CLIENTS_CACHE_TTL){
     renderClients();
-    renderSaleClients();
+    if(fullDataLoaded)renderSaleClients();
     return clients;
   }
   if(clientsPromise) return clientsPromise;
@@ -141,86 +141,31 @@ async function loadClients(force=false){
     $('clientsTable').innerHTML='<tr><td colspan="7"><div class="notice">⏳ Carregando clientes...</div></td></tr>';
   }
   clientsPromise=(async()=>{
-    const j=await api('admin_listar_clientes',{});
+    const j=await api('admin_listar_clientes_rapido',{});
     if(!j)return clients;
     clients=j.data||[];
     clientsLoadedAt=Date.now();
     renderClients();
-    renderSaleClients();
+    if(fullDataLoaded)renderSaleClients();
     return clients;
   })().finally(()=>{clientsPromise=null});
   return clientsPromise;
 }
 function renderClients(){
  if(!$('clientsTable'))return;
- const cadastrados=clients.filter(c=>String(c.nome||'').trim());
- const registrados={};
- cadastrados.forEach(c=>{const nome=String(c.nome||'').trim();if(nome&&c.ativo!==false)registrados[normalize(nome)]=c});
- const nomesCadastrados={};
- cadastrados.forEach(c=>{const nome=String(c.nome||'').trim();if(nome)nomesCadastrados[normalize(nome)]=true});
+ const lista=clients.filter(c=>String(c.nome||'').trim());
 
- const historicos={};
- const vendasProcessadas=new Set();
- sales.forEach(v=>{
-   const nome=String(v.cliente||'').trim();
-   if(!nome)return;
-   const pedidoId=String(v.pedidoId||'').trim();
-   const vendaKey=pedidoId||('VENDA:'+String(v.row||''));
-   if(vendasProcessadas.has(vendaKey))return;
-   vendasProcessadas.add(vendaKey);
-   const chave=normalize(nome);
-   if(!historicos[chave])historicos[chave]={nome:nome,pedidos:0,paes:0};
-   historicos[chave].pedidos++;
-   historicos[chave].paes+=Number(v.quantidade)||0;
- });
- const pedidosProcessados=new Set();
- orders.forEach(o=>{
-   const id=String(o.id||'').trim();
-   if(!id||pedidosProcessados.has(id))return;
-   pedidosProcessados.add(id);
-   const nome=String(o.cliente||'').trim();
-   if(!nome)return;
-   const chave=normalize(nome);
-   if(!historicos[chave])historicos[chave]={nome:nome,pedidos:0,paes:0};
-   // Só soma o pedido se ele ainda não tiver uma venda vinculada.
-   const temVenda=sales.some(v=>String(v.pedidoId||'').trim()===id);
-   if(!temVenda)historicos[chave].pedidos++;
- });
-
- const lista=cadastrados.map(c=>{
-   const chave=normalize(c.nome);
-   const h=historicos[chave]||{pedidos:0,paes:0};
-   return Object.assign({},c,{
-     pedidos:Math.max(Number(c.pedidos)||0,Number(h.pedidos)||0),
-     paes:Number(h.paes)||0
-   });
- });
-
- Object.keys(historicos).forEach(k=>{
-   if(!registrados[k]&&!nomesCadastrados[k]){
-     lista.push({
-       id:'legacy:'+k,
-       nome:historicos[k].nome,
-       telefone:'',
-       email:'',
-       pedidos:historicos[k].pedidos,
-       paes:historicos[k].paes,
-       legacy:true
-     });
-   }
- });
-
- $('clientsTable').innerHTML=lista.sort((a,b)=>a.nome.localeCompare(b.nome,'pt-BR')).map(c=>{
+ $('clientsTable').innerHTML=lista.sort((a,b)=>String(a.nome||'').localeCompare(String(b.nome||''),'pt-BR')).map(c=>{
    const nomeBtn='<button type="button" class="client-link" data-client-history="'+esc(c.nome)+'">'+esc(c.nome)+'</button>';
    if(c.legacy)
-     return '<tr><td>'+nomeBtn+'</td><td>-</td><td>-</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td><span class="badge pending">Sem login</span></td><td><button class="primary client-create-legacy" data-name="'+esc(c.nome)+'">➕ Criar login</button></td></tr>';
+     return '<tr><td>'+nomeBtn+'</td><td>-</td><td>-</td><td>'+Number(c.pedidos||0)+'</td><td>'+Number(c.paes||0)+'</td><td><span class="badge pending">Sem login</span></td><td><button class="primary client-create-legacy" data-name="'+esc(c.nome)+'">➕ Criar login</button></td></tr>';
    const acesso=c.ativo===false
      ? '<span class="badge pending">Desativado</span>'
      : (c.mustChangePassword?'<span class="badge pending">Senha inicial</span>':'<span class="badge paid">Normal</span>');
    const editar=c.ativo===false
      ? '<button class="primary client-edit-admin" data-id="'+esc(c.id)+'">🔄 Reativar / editar</button>'
      : '<button class="secondary client-edit-admin" data-id="'+esc(c.id)+'">✏️ Editar</button>';
-   return '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email)+'</td><td>'+c.pedidos+'</td><td>'+c.paes+'</td><td>'+acesso+'</td><td><button class="secondary client-access-whatsapp" data-id="'+esc(c.id)+'">📱 Enviar acesso</button> '+editar+' <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
+   return '<tr><td>'+nomeBtn+'</td><td>'+esc(c.telefone||'-')+'</td><td>'+esc(c.email||'-')+'</td><td>'+Number(c.pedidos||0)+'</td><td>'+Number(c.paes||0)+'</td><td>'+acesso+'</td><td><button class="secondary client-access-whatsapp" data-id="'+esc(c.id)+'">📱 Enviar acesso</button> '+editar+' <button class="primary client-reset-admin" data-id="'+esc(c.id)+'">🔑 Redefinir senha</button> <button class="danger-btn client-delete-admin" data-id="'+esc(c.id)+'">🗑️ Excluir</button></td></tr>';
  }).join('')||'<tr><td colspan="7">Nenhum cliente encontrado.</td></tr>';
 }
 function renderSaleClients(){
@@ -392,7 +337,7 @@ function renderReceber(){
 }
 function renderRanking(){if(!$('rankingTable'))return;const inicio=$('rankMesInicio')?.value||'',fim=$('rankMesFim')?.value||'';const filtradas=sales.filter(x=>{const d=dateOnly(x.data);return (!inicio||d>=inicio)&&(!fim||d<=fim)});const grupos={};filtradas.forEach(x=>{const nome=String(x.cliente||'').trim()||'Sem nome',chave=nome.toLowerCase();if(!grupos[chave])grupos[chave]={cliente:nome,qtd:0,vendas:0,total:0};grupos[chave].qtd+=Number(x.quantidade)||0;grupos[chave].vendas++;grupos[chave].total+=Number(x.total)||0});const ranking=Object.values(grupos).sort((a,b)=>b.qtd-a.qtd||b.total-a.total),max=ranking[0]?.qtd||0;const medalhas=['🥇','🥈','🥉'];$('rankingTable').innerHTML=ranking.map((x,i)=>{const pos=i<3?'<span class="medal">'+medalhas[i]+'</span>':'<span class="rank-number">'+(i+1)+'</span>';return '<tr class="'+(i<3?'rank-top':'')+'"><td>'+pos+'</td><td><button class="client-link" data-client-receber="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td><strong>'+x.qtd+'</strong><div class="rank-bar"><span style="width:'+((x.qtd/max)*100).toFixed(1)+'%"></span></div></td><td>'+x.vendas+'</td><td class="rank-total">'+brl(x.total)+'</td><td>'+brl(x.vendas?x.total/x.vendas:0)+'</td></tr>'}).join('')||'<tr><td colspan="6">Nenhuma venda encontrada no mês.</td></tr>'}
 function goToReceber(name){const tab=document.querySelector('[data-view="receber"]');if(tab)tab.click();showClientHistory(name)}
-function showClientHistory(name){const key=String(name).trim().toLowerCase();const itens=[...sales].filter(x=>String(x.cliente).trim().toLowerCase()===key).sort((a,b)=>Number(b.row)-Number(a.row));const total=itens.reduce((a,x)=>a+(Number(x.total)||0),0),pago=itens.reduce((a,x)=>a+(Number(x.valorPago)||0),0),saldo=itens.reduce((a,x)=>a+(Number(x.deve)||0),0),qtd=itens.reduce((a,x)=>a+(Number(x.quantidade)||0),0);$('clienteHistoricoTitulo').textContent='Histórico de vendas — '+name;$('clienteResumo').innerHTML='<div class="card"><div class="label">Vendas</div><div class="value">'+itens.length+'</div></div><div class="card"><div class="label">Pães</div><div class="value">'+qtd+'</div></div><div class="card"><div class="label">Total vendido</div><div class="value">'+brl(total)+'</div></div><div class="card"><div class="label">Saldo atual</div><div class="value">'+brl(saldo)+'</div></div>';$('clienteHistorico').innerHTML=itens.map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td></tr>').join('')||'<tr><td colspan="8">Nenhuma venda encontrada.</td></tr>';$('clienteHistoricoPanel').hidden=false;$('clienteHistoricoPanel').scrollIntoView({behavior:'smooth',block:'start'})}
+async function showClientHistory(name){await ensureFullData();const key=String(name).trim().toLowerCase();const itens=[...sales].filter(x=>String(x.cliente).trim().toLowerCase()===key).sort((a,b)=>Number(b.row)-Number(a.row));const total=itens.reduce((a,x)=>a+(Number(x.total)||0),0),pago=itens.reduce((a,x)=>a+(Number(x.valorPago)||0),0),saldo=itens.reduce((a,x)=>a+(Number(x.deve)||0),0),qtd=itens.reduce((a,x)=>a+(Number(x.quantidade)||0),0);$('clienteHistoricoTitulo').textContent='Histórico de vendas — '+name;$('clienteResumo').innerHTML='<div class="card"><div class="label">Vendas</div><div class="value">'+itens.length+'</div></div><div class="card"><div class="label">Pães</div><div class="value">'+qtd+'</div></div><div class="card"><div class="label">Total vendido</div><div class="value">'+brl(total)+'</div></div><div class="card"><div class="label">Saldo atual</div><div class="value">'+brl(saldo)+'</div></div>';$('clienteHistorico').innerHTML=itens.map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+esc(x.dataPagamento||'-')+'</td></tr>').join('')||'<tr><td colspan="8">Nenhuma venda encontrada.</td></tr>';$('clienteHistoricoPanel').hidden=false;$('clienteHistoricoPanel').scrollIntoView({behavior:'smooth',block:'start'})}
 function renderSaleStock(){
   const mapa={
     Frango:'stockFrango',
@@ -602,9 +547,8 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
     return;
   }
   if(b.dataset.view==='clientes'){
-    await ensureFullData();
+    await loadClients(false);
     renderClients();
-    loadClients(false);
     return;
   }
   await ensureFullData();
