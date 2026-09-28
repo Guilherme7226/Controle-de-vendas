@@ -1,4 +1,4 @@
-const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMPMTCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec";
+const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec";
 
 async function proxyToAppsScript(request) {
   let target = APPS_SCRIPT_URL;
