@@ -231,8 +231,16 @@ $('orderBtn').onclick=async()=>{
  try{
    if(editingOrderId){
      btn.textContent='Salvando...';
+     const pedidoAnterior=currentPedidos.find(o=>String(o.id)===String(editingOrderId));
      j=await api('cliente_editar_pedido',{token:s.token,id:editingOrderId,itens});
      if(!j)return;
+     const atualizado=j.data||{};
+     if(pedidoAnterior){
+       const oldMap={},newMap={};
+       (pedidoAnterior.itens||[]).forEach(i=>oldMap[i.recheio]=(oldMap[i.recheio]||0)+(Number(i.quantidade)||0));
+       (atualizado.itens||[]).forEach(i=>newMap[i.recheio]=(newMap[i.recheio]||0)+(Number(i.quantidade)||0));
+       stock=(stock||[]).map(x=>{const delta=(Number(oldMap[x.recheio]||0)-Number(newMap[x.recheio]||0));return Object.assign({},x,{reservado:Math.max(0,(Number(x.reservado)||0)-delta),disponivel:(Number(x.disponivel)||0)+delta})});
+     }
      showMsg('Pedido '+j.data.id+' atualizado com sucesso.','success');
    }else{
      // A mesma chave é reutilizada se a primeira requisição demorar ou expirar
