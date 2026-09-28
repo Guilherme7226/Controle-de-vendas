@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "Code.gs"
+      - "*.html"
       - ".claspignore"
       - ".github/workflows/deploy-appscript.yml"
   workflow_dispatch:
@@ -36,13 +37,17 @@ jobs:
           printf '%s' "$CLASPRC_JSON" > "$HOME/.clasprc.json"
           printf '%s' "$CLASP_JSON" > .clasp.json
 
-      - name: Preservar Code.gs do GitHub
-        run: cp Code.gs /tmp/Code.gs.github
+      - name: Preservar arquivos do GitHub
+        run: |
+          cp Code.gs /tmp/Code.gs.github
+          for f in index.html sistema.html cliente.html entrada.html; do
+            if [ -f "$f" ]; then cp "$f" "/tmp/$f.github"; fi
+          done
 
       - name: Baixar projeto atual do Apps Script
         run: npx clasp pull
 
-      - name: Substituir arquivo principal pelo GitHub
+      - name: Restaurar arquivos do GitHub
         run: |
           if [ -f "Código.js" ]; then
             cp /tmp/Code.gs.github "Código.js"
@@ -51,6 +56,13 @@ jobs:
             echo "Arquivo Código.js não encontrado após clasp pull."
             exit 1
           fi
+
+          for f in index.html sistema.html cliente.html entrada.html; do
+            if [ -f "/tmp/$f.github" ]; then
+              cp "/tmp/$f.github" "$f"
+              echo "Arquivo restaurado do GitHub: $f"
+            fi
+          done
 
           # O Apps Script não deve receber arquivos do Worker/Cloudflare.
           rm -f Code.gs worker.gs worker.js wrangler.toml
