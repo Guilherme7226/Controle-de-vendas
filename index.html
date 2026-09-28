@@ -38,7 +38,9 @@ async function checkAdminPassword(){
   err.textContent='Verificando...';
   try{
     const r=await fetch(ADMIN_API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_login',data:{senha}})});
-    const j=await r.json();
+    const text=await r.text();
+    if(!text.trim()) throw new Error('O servidor respondeu vazio. Verifique o deploy do /api.');
+    let j; try{j=JSON.parse(text)}catch(_){throw new Error('O servidor não retornou JSON válido. Atualize a página e tente novamente.')}
     if(!j.ok) throw new Error(j.error||'Senha incorreta.');
     if(!j.data || !j.data.token) throw new Error('O servidor não retornou o token de administrador. Recarregue a página e tente novamente.');
     sessionStorage.setItem('admin_token',j.data.token);
