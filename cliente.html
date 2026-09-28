@@ -70,7 +70,7 @@ const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
-async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const j=await r.json();if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){showMsg(e.message||'Erro de comunicação.','error');return null}}
+async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const text=await r.text();if(!text.trim())throw Error('O servidor respondeu vazio. Verifique o deploy do /api.');let j;try{j=JSON.parse(text)}catch(_){throw Error('O servidor não retornou JSON válido. Atualize a página e tente novamente.')}if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){showMsg(e.message||'Erro de comunicação.','error');return null}}
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
@@ -97,7 +97,7 @@ async function loadClient(prefetched=null){
  }
 }
 async function refreshStock(){
- const j=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'}).then(r=>r.json()).catch(()=>null);
+ const j=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'}).then(async r=>{const t=await r.text();if(!t.trim())return null;try{return JSON.parse(t)}catch(_){return null}}).catch(()=>null);
  if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}
 }
 function renderStock(data){
