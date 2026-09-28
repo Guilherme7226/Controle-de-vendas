@@ -26,7 +26,7 @@ function doGet(e) {
     if (API_KEY && (e && e.parameter && e.parameter.apiKey) !== API_KEY) {
       throw new Error('Chave inválida');
     }
-    return json({ok:true, service:'Controle de Vendas', version:APP_VERSION, data:readAll()});
+    return json({ok:true, service:'Controle de Vendas', version:APP_VERSION});
   } catch (err) {
     return json({ok:false, error:String(err.message || err)});
   }
@@ -1862,7 +1862,7 @@ function adminEditOrder(ss,d) {
     const id=String(d.id||'');
     if(!id) throw new Error('Pedido não informado.');
     const ordersSh=ss.getSheetByName(SHEET_PEDIDOS);
-    const rows=ordersSh.getLastRow()>1?ordersSh.getRange(2,1,ordersSh.getLastRow()-1,9).getValues():[];
+    const rows=ordersSh.getLastRow()>1?ordersSh.getRange(2,1,ordersSh.getLastRow()-1,14).getValues():[];
     let row=-1, old=null;
     for(let i=0;i<rows.length;i++) if(String(rows[i][0])===id){row=i+2;old={id:String(rows[i][0]),clienteId:String(rows[i][1]),cliente:String(rows[i][2]),data:String(rows[i][3]),itens:JSON.parse(String(rows[i][4]||'[]')),status:String(rows[i][7]||'Reservado')};break}
     if(row<0) throw new Error('Pedido não encontrado.');
