@@ -1893,40 +1893,76 @@ function adminDeleteOrder(ss,d) {
     return {id:id};
   } finally { lock.releaseLock(); }
 }
-function readClientSales(ss,nomeCliente){
+function readClientSales(ss,client,ordersData){
   const sh=ss.getSheetByName(SHEET_VENDAS);
   const out=[];
   if(!sh||sh.getLastRow()<2)return out;
+
   const rows=sh.getRange(2,1,sh.getLastRow()-1,Math.min(12,sh.getMaxColumns())).getValues();
+  const nomeCliente=String(client&&client.nome||'').trim();
+  const clienteId=String(client&&client.id||'').trim();
   const alvo=normalize(nomeCliente);
+  const pedidos=ordersData||readOrders(ss);
+  const pedidoClienteId={};
+  (pedidos||[]).forEach(p=>{
+    if(p.id&&p.clienteId)pedidoClienteId[String(p.id).trim()]=String(p.clienteId).trim();
+  });
+
   const pedidosVistos={};
   for(let i=0;i<rows.length;i++){
     const r=rows[i],actualRow=i+2;
     if(isTotalValues(r))break;
     if(!r[0]&&!r[1]&&!r[3]&&!r[5])continue;
-    if(normalize(r[1])!==alvo)continue;
+
+    const pedidoId=String(r[11]||'').trim();
+    const pertencePorId=clienteId&&pedidoId&&pedidoClienteId[pedidoId]===clienteId;
+    const vendaLegada=!pedidoId;
+    const pertencePorNome=normalize(r[1])===alvo;
+
+    // Registros vinculados usam o ID do cliente.
+    // Registros antigos sem vínculo continuam usando o nome como fallback.
+    if(clienteId){
+      if(!pertencePorId && !(vendaLegada&&pertencePorNome))continue;
+    }else if(!pertencePorNome){
+      continue;
+    }
+
+    if(pedidoId&&pedidosVistos[pedidoId])continue;
+    if(pedidoId)pedidosVistos[pedidoId]=true;
+
     const total=Number(r[5])||0;
     const pago=parseMoney(r[9])||0;
     const saldo=Number(r[10])||Math.max(0,total-pago);
-    const pedidoId=String(r[11]||'').trim();
-    if(pedidoId&&pedidosVistos[pedidoId])continue;
-    if(pedidoId)pedidosVistos[pedidoId]=true;
+
     out.push({
-      row:actualRow,data:dateValue(r[0]),cliente:String(r[1]||''),
-      contatoEmpresa:String(r[2]||''),quantidade:Number(r[3])||0,
-      valorUnitario:Number(r[4])||0,total:total,dataPagamento:dateValue(r[6]),
-      pago:!!r[7],parcial:String(r[8]||'Não'),valorPago:pago,deve:saldo,
-      status:saldo<=0?'Pago':pago>0?'Parcial':'Pendente',pedidoId:pedidoId
+      row:actualRow,
+      data:dateValue(r[0]),
+      cliente:String(r[1]||''),
+      clienteId:clienteId||'',
+      contatoEmpresa:String(r[2]||''),
+      quantidade:Number(r[3])||0,
+      valorUnitario:Number(r[4])||0,
+      total:total,
+      dataPagamento:dateValue(r[6]),
+      pago:!!r[7],
+      parcial:String(r[8]||'Não'),
+      valorPago:pago,
+      deve:saldo,
+      status:saldo<=0?'Pago':pago>0?'Parcial':'Pendente',
+      pedidoId:pedidoId
     });
   }
   return out;
 }
-
 function getClientDataForClient(ss,client){
   const pedidosTodos=readOrders(ss);
   const nomeCliente=normalize(client.nome);
-  const pedidos=pedidosTodos.filter(x=>String(x.clienteId||'')===client.id||normalize(x.cliente)===nomeCliente);
-  const vendas=readClientSales(ss,client.nome);
+  const pedidos=pedidosTodos.filter(x=>{
+    if(String(x.clienteId||'')===String(client.id||''))return true;
+    // Somente pedidos antigos sem Cliente ID usam nome como fallback.
+    return !String(x.clienteId||'').trim() && normalize(x.cliente)===nomeCliente;
+  });
+  const vendas=readClientSales(ss,client,pedidosTodos);
   // Não chama readAll(): login e atualização do cliente não precisam ler
   // custos, resumos, ranking e demais dados administrativos.
   const production=readProduction(ss);
