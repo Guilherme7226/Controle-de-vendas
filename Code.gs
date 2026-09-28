@@ -13,7 +13,7 @@ const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-28-contabilidade-v13';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade'];
+const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_recalcular_resumo'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -77,18 +77,30 @@ function doPost(e) {
         return json({ok:true,data:registerClient(ss,d)});
       case 'cliente_login':
         return json({ok:true,data:loginClient(ss,d)});
-      case 'cliente_pedido':
-        var result=createClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+      case 'cliente_pedido': {
+        const result=createClientOrder(ss,d);
+        recalcularResumo(ss);
+        return json({ok:true,data:result});
+      }
       case 'estoque_atual':
         return json({ok:true,data:readStock(ss)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
-      case 'cliente_confirmar_pedido':
-        var result=confirmClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
-      case 'cliente_editar_pedido':
-        var result=editClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
-      case 'cliente_excluir_pedido':
-        var result=deleteClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+      case 'cliente_confirmar_pedido': {
+        const result=confirmClientOrder(ss,d);
+        recalcularResumo(ss);
+        return json({ok:true,data:result});
+      }
+      case 'cliente_editar_pedido': {
+        const result=editClientOrder(ss,d);
+        recalcularResumo(ss);
+        return json({ok:true,data:result});
+      }
+      case 'cliente_excluir_pedido': {
+        const result=deleteClientOrder(ss,d);
+        recalcularResumo(ss);
+        return json({ok:true,data:result});
+      }
       case 'cliente_alterar_senha':
         return json({ok:true,data:changeClientPassword(ss,d)});
       case 'admin_listar_clientes':
@@ -96,12 +108,8 @@ function doPost(e) {
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
-        // A abertura carrega somente o necessário para o Dashboard.
-        // As abas pesadas continuam com carregamento sob demanda.
         return json({ok:true,data:readDashboardData(ss)});
       case 'admin_full_data':
-        // Mantido para compatibilidade com as abas que ainda solicitarem
-        // uma atualização completa após alterações.
         return json({ok:true,data:readAll()});
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
@@ -115,12 +123,21 @@ function doPost(e) {
         return json({ok:true,data:adminEditOrder(ss,d)});
       case 'admin_excluir_pedido':
         return json({ok:true,data:adminDeleteOrder(ss,d)});
-      case 'admin_confirmar_pedido':
-        var result=adminConfirmOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
-      case 'admin_confirmar_pedidos_lote':
-        var result=adminConfirmOrdersBatch(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
-      case 'admin_pagar_cliente':
-        var result=adminRegistrarPagamentoCliente(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+      case 'admin_confirmar_pedido': {
+        const result=adminConfirmOrder(ss,d);
+        recalcularResumo(ss);
+        return json({ok:true,data:result});
+      }
+      case 'admin_confirmar_pedidos_lote': {
+        const result=adminConfirmOrdersBatch(ss,d);
+        recalcularResumo(ss);
+        return json({ok:true,data:result});
+      }
+      case 'admin_pagar_cliente': {
+        const result=adminRegistrarPagamentoCliente(ss,d);
+        recalcularResumo(ss);
+        return json({ok:true,data:result});
+      }
       case 'admin_editar_estoque':
         return json({ok:true,data:adminEditStock(ss,d)});
       case 'admin_verificar_integridade':
@@ -133,7 +150,6 @@ function doPost(e) {
       default:
         throw new Error('Ação desconhecida');
     }
-
     SpreadsheetApp.flush();
 
     const acoesQueAlteramResumo = ['venda','custo','pagamento','editar_venda','excluir_venda','producao'];
@@ -997,8 +1013,7 @@ function newToken() {
   return Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
 }
 
-function newId(prefix) {  return prefix + Utilities.getUuid().replace(/-/g,'').slice(0,12).toUpperCase();
-}
+function newId(prefix) {  return prefix + Utilities.getUuid().replace(/-/g,'').slice(0,12).toUpperCase();}
 
 function registerClient(ss, d) {
   ensureClientSheets(ss);
@@ -1997,7 +2012,6 @@ function readClientSales(ss,client,ordersData){
 
     const total=Number(r[5])||0;
     const pago=parseMoney(r[9])||0;    const saldo=Number(r[10])||Math.max(0,total-pago);
-
     out.push({
       row:actualRow,
       data:dateValue(r[0]),
