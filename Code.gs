@@ -683,13 +683,17 @@ function readDashboardData(ss) {
 }
 
 function readAdminOperationalData(ss) {
-  const dashboard=readDashboardData(ss);
+  const dashboard = readDashboardData(ss);
+  const production = readProduction(ss);
+  const orders = readOrders(ss);
+  const adjustments = readStockAdjustments(ss);
+
   return {
-    sales:dashboard.sales||[],
-    summary:dashboard.summary||{},
-    clientSummary:readClientSummary(ss),
-    stock:calculateStock(readProduction(ss),readOrders(ss),readStockAdjustments(ss)),
-    orders:readOrders(ss)
+    sales: dashboard.sales || [],
+    summary: dashboard.summary || {},
+    clientSummary: readClientSummary(ss),
+    stock: calculateStock(production, orders, adjustments),
+    orders: orders
   };
 }
 
