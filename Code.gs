@@ -632,9 +632,24 @@ function readDashboardData(ss) {
     }
   }
 
+  // O Dashboard deve usar as vendas reais da aba Vendas como fonte de verdade.
+  // A aba Resumo pode ficar desatualizada quando uma venda é registrada sem
+  // recalcular suas fórmulas. Por isso os indicadores financeiros/quantitativos
+  // abaixo são recalculados diretamente a partir das vendas lidas acima.
+  const summary = readSummary(ss);
+  summary.totalVendido = sales.reduce((s,x) => s + (Number(x.total) || 0), 0);
+  summary.totalRecebido = sales.reduce((s,x) => s + (Number(x.valorPago) || 0), 0);
+  summary.totalAReceber = sales.reduce((s,x) => s + (Number(x.deve) || 0), 0);
+  summary.qtdPaes = sales.reduce((s,x) => s + (Number(x.quantidade) || 0), 0);
+  summary.qtdVendas = sales.length;
+  summary.ticketMedio = summary.qtdVendas
+    ? summary.totalVendido / summary.qtdVendas
+    : 0;
+  summary.lucro = summary.totalVendido - (Number(summary.custoTotal) || 0);
+
   return {
     sales: sales,
-    summary: readSummary(ss)
+    summary: summary
   };
 }
 
