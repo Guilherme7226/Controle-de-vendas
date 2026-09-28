@@ -1041,10 +1041,18 @@ function adminListClientsFast(ss) {
 
   const result=[];
   const known={};
+  const orderClientById={};
+  orderRows.forEach(r=>{
+    const pedidoId=String(r[0]||'').trim();
+    const clienteId=String(r[1]||'').trim();
+    if(pedidoId&&clienteId)orderClientById[pedidoId]=clienteId;
+  });
   const orderCountByClient={};
   const orderCountByName={};
   const salesCountByName={};
   const breadsByName={};
+  const salesCountByClient={};
+  const breadsByClient={};
   const soldOrderIds=new Set();
   const seenSaleOrderIds=new Set();
 
@@ -1077,8 +1085,14 @@ function adminListClientsFast(ss) {
       soldOrderIds.add(pedidoId);
     }
 
-    salesCountByName[key]=(salesCountByName[key]||0)+1;
-    breadsByName[key]=(breadsByName[key]||0)+(Number(r[3])||0);
+    const clienteIdVinculado=pedidoId&&orderClientById[pedidoId]?orderClientById[pedidoId]:'';
+    if(clienteIdVinculado){
+      salesCountByClient[clienteIdVinculado]=(salesCountByClient[clienteIdVinculado]||0)+1;
+      breadsByClient[clienteIdVinculado]=(breadsByClient[clienteIdVinculado]||0)+(Number(r[3])||0);
+    }else{
+      salesCountByName[key]=(salesCountByName[key]||0)+1;
+      breadsByName[key]=(breadsByName[key]||0)+(Number(r[3])||0);
+    }
   }
 
   // Clientes cadastrados.
@@ -1093,7 +1107,7 @@ function adminListClientsFast(ss) {
 
     const pedidosPorId=orderCountByClient[id]||0;
     const pedidosPorNome=orderCountByName[key]||0;
-    const vendas=salesCountByName[key]||0;
+    const vendas=salesCountByClient[id]||0;
 
     result.push({
       id:id,
@@ -1103,7 +1117,7 @@ function adminListClientsFast(ss) {
       ativo:r[7]!==false,
       mustChangePassword:r[8]===true,
       pedidos:Math.max(pedidosPorId,pedidosPorNome,vendas),
-      paes:breadsByName[key]||0
+      paes:breadsByClient[id]||breadsByName[key]||0
     });
   }
 
