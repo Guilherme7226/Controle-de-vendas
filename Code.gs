@@ -78,17 +78,17 @@ function doPost(e) {
       case 'cliente_login':
         return json({ok:true,data:loginClient(ss,d)});
       case 'cliente_pedido':
-        const result=createClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+        var result=createClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'estoque_atual':
         return json({ok:true,data:readStock(ss)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
       case 'cliente_confirmar_pedido':
-        const result=confirmClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+        var result=confirmClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'cliente_editar_pedido':
-        const result=editClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+        var result=editClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'cliente_excluir_pedido':
-        const result=deleteClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+        var result=deleteClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'cliente_alterar_senha':
         return json({ok:true,data:changeClientPassword(ss,d)});
       case 'admin_listar_clientes':
@@ -116,11 +116,11 @@ function doPost(e) {
       case 'admin_excluir_pedido':
         return json({ok:true,data:adminDeleteOrder(ss,d)});
       case 'admin_confirmar_pedido':
-        const result=adminConfirmOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+        var result=adminConfirmOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'admin_confirmar_pedidos_lote':
-        const result=adminConfirmOrdersBatch(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+        var result=adminConfirmOrdersBatch(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'admin_pagar_cliente':
-        const result=adminRegistrarPagamentoCliente(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
+        var result=adminRegistrarPagamentoCliente(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'admin_editar_estoque':
         return json({ok:true,data:adminEditStock(ss,d)});
       case 'admin_verificar_integridade':
@@ -997,8 +997,7 @@ function newToken() {
   return Utilities.getUuid().replace(/-/g,'') + Utilities.getUuid().replace(/-/g,'');
 }
 
-function newId(prefix) {
-  return prefix + Utilities.getUuid().replace(/-/g,'').slice(0,12).toUpperCase();
+function newId(prefix) {  return prefix + Utilities.getUuid().replace(/-/g,'').slice(0,12).toUpperCase();
 }
 
 function registerClient(ss, d) {
@@ -1089,7 +1088,7 @@ function adminListClientsFast(ss) {
     ? saleSh.getRange(2,1,saleSh.getLastRow()-1,Math.min(12,saleSh.getMaxColumns())).getValues()
     : [];
 
-  const result=[];
+  var result=[];
   const known={};
   const orderClientById={};
   orderRows.forEach(r=>{
@@ -1225,7 +1224,7 @@ function adminListClients(ss,ordersData,salesData) {
   const rows=sh.getLastRow()>1?sh.getRange(2,1,sh.getLastRow()-1,9).getValues():[];
   const orders=ordersData || readOrders(ss);
   const sales=salesData || readAll().sales || [];
-  const result=[];
+  var result=[];
   const known={};
   const pedidoCountByClient={};
   const pedidoCountByName={};
@@ -1477,7 +1476,7 @@ function registrarVendaDoPedido(ss,pedido){
   const existing=localizarVendaPorPedidoId(ss,id);
   if(existing) return existing.row;
 
-  const result=appendSale(ss,{
+  var result=appendSale(ss,{
     data:pedido.data||formatToday(),
     cliente:pedido.cliente||'',
     contatoEmpresa:'',
@@ -1997,8 +1996,7 @@ function readClientSales(ss,client,ordersData){
     if(pedidoId)pedidosVistos[pedidoId]=true;
 
     const total=Number(r[5])||0;
-    const pago=parseMoney(r[9])||0;
-    const saldo=Number(r[10])||Math.max(0,total-pago);
+    const pago=parseMoney(r[9])||0;    const saldo=Number(r[10])||Math.max(0,total-pago);
 
     out.push({
       row:actualRow,
