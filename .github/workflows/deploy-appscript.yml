@@ -6,6 +6,7 @@ on:
       - main
     paths:
       - "Code.gs"
+      - ".claspignore"
       - ".github/workflows/deploy-appscript.yml"
   workflow_dispatch:
 
@@ -51,7 +52,16 @@ jobs:
             exit 1
           fi
 
-          rm -f Code.gs worker.gs
+          # O Apps Script não deve receber arquivos do Worker/Cloudflare.
+          rm -f Code.gs worker.gs worker.js wrangler.toml
+
+          echo "Arquivos .gs que serão enviados:"
+          find . -maxdepth 1 -type f -name "*.gs" -print
+
+          if [ -f "worker.gs" ]; then
+            echo "ERRO: worker.gs ainda está presente."
+            exit 1
+          fi
 
       - name: Enviar código para o Apps Script
         run: npx clasp push --force
