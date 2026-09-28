@@ -74,7 +74,7 @@ const DEFAULT_API_URL='/api';
 const OLD_API_URL='';
 let savedApiUrl=localStorage.getItem('vendas_api_url')||'';const LEGACY_API_URLS=['https://script.google.com/macros/s/AKfycbx5XRAfHo3_1wa80WFBpeA5b18l7p3LmDmILu-yV2gbS7tTkdtdb84QRNZDF6n7Sxbn/exec','https://script.google.com/macros/s/AKfycby7jjjQ1DOlio9ZUMkbqk4_9_3Tltw_kjVEX-CTBKeUCUy8IuQDiRkCrRlh5bngpm04/exec'];if(!savedApiUrl || savedApiUrl.startsWith('https://script.google.com/macros/s/') || LEGACY_API_URLS.includes(savedApiUrl)){savedApiUrl=DEFAULT_API_URL;localStorage.setItem('vendas_api_url',DEFAULT_API_URL)}const API_URL=savedApiUrl;
 const STOCK_RECHEIOS=['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
-let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];let lastApiError='';const senhasTemporarias={};
+let sales=[],costs=[],summary=null,clientSummary=[],production=[],stock=[],orders=[],clients=[];let lastApiError='';let fullDataLoaded=false;let fullDataPromise=null;const senhasTemporarias={};
 let clientsLoadedAt=0,clientsPromise=null;
 const CLIENTS_CACHE_TTL=30000;
 let selectedOrderIds=new Set();
@@ -269,33 +269,21 @@ function fillSaleFromOrder(){
  $('data').value=formatDate(o.data);
 }
 async function load(){
-  let j;
-  try{
-    const r=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'});
-    if(!r.ok)throw Error('HTTP '+r.status);
-    const text=await r.text();
-    try{j=JSON.parse(text)}catch(_){throw Error('A API retornou uma resposta que não é JSON.')};
-    if(!j.ok)throw Error(j.error||'Erro retornado pelo Apps Script.');
-    sales=j.data.sales||[];
-    costs=j.data.costs||[];
-    summary=j.data.summary||{};
-    clientSummary=j.data.clientSummary||[];
-    production=j.data.production||[];
-    stock=j.data.stock||[];
-    orders=j.data.orders||[];
-  }catch(e){
-    console.error('Falha ao conectar à API:',e);
-    showMsg('API não conectada: '+(e.message||'não foi possível obter os dados do Apps Script.'),'error');
-    render();
-    renderRanking();
-    renderStockAdmin();
-    renderProduction();
-    renderOrdersAdmin();
-    return false;
-  }
-
-  showMsg('Conectado à planilha Google Sheets.','success');
-  try{
+  if(fullDataPromise)return fullDataPromise;
+  fullDataPromise=(async()=>{
+    const j=await api('admin_full_data',{});
+    if(!j)return false;
+    const d=j.data||{};
+    sales=d.sales||[];
+    costs=d.costs||[];
+    summary=d.summary||{};
+    clientSummary=d.clientSummary||[];
+    production=d.production||[];
+    stock=d.stock||[];
+    orders=d.orders||[];
+    clients=d.clients||[];
+    fullDataLoaded=true;
+    clientsLoadedAt=Date.now();
     render();
     renderRanking();
     renderStockAdmin();
@@ -304,16 +292,40 @@ async function load(){
     renderClients();
     renderSaleClients();
     renderSaleStock();
-  }catch(e){
-    console.error('API conectada, mas houve erro ao atualizar a interface:',e);
-    showMsg('🟢 API conectada. Erro ao atualizar a tela: '+(e.message||'erro desconhecido'),'error');
-  }
-  return true;
+    return true;
+  })().finally(()=>{fullDataPromise=null});
+  return fullDataPromise;
 }
-function render(){const fat=sales.reduce((a,x)=>a+(Number(x.total)||0),0),cu=costs.reduce((a,x)=>a+(Number(x.valor)||0),0),rec=sales.reduce((a,x)=>a+(Number(x.deve)||0),0),q=sales.reduce((a,x)=>a+(Number(x.quantidade)||0),0),nv=sales.length,tk=nv?fat/nv:0;$('fat').textContent=brl(fat);$('cust').textContent=brl(cu);$('lucro').textContent=brl(fat-cu);$('receber').textContent=brl(rec);$('qtd').textContent=q;$('nvendas').textContent=nv;$('nclientes').textContent=new Set(sales.map(x=>String(x.cliente).trim().toLowerCase()).filter(Boolean)).size;$('ticket').textContent=brl(tk);
-const term=$('buscaVenda').value.toLowerCase(),fs=$('filtroStatus').value,fd=isoDate($('filtroDataVenda')?.value||'');$('salesTable').innerHTML=[...sales].reverse().filter(x=>(!term||String(x.cliente).toLowerCase().includes(term))&&(!fs||x.status===fs)&&(!fd||dateOnly(x.data)===fd)).map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+formatDate(x.dataPagamento)+'</td><td><button class="secondary edit-sale" data-row="'+x.row+'">Editar</button> '+(Number(x.valorPago)>0?'<button class="secondary undo-payment" data-row="'+x.row+'">↩️ Desfazer pagamento</button> ':'')+'<button class="danger-btn delete-sale" data-row="'+x.row+'">Excluir</button></td></tr>').join('')||'<tr><td colspan="10">Nenhuma venda.</td></tr>';
-renderReceber();
-$('costTable').innerHTML=[...costs].reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo.</td></tr>'}
+async function ensureFullData(){
+  if(fullDataLoaded)return true;
+  const ok=await load();
+  if(!ok)showMsg(lastApiError||'Não foi possível carregar os dados desta aba.','error');
+  return !!ok;
+}
+function render(){
+  const s=summary||{};
+  $('fat').textContent=brl(s.totalVendido||0);
+  $('cust').textContent=brl(s.custoTotal||0);
+  $('lucro').textContent=brl(s.lucro||((s.totalVendido||0)-(s.custoTotal||0)));
+  $('receber').textContent=brl(s.totalAReceber||0);
+  $('qtd').textContent=Number(s.qtdPaes)||0;
+  $('nvendas').textContent=Number(s.qtdVendas)||0;
+  $('nclientes').textContent=new Set(sales.map(x=>String(x.cliente).trim().toLowerCase()).filter(Boolean)).size;
+  $('ticket').textContent=brl(s.ticketMedio||0);
+
+  if(!fullDataLoaded)return;
+
+  const term=($('buscaVenda')?.value||'').toLowerCase();
+  const fs=$('filtroStatus')?.value||'';
+  const fd=isoDate($('filtroDataVenda')?.value||'');
+  if($('salesTable')){
+    $('salesTable').innerHTML=[...sales].reverse()
+      .filter(x=>(!term||String(x.cliente).toLowerCase().includes(term))&&(!fs||x.status===fs)&&(!fd||dateOnly(x.data)===fd))
+      .map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.cliente)+'</td><td>'+esc(x.contatoEmpresa||'-')+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valorPago)+'</td><td>'+brl(x.deve)+'</td><td>'+statusBadge(x.status)+'</td><td>'+formatDate(x.dataPagamento)+'</td><td><button class="secondary edit-sale" data-row="'+x.row+'">Editar</button> '+(Number(x.valorPago)>0?'<button class="secondary undo-payment" data-row="'+x.row+'">↩️ Desfazer pagamento</button> ':'')+'<button class="danger-btn delete-sale" data-row="'+x.row+'">Excluir</button></td></tr>').join('')||'<tr><td colspan="10">Nenhuma venda.</td></tr>';
+  }
+  renderReceber();
+  if($('costTable'))$('costTable').innerHTML=[...costs].reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo.</td></tr>';
+}
 function whatsappPhone(value){
  const digits=String(value||'').replace(/\D/g,'');
  if(!digits)return '';
@@ -581,15 +593,30 @@ document.addEventListener('click',e=>{
   if(e.target.classList.contains('admin-order-edit'))adminEditOrder(id);
   if(e.target.classList.contains('admin-order-delete'))adminDeleteOrder(id);
 });
-document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
   document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===b.dataset.view));
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
-  render();
-  if(b.dataset.view==='receber')renderReceber();
-  if(b.dataset.view==='ranking')renderRanking();
+  if(b.dataset.view==='dashboard'){
+    render();
+    renderRanking();
+    return;
+  }
   if(b.dataset.view==='clientes'){
+    await ensureFullData();
     renderClients();
     loadClients(false);
+    return;
+  }
+  await ensureFullData();
+  render();
+  if(b.dataset.view==='receber')renderReceber();
+  if(b.dataset.view==='vendas')render();
+  if(b.dataset.view==='custos')render();
+  if(b.dataset.view==='estoque')renderStockAdmin();
+  if(b.dataset.view==='pedidos')renderOrdersAdmin();
+  if(b.dataset.view==='venda'){
+    renderSaleClients();
+    renderSaleStock();
   }
 });
 $('fecharHistorico').onclick=()=>{$('clienteHistoricoPanel').hidden=true};let rankMes=new Date();rankMes.setDate(1);function rankMesPeriodo(){const y=rankMes.getFullYear(),m=rankMes.getMonth();const p=n=>String(n).padStart(2,'0');$('rankMesTitulo').textContent=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m]+' de '+y;const ini=y+'-'+p(m+1)+'-01',fim=y+'-'+p(m+1)+'-'+p(new Date(y,m+1,0).getDate());$('rankMesInicio')?.remove();$('rankMesFim')?.remove();const a=document.createElement('input');a.type='hidden';a.id='rankMesInicio';a.value=ini;const b=document.createElement('input');b.type='hidden';b.id='rankMesFim';b.value=fim;document.body.append(a,b);renderRanking()}$('rankMesAnterior').onclick=()=>{rankMes.setMonth(rankMes.getMonth()-1);rankMesPeriodo()};$('rankMesProximo').onclick=()=>{rankMes.setMonth(rankMes.getMonth()+1);rankMesPeriodo()};rankMesPeriodo();
@@ -732,12 +759,16 @@ $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=p
     const j=await api('admin_bootstrap',{token:ADMIN_TOKEN});
     if(!j) throw new Error(lastApiError||'O Apps Script não respondeu ao carregamento administrativo.');
     const d=j.data||{};
-    sales=d.sales||[];costs=d.costs||[];summary=d.summary||{};clientSummary=d.clientSummary||[];
-    production=d.production||[];stock=d.stock||[];orders=d.orders||[];clients=d.clients||[];
-    clientsLoadedAt=Date.now();
-    render();renderRanking();renderStockAdmin();renderProduction();renderOrdersAdmin();renderClients();renderSaleClients();renderSaleStock();
+    sales=d.sales||[];
+    summary=d.summary||{};
+    fullDataLoaded=false;
+    render();
+    renderRanking();
     gate.remove();
-    setInterval(refreshAdminStockRealtime,3000);
+    setInterval(()=>{
+      const view=document.querySelector('.view.active')?.id||'dashboard';
+      if(!document.hidden && (view==='estoque'||view==='venda'||view==='pedidos')) refreshAdminStockRealtime();
+    },10000);
   }catch(e){
     sessionStorage.removeItem('admin_token');
     fail(e&&e.message?e.message:'Erro desconhecido.');
