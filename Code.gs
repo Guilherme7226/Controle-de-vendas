@@ -94,10 +94,9 @@ function doPost(e) {
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
       case 'admin_bootstrap': {
-        // Remove da planilha vendas sem cliente antes de montar Contas a receber.
-        removerVendasSemNome(ss);
-        // O painel principal não precisa bloquear a abertura da tela
-        // esperando a lista completa de clientes. Ela é carregada em seguida.
+        // Não executa limpeza de linhas na abertura do Dashboard.
+        // Essa operação era pesada porque podia excluir várias linhas da planilha
+        // uma por uma e deixava a tela administrativa presa no carregamento.
         return json({ok:true,data:readAll()});
       }
       case 'admin_migrar_vendas_pedidos':
@@ -575,6 +574,7 @@ function deleteSale(ss, d) {
 function readAll() {
   const ss = getSS();
   const sales = [];
+  const pedidoIdsVistos = new Set();
   const sh = ss.getSheetByName(SHEET_VENDAS);
 
   if (sh && sh.getLastRow() >= 2) {
@@ -596,7 +596,10 @@ function readAll() {
       // Um pedido pode ter somente uma venda. Se houver registros duplicados
       // com o mesmo pedidoId (legado ou clique repetido), a primeira venda
       // continua sendo a venda oficial e as demais não entram na contabilidade.
-      if(pedidoIdAtual && sales.some(x=>String(x.pedidoId||'').trim()===pedidoIdAtual)) return;
+      if(pedidoIdAtual){
+        if(pedidoIdsVistos.has(pedidoIdAtual)) continue;
+        pedidoIdsVistos.add(pedidoIdAtual);
+      }
 
       sales.push({
         row: actualRow,
