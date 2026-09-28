@@ -935,7 +935,7 @@ function ensureClientSheets(ss) {
     ph = ss.insertSheet(SHEET_PEDIDOS);
     ph.getRange(1,1,1,14).setValues([[
       'ID Pedido','Cliente ID','Cliente','Data','Itens','Quantidade Total','Valor Total','Status','Criado em',
-      'Valor Pago','Data Pagamento','Saldo','Origem','Referência'
+      'Valor Pago','Data Pagamento','Saldo','Origem','Referência','Chave Idempotência'
     ]]);
     ph.setFrozenRows(1);
   } else {
@@ -945,6 +945,7 @@ function ensureClientSheets(ss) {
       ];
       ph.getRange(1,10,1,headers.length).setValues([headers]);
     }
+    if (ph.getLastColumn() < 15) ph.getRange(1,15).setValue('Chave Idempotência');
   }
 
   let pr = ss.getSheetByName(SHEET_PRODUCAO);
@@ -1332,6 +1333,26 @@ function createClientOrder(ss,d) {
   lock.waitLock(10000);
   try {
     const client=findClientByToken(ss,d.token);
+    const requestId=String(d.requestId||'').trim();
+    const ph=ss.getSheetByName(SHEET_PEDIDOS);
+    if(!ph) throw new Error('Aba Pedidos não encontrada.');
+
+    // Idempotência: dois cliques no mesmo botão podem chegar ao servidor
+    // quase simultaneamente. A chave é gravada na própria linha do pedido.
+    if(requestId && ph.getLastRow()>1){
+      const col=15;
+      if(ph.getLastColumn()<col)ph.getRange(1,col).setValue('Chave Idempotência');
+      const keys=ph.getRange(2,col,ph.getLastRow()-1,1).getValues();
+      for(let i=0;i<keys.length;i++){
+        if(String(keys[i][0]||'').trim()===requestId){
+          const existingId=String(ph.getRange(i+2,1).getValue()||'').trim();
+          const pedidos=readOrders(ss);
+          const existing=pedidos.find(x=>x.id===existingId);
+          if(existing)return existing;
+        }
+      }
+    }
+
     const itens=Array.isArray(d.itens)?d.itens:[];
     if(!itens.length) throw new Error('Escolha pelo menos um recheio.');
 
@@ -1358,16 +1379,18 @@ function createClientOrder(ss,d) {
     });
 
     if(!clean.length) throw new Error('Informe quantidades válidas.');
-    const ph=ss.getSheetByName(SHEET_PEDIDOS);
     const id=newId('PED');
     const data=String(d.data||formatToday()).slice(0,10);
-    ph.appendRow([id,client.id,client.nome,data,JSON.stringify(clean),totalQtd,total,'Reservado',new Date(),0,'',total,'CLIENTE',id]);
+
+    if(ph.getLastColumn()<15)ph.getRange(1,15).setValue('Chave Idempotência');
+    ph.appendRow([id,client.id,client.nome,data,JSON.stringify(clean),totalQtd,total,'Reservado',new Date(),0,'',total,'CLIENTE',id,requestId]);
     const pedidoRow=ph.getLastRow();
     aplicarFormatoPedido(ph,pedidoRow);
 
-    // O pedido fica apenas como "Reservado" até o administrador confirmar.
-    // A venda financeira será criada no momento da confirmação.
-    const stockAtualizado=stock.map(x=>{const add=Number(clean.find(i=>normalize(i.recheio)===normalize(x.recheio))?.quantidade||0);return {recheio:x.recheio,produzido:x.produzido,reservado:x.reservado+add,vendido:x.vendido,descartado:x.descartado,disponivel:Math.max(0,Number(x.disponivel||0)-add)}});
+    const stockAtualizado=stock.map(x=>{
+      const add=Number(clean.find(i=>normalize(i.recheio)===normalize(x.recheio))?.quantidade||0);
+      return {recheio:x.recheio,produzido:x.produzido,reservado:x.reservado+add,vendido:x.vendido,descartado:x.descartado,disponivel:Math.max(0,Number(x.disponivel||0)-add)}
+    });
     return {id:id,data:data,cliente:client.nome,itens:clean,quantidadeTotal:totalQtd,total:total,status:'Reservado',valorPago:0,dataPagamento:'',saldo:total,origem:'CLIENTE',referencia:id,stock:stockAtualizado};
   } finally {
     lock.releaseLock();
