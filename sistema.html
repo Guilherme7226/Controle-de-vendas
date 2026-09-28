@@ -34,7 +34,7 @@
 <div class="panel"><h2>📦 Produção e estoque</h2><p class="rank-note">Cadastre a produção de cada dia. O estoque disponível desconta reservas, vendas confirmadas e descartes. <strong>Editar estoque registra descarte</strong>; para aumentar o estoque, registre uma nova produção.</p>
 <form id="productionForm"><div class="grid"><div class="field"><label>Data da produção</label><div class="date-picker-row"><input id="pdata" type="text" placeholder="26-09-2026" required><button type="button" id="pdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="pdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div><div class="field"><label>Frango</label><input id="pfrango" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho</label><input id="pfrangomilho" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho e salada</label><input id="pfrangomilhosalada" type="number" min="0" value="0"></div><div class="field"><label>Frango sem milho com salada</label><input id="pfrangosemmilhosalada" type="number" min="0" value="0"></div></div><div class="actions"><button class="primary">Registrar produção</button></div></form></div>
 <div class="panel"><h2>Estoque atual</h2><div id="stockAdmin" class="stock-admin"></div></div>
-<div class="actions"><button type="button" id="loadProductionHistory" class="secondary">📋 Ver histórico de produção</button></div><div id="productionHistoryPanel" class="panel" hidden><button type="button" id="closeProductionHistory" class="secondary history-close">Fechar</button><h2>Histórico de produção</h2><div id="productionHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Tipo</th><th>Recheio</th><th>Quantidade</th><th>Observação</th></tr></thead><tbody id="productionTable"></tbody></table></div></div>
+<div class="actions"><button type="button" id="loadProductionHistory" class="secondary">📋 Ver histórico de produção</button></div><div id="productionHistoryPanel" class="panel" hidden><button type="button" id="closeProductionHistory" class="secondary history-close">Fechar</button><h2>Histórico de produção</h2><div id="productionHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Recheio</th><th>Quantidade</th></tr></thead><tbody id="productionTable"></tbody></table></div></div>
 </section>
 <section id="pedidos" class="view">
 <div class="panel">
@@ -411,7 +411,7 @@ async function editStock(recheio,atual){
 }
 function renderProduction(){
   if(!$('productionTable'))return;
-  if(!production.length){$('productionTable').innerHTML='<tr><td colspan="5">Clique em "Ver histórico de estoque" para carregar.</td></tr>';return}
+  if(!production.length){$('productionTable').innerHTML='<tr><td colspan="3">Clique em "Ver histórico de produção" para carregar.</td></tr>';return}
 }
 let pedidosAbaAtual='confirmar';
 function setPedidosAba(aba){
@@ -587,7 +587,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
   render();
   if(b.dataset.view==='receber')renderReceber();
   if(b.dataset.view==='vendas')render();
-  if(b.dataset.view==='custos')render();
+  if(b.dataset.view==='custos'){render();await loadRecentCosts();}
   if(b.dataset.view==='estoque')renderStockAdmin();
   if(b.dataset.view==='pedidos')renderOrdersAdmin();
 });
@@ -723,7 +723,7 @@ document.addEventListener('click',async e=>{
  alert('Cliente excluído e login removido.');
  await loadClients();
 });
-$('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();alert('Custo registrado!');load()};
+$('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();await loadRecentCosts();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
 document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client,target.dataset.clientId);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();
