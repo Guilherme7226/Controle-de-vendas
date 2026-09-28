@@ -4,3 +4,4 @@ worker.js
 wrangler.toml
 .github/
 README.md
+functions/
