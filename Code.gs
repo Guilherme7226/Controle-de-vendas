@@ -1049,6 +1049,7 @@ function adminListClientsFast(ss) {
   });
   const orderCountByClient={};
   const orderCountByName={};
+  const legacyOrderCountByName={};
   const salesCountByName={};
   const breadsByName={};
   const salesCountByClient={};
@@ -1065,6 +1066,7 @@ function adminListClientsFast(ss) {
     const key=normalize(nome);
     if(clienteId)orderCountByClient[clienteId]=(orderCountByClient[clienteId]||0)+1;
     if(key)orderCountByName[key]=(orderCountByName[key]||0)+1;
+    if(!clienteId&&key)legacyOrderCountByName[key]=(legacyOrderCountByName[key]||0)+1;
   }
 
   // Vendas: uma venda por pedidoId; vendas sem pedidoId usam a própria linha.
@@ -1106,7 +1108,7 @@ function adminListClientsFast(ss) {
     known[key]=true;
 
     const pedidosPorId=orderCountByClient[id]||0;
-    const pedidosPorNome=orderCountByName[key]||0;
+    const pedidosLegados=legacyOrderCountByName[key]||0;
     const vendas=salesCountByClient[id]||0;
 
     result.push({
@@ -1116,7 +1118,7 @@ function adminListClientsFast(ss) {
       email:String(r[3]||''),
       ativo:r[7]!==false,
       mustChangePassword:r[8]===true,
-      pedidos:Math.max(pedidosPorId,pedidosPorNome,vendas),
+      pedidos:pedidosPorId+pedidosLegados+vendas,
       paes:breadsByClient[id]||breadsByName[key]||0
     });
   }
