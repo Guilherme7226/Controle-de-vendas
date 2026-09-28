@@ -620,6 +620,17 @@ function deleteSale(ss, d) {
  * Lê SOMENTE as vendas que estão acima do TOTAL.
  * Assim nenhuma fórmula/linha abaixo do TOTAL vira venda.
  */
+function readSaleRow(ss,rowNumber){
+  const sh=ss.getSheetByName(SHEET_VENDAS);
+  if(!sh||!rowNumber||rowNumber<2||rowNumber>sh.getLastRow())return null;
+  const r=sh.getRange(rowNumber,1,1,Math.min(12,sh.getMaxColumns())).getValues()[0];
+  if(isTotalValues(r))return null;
+  const total=Number(r[5])||0;
+  const valorPago=parseMoney(r[9])||0;
+  const saldo=Number(r[10])||Math.max(0,total-valorPago);
+  return {row:rowNumber,data:dateValue(r[0]),cliente:String(r[1]||''),contatoEmpresa:String(r[2]||''),quantidade:Number(r[3])||0,valorUnitario:Number(r[4])||0,total:total,dataPagamento:dateValue(r[6]),pago:!!r[7],parcial:String(r[8]||'Não'),valorPago:valorPago,deve:saldo,status:saldo<=0?'Pago':valorPago>0?'Parcial':'Pendente',pedidoId:String(r[11]||'').trim()};
+}
+
 function readDashboardData(ss) {
   const sales = [];
   const sh = ss.getSheetByName(SHEET_VENDAS);
@@ -1744,11 +1755,12 @@ function adminConfirmOrder(ss,d) {
 
   // A operação é idempotente: registrarVendaDoPedido procura pelo pedidoId
   // antes de criar uma nova venda.
-  registrarVendaDoPedido(ss,old);
+  const vendaRow=registrarVendaDoPedido(ss,old);
 
   sh.getRange(row,8).setValue('Confirmado');
   old.status='Confirmado';
   SpreadsheetApp.flush();
+  old.venda=readSaleRow(ss,vendaRow);
   return old;
 }
 function adminConfirmOrdersBatch(ss,d) {
@@ -1763,6 +1775,7 @@ function adminConfirmOrdersBatch(ss,d) {
   const selected=new Set(ids);
   let confirmados=0,jaConfirmados=0,ignorados=0,naoEncontrados=0;
   const vendasCriadas=[];
+  const vendas=[];
 
   for(let i=0;i<rows.length;i++){
     const id=String(rows[i][0]||'').trim();
@@ -1793,20 +1806,24 @@ function adminConfirmOrdersBatch(ss,d) {
       sh.getRange(i+2,8).setValue('Confirmando');
       SpreadsheetApp.flush();
 
-      registrarVendaDoPedido(ss,pedido);
+      const vendaRow=registrarVendaDoPedido(ss,pedido);
 
       sh.getRange(i+2,8).setValue('Confirmado');
       vendasCriadas.push(id);
+      const venda=readSaleRow(ss,vendaRow);
+      if(venda)vendas.push(venda);
       confirmados++;
     }else if(status==='Confirmado'){
       jaConfirmados++;
       const itens=(()=>{try{return JSON.parse(String(rows[i][4]||'[]'))}catch(_){return []}})();
-      registrarVendaDoPedido(ss,{
+      const vendaRow=registrarVendaDoPedido(ss,{
         id:id,clienteId:String(rows[i][1]||''),cliente:String(rows[i][2]||''),data:dateValue(rows[i][3]),
         itens:itens,quantidadeTotal:Number(rows[i][5])||0,total:Number(rows[i][6])||0,status:'Confirmado',
         valorPago:Number(rows[i][9])||0,dataPagamento:dateValue(rows[i][10]),saldo:Number(rows[i][11])||0,
         origem:String(rows[i][12]||''),referencia:String(rows[i][13]||'')
       });
+      const venda=readSaleRow(ss,vendaRow);
+      if(venda)vendas.push(venda);
     }else{
       ignorados++;
     }
@@ -1815,7 +1832,7 @@ function adminConfirmOrdersBatch(ss,d) {
   const foundIds=new Set(rows.map(r=>String(r[0]||'').trim()).filter(Boolean));
   naoEncontrados=ids.filter(id=>!foundIds.has(id)).length;
   SpreadsheetApp.flush();
-  return {selecionados:ids.length,confirmados:confirmados,jaConfirmados:jaConfirmados,ignorados:ignorados,naoEncontrados:naoEncontrados,vendasCriadas:vendasCriadas};
+  return {selecionados:ids.length,confirmados:confirmados,jaConfirmados:jaConfirmados,ignorados:ignorados,naoEncontrados:naoEncontrados,vendasCriadas:vendasCriadas,vendas:vendas};
 }
 function adminRegistrarPagamentoCliente(ss,d){
   const nome=String(d.cliente||'').trim();
