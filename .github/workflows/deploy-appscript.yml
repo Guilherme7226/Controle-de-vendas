@@ -43,7 +43,6 @@ jobs:
 
       - name: Substituir o código principal pelo GitHub
         run: |
-          cp /tmp/Code.gs.github Code.gs.github.tmp
           MAIN_FILE="$(grep -l "function doPost" --include='*.gs' . | head -n 1 || true)"
 
           if [ -n "$MAIN_FILE" ]; then
