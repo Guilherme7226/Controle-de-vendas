@@ -1,16 +1,16 @@
 name: Deploy Apps Script
-# teste de sincronização automática
-
 on:
   push:
     branches:
       - main
-    paths:
-      - "Code.gs"
-      - "*.html"
-      - ".claspignore"
-      - ".github/workflows/deploy-appscript.yml"
   workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: apps-script-deploy
+  cancel-in-progress: true
 
 jobs:
   deploy:
