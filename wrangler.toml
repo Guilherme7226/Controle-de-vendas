@@ -1,9 +1,0 @@
-name = "paozinhos"
-main = "worker.js"
-compatibility_date = "2026-09-26"
-
-[assets]
-directory = "."
-binding = "ASSETS"
-run_worker_first = ["/api", "/api/*"]
-not_found_handling = "single-page-application"
