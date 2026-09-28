@@ -92,4 +92,20 @@ jobs:
           VERSION: ${{ steps.version.outputs.version }}
         run: |
           test -n "$DEPLOYMENT_ID" || (echo "Secret CLASP_DEPLOYMENT_ID não configurado." && exit 1)
-          npx clasp redeploy "$DEPLOYMENT_ID" "$VERSION" "GitHub $GITHUB_SHA"
+
+          echo "Deployments encontrados no projeto:"
+          npx clasp list-deployments
+
+          echo "Verificando se o deployment configurado existe neste projeto..."
+          npx clasp list-deployments | grep -F "$DEPLOYMENT_ID" >/dev/null || {
+            echo "ERRO: CLASP_DEPLOYMENT_ID não pertence ao projeto Apps Script configurado em CLASP_JSON."
+            exit 1
+          }
+
+          # clasp 3.x usa create-deployment --deploymentId para atualizar
+          # um deployment existente. O antigo "clasp redeploy ID VERSION DESC"
+          # não é compatível com a CLI instalada pelo workflow.
+          npx clasp create-deployment \
+            --deploymentId "$DEPLOYMENT_ID" \
+            --versionNumber "$VERSION" \
+            --description "GitHub $GITHUB_SHA"
