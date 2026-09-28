@@ -96,11 +96,13 @@ function doPost(e) {
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
-        // Carregamento inicial ultraleve: o Dashboard precisa apenas
-        // dos indicadores e das vendas para o ranking.
-        return json({ok:true,data:readDashboardData(ss)});
+        // O painel administrativo carrega todos os dados de uma vez.
+        // Assim Dashboard, vendas, custos, estoque, pedidos e clientes
+        // ficam sincronizados logo na abertura.
+        return json({ok:true,data:readAll()});
       case 'admin_full_data':
-        // Dados completos só são carregados quando alguma aba realmente precisa deles.
+        // Mantido para compatibilidade com as abas que ainda solicitarem
+        // uma atualização completa após alterações.
         return json({ok:true,data:readAll()});
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
