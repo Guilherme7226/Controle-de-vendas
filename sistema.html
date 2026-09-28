@@ -220,22 +220,21 @@ async function load(){
     if(!j)return false;
     const d=j.data||{};
     sales=d.sales||[];
-    costs=d.costs||[];
     summary=d.summary||{};
-    clientSummary=d.clientSummary||[];
-    production=d.production||[];
-    stock=d.stock||[];
-    orders=d.orders||[];
-    clients=d.clients||[];
-    fullDataLoaded=true;
-    clientsLoadedAt=Date.now();
+    // A abertura não carrega custos, produção, pedidos e clientes completos.
+    // Essas abas fazem carregamento sob demanda.
+    costs=[];
+    clientSummary=[];
+    production=[];
+    stock=[];
+    orders=[];
+    clients=[];
+    fullDataLoaded=false;
+    clientsLoadedAt=0;
     render();
     renderRanking();
+    // O estoque é carregado separadamente apenas quando necessário.
     renderStockAdmin();
-    renderProduction();
-    renderOrdersAdmin();
-    renderClients();
-    renderSaleClients();
     renderSaleStock();
     return true;
   })().finally(()=>{fullDataPromise=null});
@@ -328,11 +327,12 @@ function renderReceber(){
 
  $('receberTable').innerHTML=lista.map(x=>{
    const cliente=clients.find(c=>normalize(c.nome)===normalize(x.cliente));
+   const clienteId=cliente?.id||'';
    const telefone=cliente?.telefone||'';
    const whatsapp=telefone
      ? '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="'+esc(telefone)+'">📱 WhatsApp</button>'
      : '<button class="secondary whatsapp-client" data-client="'+esc(x.cliente)+'" data-phone="">📱 Cadastrar telefone</button>';
-   const pagamentoBtn=x.saldo>0?'<button class="pay-client" data-client="'+esc(x.cliente)+'">Registrar pagamento</button>':'<span class="badge paid">Quitado</span>'; return '<tr><td><button class="client-link" data-client-history="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td>'+x.qtdVendas+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.saldo)+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">'+whatsapp+pagamentoBtn+'</div></td></tr>';
+   const pagamentoBtn=x.saldo>0?'<button class="pay-client" data-client="'+esc(x.cliente)+'" data-client-id="'+esc(clienteId)+'">Registrar pagamento</button>':'<span class="badge paid">Quitado</span>'; return '<tr><td><button class="client-link" data-client-history="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td>'+x.qtdVendas+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.pago)+'</td><td>'+brl(x.saldo)+'</td><td><div style="display:flex;gap:6px;flex-wrap:wrap">'+whatsapp+pagamentoBtn+'</div></td></tr>';
  }).join('')||'<tr><td colspan="6">Nenhum valor pendente.</td></tr>';
 }
 function renderRanking(){if(!$('rankingTable'))return;const inicio=$('rankMesInicio')?.value||'',fim=$('rankMesFim')?.value||'';const filtradas=sales.filter(x=>{const d=dateOnly(x.data);return (!inicio||d>=inicio)&&(!fim||d<=fim)});const grupos={};filtradas.forEach(x=>{const nome=String(x.cliente||'').trim()||'Sem nome',chave=nome.toLowerCase();if(!grupos[chave])grupos[chave]={cliente:nome,qtd:0,vendas:0,total:0};grupos[chave].qtd+=Number(x.quantidade)||0;grupos[chave].vendas++;grupos[chave].total+=Number(x.total)||0});const ranking=Object.values(grupos).sort((a,b)=>b.qtd-a.qtd||b.total-a.total),max=ranking[0]?.qtd||0;const medalhas=['🥇','🥈','🥉'];$('rankingTable').innerHTML=ranking.map((x,i)=>{const pos=i<3?'<span class="medal">'+medalhas[i]+'</span>':'<span class="rank-number">'+(i+1)+'</span>';return '<tr class="'+(i<3?'rank-top':'')+'"><td>'+pos+'</td><td><button class="client-link" data-client-receber="'+esc(x.cliente)+'">'+esc(x.cliente)+'</button></td><td><strong>'+x.qtd+'</strong><div class="rank-bar"><span style="width:'+((x.qtd/max)*100).toFixed(1)+'%"></span></div></td><td>'+x.vendas+'</td><td class="rank-total">'+brl(x.total)+'</td><td>'+brl(x.vendas?x.total/x.vendas:0)+'</td></tr>'}).join('')||'<tr><td colspan="6">Nenhuma venda encontrada no mês.</td></tr>'}
@@ -508,7 +508,7 @@ async function undoPayment(row){
  await load();
  showMsg('Pagamento desfeito. A venda de '+x.cliente+' voltou para Pendente.','success');
 }
-async function payClient(name){
+async function payClient(name,clienteId=''){
  const itens=sales.filter(x=>String(x.cliente).trim().toLowerCase()===String(name).trim().toLowerCase()&&Number(x.deve)>0).sort((a,b)=>Number(a.row)-Number(b.row));
  if(!itens.length){alert('Este cliente não possui saldo pendente.');return}
  const saldo=itens.reduce((a,x)=>a+Number(x.deve||0),0);
@@ -518,7 +518,7 @@ async function payClient(name){
  if(!valor){alert('Informe um valor de pagamento maior que zero.');return}
  if(valor>saldo)valor=saldo;
 
- const j=await api('admin_pagar_cliente',{cliente:name,valor:valor});
+ const j=await api('admin_pagar_cliente',{cliente:name,clienteId:clienteId,valor:valor});
  if(!j){
    alert('Não foi possível registrar o pagamento.\n\n'+(lastApiError||'Erro desconhecido.'));
    return;
@@ -551,6 +551,13 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
     renderClients();
     return;
   }
+  if(b.dataset.view==='venda'){
+    await loadClients(false);
+    await refreshAdminStockRealtime();
+    renderSaleClients();
+    renderSaleStock();
+    return;
+  }
   await ensureFullData();
   render();
   if(b.dataset.view==='receber')renderReceber();
@@ -558,10 +565,6 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
   if(b.dataset.view==='custos')render();
   if(b.dataset.view==='estoque')renderStockAdmin();
   if(b.dataset.view==='pedidos')renderOrdersAdmin();
-  if(b.dataset.view==='venda'){
-    renderSaleClients();
-    renderSaleStock();
-  }
 });
 $('fecharHistorico').onclick=()=>{$('clienteHistoricoPanel').hidden=true};let rankMes=new Date();rankMes.setDate(1);function rankMesPeriodo(){const y=rankMes.getFullYear(),m=rankMes.getMonth();const p=n=>String(n).padStart(2,'0');$('rankMesTitulo').textContent=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m]+' de '+y;const ini=y+'-'+p(m+1)+'-01',fim=y+'-'+p(m+1)+'-'+p(new Date(y,m+1,0).getDate());$('rankMesInicio')?.remove();$('rankMesFim')?.remove();const a=document.createElement('input');a.type='hidden';a.id='rankMesInicio';a.value=ini;const b=document.createElement('input');b.type='hidden';b.id='rankMesFim';b.value=fim;document.body.append(a,b);renderRanking()}$('rankMesAnterior').onclick=()=>{rankMes.setMonth(rankMes.getMonth()-1);rankMesPeriodo()};$('rankMesProximo').onclick=()=>{rankMes.setMonth(rankMes.getMonth()+1);rankMesPeriodo()};rankMesPeriodo();
 $('rankMesBtn').onclick=()=>{const p=$('rankMesPicker');p.value=rankMes.getFullYear()+'-'+String(rankMes.getMonth()+1).padStart(2,'0')+'-01';if(p.showPicker)p.showPicker();else p.click()};
@@ -693,7 +696,7 @@ document.addEventListener('click',async e=>{
 });
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
+document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client,target.dataset.clientId);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};$('config').onclick=()=>{const u=prompt('URL do Apps Script /exec:',API_URL);if(u!==null){localStorage.setItem('vendas_api_url',u.trim());location.reload()}};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();
 </script><script>(async()=>{
   const gate=document.getElementById('adminGate');
