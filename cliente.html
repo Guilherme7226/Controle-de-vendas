@@ -139,7 +139,7 @@ function renderOrders(list, vendas=[]){
     $('orders').innerHTML='<div class="notice success">✅ Nenhuma pendência no momento. Sua conta está zerada.</div>';
   }else{
     $('orders').innerHTML=[...atuais].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
-      const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (o.status==='Reservado'||o.status==='Confirmado')
+      const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (o.status==='Reservado')
         ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
         : '';
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
