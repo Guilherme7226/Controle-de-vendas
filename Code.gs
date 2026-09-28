@@ -78,17 +78,17 @@ function doPost(e) {
       case 'cliente_login':
         return json({ok:true,data:loginClient(ss,d)});
       case 'cliente_pedido':
-        return json({ok:true,data:createClientOrder(ss,d)});
+        const result=createClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'estoque_atual':
         return json({ok:true,data:readStock(ss)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
       case 'cliente_confirmar_pedido':
-        return json({ok:true,data:confirmClientOrder(ss,d)});
+        const result=confirmClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'cliente_editar_pedido':
-        return json({ok:true,data:editClientOrder(ss,d)});
+        const result=editClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'cliente_excluir_pedido':
-        return json({ok:true,data:deleteClientOrder(ss,d)});
+        const result=deleteClientOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'cliente_alterar_senha':
         return json({ok:true,data:changeClientPassword(ss,d)});
       case 'admin_listar_clientes':
@@ -116,15 +116,17 @@ function doPost(e) {
       case 'admin_excluir_pedido':
         return json({ok:true,data:adminDeleteOrder(ss,d)});
       case 'admin_confirmar_pedido':
-        return json({ok:true,data:adminConfirmOrder(ss,d)});
+        const result=adminConfirmOrder(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'admin_confirmar_pedidos_lote':
-        return json({ok:true,data:adminConfirmOrdersBatch(ss,d)});
+        const result=adminConfirmOrdersBatch(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'admin_pagar_cliente':
-        return json({ok:true,data:adminRegistrarPagamentoCliente(ss,d)});
+        const result=adminRegistrarPagamentoCliente(ss,d); recalcularResumo(ss); return json({ok:true,data:result});
       case 'admin_editar_estoque':
-        case 'admin_verificar_integridade':
-          return json({ok:true,data:adminVerificarIntegridade(ss)});
         return json({ok:true,data:adminEditStock(ss,d)});
+      case 'admin_verificar_integridade':
+        return json({ok:true,data:adminVerificarIntegridade(ss)});
+      case 'admin_recalcular_resumo':
+        return json({ok:true,data:recalcularResumo(ss)});
       case 'producao':
         addProduction(ss,d);
         break;
@@ -133,6 +135,9 @@ function doPost(e) {
     }
 
     SpreadsheetApp.flush();
+
+    const acoesQueAlteramResumo = ['venda','custo','pagamento','editar_venda','excluir_venda','producao'];
+    if (acoesQueAlteramResumo.indexOf(body.action) >= 0) recalcularResumo(ss);
 
     // Não recarrega toda a planilha depois de cada gravação.
     // Isso deixa o POST muito mais rápido; o site atualiza os dados
@@ -712,6 +717,34 @@ function readAll() {
     stock: calculateStock(production,orders,adjustments),
     orders: orders
   };
+}
+
+function recalcularResumo(ss) {
+  const vendas = readDashboardData(ss).sales || [];
+  const cs = ss.getSheetByName(SHEET_CUSTOS);
+  const custos = [];
+  if (cs && cs.getLastRow() >= 1) cs.getRange(1,1,cs.getLastRow(),3).getValues().forEach(r => {
+    if (r[0] || r[1] || r[2]) { if (!isTotalValues(r)) custos.push(Number(r[2]) || 0); }
+  });
+  const totalVendido=vendas.reduce((s,x)=>s+(Number(x.total)||0),0);
+  const totalRecebido=vendas.reduce((s,x)=>s+(Number(x.valorPago)||0),0);
+  const totalAReceber=vendas.reduce((s,x)=>s+(Number(x.deve)||0),0);
+  const qtdPaes=vendas.reduce((s,x)=>s+(Number(x.quantidade)||0),0);
+  const qtdVendas=vendas.length;
+  const custoTotal=custos.reduce((s,x)=>s+x,0);
+  const stock=calculateStock(readProduction(ss),readOrders(ss),readStockAdjustments(ss));
+  const saldoDisponivel=stock.reduce((s,x)=>s+(Number(x.disponivel)||0),0);
+  const ticketMedio=qtdVendas?totalVendido/qtdVendas:0;
+  const lucro=totalVendido-custoTotal;
+  let sh=ss.getSheetByName(SHEET_RESUMO);
+  if(!sh) sh=ss.insertSheet(SHEET_RESUMO);
+  sh.getRange(1,1,10,2).setValues([
+    ['Indicador','Valor'],['Total Vendido',totalVendido],['Total Recebido',totalRecebido],
+    ['Total a Receber',totalAReceber],['Quantidade de Pães Vendidos',qtdPaes],
+    ['Quantidade de Vendas',qtdVendas],['Ticket Médio',ticketMedio],['Custo Total',custoTotal],
+    ['Saldo Disponível',saldoDisponivel],['Lucro',lucro]
+  ]);
+  return {totalVendido,totalRecebido,totalAReceber,qtdPaes,qtdVendas,ticketMedio,custoTotal,saldoDisponivel,lucro};
 }
 
 function readSummary(ss) {
