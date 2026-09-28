@@ -116,7 +116,7 @@ function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(
 async function api(action,data){try{lastApiError='';const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text)throw new Error('O Apps Script não retornou resposta. Verifique a implantação do aplicativo da Web.');let j;try{j=JSON.parse(text)}catch(_){throw new Error('A API retornou uma resposta que não é JSON. Verifique se a URL termina em /exec e se o Apps Script está publicado como aplicativo da Web.')}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.message||'Erro desconhecido';showMsg('Erro ao salvar: '+lastApiError,'error');return null}}
 let stockRealtimeBusy=false;
 async function refreshAdminStockRealtime(){
-  if(document.hidden||stockRealtimeBusy)return;
+  if(stockRealtimeBusy)return;
   stockRealtimeBusy=true;
   try{
     const j=await api('estoque_atual',{});
@@ -223,8 +223,11 @@ async function load(){
     summary=d.summary||{};
     clientSummary=d.clientSummary||[];
     production=[];
-    stock=d.stock||[];
-    orders=[];
+    stock=d.stock||stock||[];
+    // O endpoint operacional também devolve os pedidos. Nunca zere a lista
+    // ao atualizar as vendas, pois isso fazia pedidos reservados desaparecerem
+    // depois de registrar uma nova venda.
+    orders=d.orders||orders||[];
     // Clientes continuam sendo carregados separadamente pela aba Clientes/Nova venda.
     fullDataLoaded=true;
     clientsLoadedAt=0;
@@ -583,6 +586,10 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
     return;
   }
   await ensureFullData();
+  if(b.dataset.view==='venda'){
+    await refreshAdminStockRealtime();
+    renderSaleStock();
+  }
   render();
   if(b.dataset.view==='receber')renderReceber();
   if(b.dataset.view==='vendas')render();
