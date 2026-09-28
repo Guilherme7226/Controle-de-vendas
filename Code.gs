@@ -78,28 +78,28 @@ function doPost(e) {
       case 'cliente_login':
         return json({ok:true,data:loginClient(ss,d)});
       case 'cliente_pedido': {
-        const result=createClientOrder(ss,d);
+        const resultClientePedido=createClientOrder(ss,d);
         recalcularResumo(ss);
-        return json({ok:true,data:result});
+        return json({ok:true,data:resultClientePedido});
       }
       case 'estoque_atual':
         return json({ok:true,data:readStock(ss)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
       case 'cliente_confirmar_pedido': {
-        const result=confirmClientOrder(ss,d);
+        const resultConfirmarPedido=confirmClientOrder(ss,d);
         recalcularResumo(ss);
-        return json({ok:true,data:result});
+        return json({ok:true,data:resultConfirmarPedido});
       }
       case 'cliente_editar_pedido': {
-        const result=editClientOrder(ss,d);
+        const resultEditarPedido=editClientOrder(ss,d);
         recalcularResumo(ss);
-        return json({ok:true,data:result});
+        return json({ok:true,data:resultEditarPedido});
       }
       case 'cliente_excluir_pedido': {
-        const result=deleteClientOrder(ss,d);
+        const resultExcluirPedido=deleteClientOrder(ss,d);
         recalcularResumo(ss);
-        return json({ok:true,data:result});
+        return json({ok:true,data:resultExcluirPedido});
       }
       case 'cliente_alterar_senha':
         return json({ok:true,data:changeClientPassword(ss,d)});
@@ -124,19 +124,19 @@ function doPost(e) {
       case 'admin_excluir_pedido':
         return json({ok:true,data:adminDeleteOrder(ss,d)});
       case 'admin_confirmar_pedido': {
-        const result=adminConfirmOrder(ss,d);
+        const resultAdminConfirmarPedido=adminConfirmOrder(ss,d);
         recalcularResumo(ss);
-        return json({ok:true,data:result});
+        return json({ok:true,data:resultAdminConfirmarPedido});
       }
       case 'admin_confirmar_pedidos_lote': {
-        const result=adminConfirmOrdersBatch(ss,d);
+        const resultAdminConfirmarLote=adminConfirmOrdersBatch(ss,d);
         recalcularResumo(ss);
-        return json({ok:true,data:result});
+        return json({ok:true,data:resultAdminConfirmarLote});
       }
       case 'admin_pagar_cliente': {
-        const result=adminRegistrarPagamentoCliente(ss,d);
+        const resultAdminPagamento=adminRegistrarPagamentoCliente(ss,d);
         recalcularResumo(ss);
-        return json({ok:true,data:result});
+        return json({ok:true,data:resultAdminPagamento});
       }
       case 'admin_editar_estoque':
         return json({ok:true,data:adminEditStock(ss,d)});
