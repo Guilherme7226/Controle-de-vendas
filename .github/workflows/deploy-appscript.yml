@@ -51,7 +51,7 @@ jobs:
             exit 1
           fi
 
-          rm -f Code.gs
+          rm -f Code.gs worker.gs
 
       - name: Enviar código para o Apps Script
         run: npx clasp push --force
