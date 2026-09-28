@@ -109,6 +109,8 @@ function doPost(e) {
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
         return json({ok:true,data:readDashboardData(ss)});
+      case 'admin_listar_pedidos':
+        return json({ok:true,data:{orders:readOrders(ss)}});
       case 'admin_full_data':
         return json({ok:true,data:readAdminOperationalData(ss)});
       case 'admin_migrar_vendas_pedidos':
