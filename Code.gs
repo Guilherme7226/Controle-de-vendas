@@ -110,7 +110,7 @@ function doPost(e) {
       case 'admin_bootstrap':
         return json({ok:true,data:readDashboardData(ss)});
       case 'admin_full_data':
-        return json({ok:true,data:readAll()});
+        return json({ok:true,data:readAdminOperationalData(ss)});
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
       case 'admin_criar_cliente':
@@ -675,6 +675,17 @@ function readDashboardData(ss) {
   return {
     sales: sales,
     summary: summary
+  };
+}
+
+function readAdminOperationalData(ss) {
+  const dashboard=readDashboardData(ss);
+  return {
+    sales:dashboard.sales||[],
+    summary:dashboard.summary||{},
+    clientSummary:readClientSummary(ss),
+    stock:calculateStock(readProduction(ss),readOrders(ss),readStockAdjustments(ss)),
+    orders:readOrders(ss)
   };
 }
 
