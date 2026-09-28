@@ -278,6 +278,23 @@ document.addEventListener('click',async e=>{
    $('orderBtn').textContent='Salvar alterações';$('cancelEdit').classList.remove('hidden');renderStock(j.data.stock||stock);$('orderArea').scrollIntoView({behavior:'smooth',block:'start'});
  }
 });
+
+document.addEventListener('click',async e=>{
+ const id=e.target.dataset.id;
+ if(!id||!e.target.classList.contains('order-delete'))return;
+ const s=session();
+ if(!s)return;
+ if(!confirm('Excluir este pedido?'))return;
+ e.target.disabled=true;
+ const j=await api('cliente_excluir_pedido',{token:s.token,id});
+ if(!j){e.target.disabled=false;return;}
+ currentPedidos=currentPedidos.filter(o=>String(o.id)!==String(id));
+ editingOrderId=null;
+ quantities={};
+ renderStock(stock);
+ renderOrders(currentPedidos,currentVendas);
+ showMsg('Pedido excluído com sucesso.','success');
+});
 loadClient();
 let clientRefreshBusy=false;
 setInterval(()=>{
