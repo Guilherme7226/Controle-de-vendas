@@ -58,23 +58,23 @@ function doPost(e) {
         registrarVendaDiretaProtegida(ss, d);
         break;
       case 'custo':
-        appendCost(ss, d);
+        withScriptLock(()=>appendCost(ss, d));
         break;
       case 'pagamento':
-        updatePayment(ss, d);
+        withScriptLock(()=>updatePayment(ss, d));
         break;
       case 'editar_venda':
-        updateSale(ss, d);
+        withScriptLock(()=>updateSale(ss, d));
         break;
       case 'excluir_venda':
-        deleteSale(ss, d);
+        withScriptLock(()=>deleteSale(ss, d));
         break;
       case 'admin_login':
         return json({ok:true,data:adminLogin(d)});
       case 'admin_validar':
         return json({ok:true,data:adminValidate(d)});
       case 'cliente_cadastro':
-        return json({ok:true,data:registerClient(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>registerClient(ss,d))});
       case 'cliente_login':
         return json({ok:true,data:loginClient(ss,d)});
       case 'cliente_pedido':
@@ -90,7 +90,7 @@ function doPost(e) {
       case 'cliente_excluir_pedido':
         return json({ok:true,data:deleteClientOrder(ss,d)});
       case 'cliente_alterar_senha':
-        return json({ok:true,data:changeClientPassword(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>changeClientPassword(ss,d))});
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
       case 'admin_listar_clientes_rapido':
@@ -107,25 +107,25 @@ function doPost(e) {
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
       case 'admin_criar_cliente':
-        return json({ok:true,data:adminCreateClient(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>adminCreateClient(ss,d))});
       case 'admin_editar_cliente':
-        return json({ok:true,data:adminEditClient(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>adminEditClient(ss,d))});
       case 'admin_excluir_cliente':
-        return json({ok:true,data:adminDeleteClient(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>adminDeleteClient(ss,d))});
       case 'admin_editar_pedido':
         return json({ok:true,data:adminEditOrder(ss,d)});
       case 'admin_excluir_pedido':
         return json({ok:true,data:adminDeleteOrder(ss,d)});
       case 'admin_confirmar_pedido':
-        return json({ok:true,data:adminConfirmOrder(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>adminConfirmOrder(ss,d))});
       case 'admin_confirmar_pedidos_lote':
-        return json({ok:true,data:adminConfirmOrdersBatch(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>adminConfirmOrdersBatch(ss,d))});
       case 'admin_pagar_cliente':
-        return json({ok:true,data:adminRegistrarPagamentoCliente(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>adminRegistrarPagamentoCliente(ss,d))});
       case 'admin_editar_estoque':
-        return json({ok:true,data:adminEditStock(ss,d)});
+        return json({ok:true,data:withScriptLock(()=>adminEditStock(ss,d))});
       case 'producao':
-        addProduction(ss,d);
+        withScriptLock(()=>addProduction(ss,d));
         break;
       default:
         throw new Error('Ação desconhecida');
@@ -143,6 +143,13 @@ function doPost(e) {
   }
 }
 
+
+function withScriptLock(fn) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try { return fn(); }
+  finally { lock.releaseLock(); }
+}
 
 function removerVendasSemNome(ss){
   const sh=ss.getSheetByName(SHEET_VENDAS);
