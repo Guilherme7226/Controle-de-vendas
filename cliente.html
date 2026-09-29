@@ -102,7 +102,7 @@ async function api(action,data,opts={}){
       if(pedidosError) throw pedidosError;
       const {data:vendas,error:vendasError}=await supabaseClient.from('vendas').select('id,data,total,valor_pago,observacao,pedido_id,created_at').eq('cliente_id',cliente.id).order('data',{ascending:false});
       if(vendasError) throw vendasError;
-      const normalizedPedidos=(pedidos||[]).map(p=>({id:p.id,data:(p.created_at||'').slice(0,10),status:p.status,total:Number(p.total)||0,valorPago:0,saldo:Number(p.total)||0,itens:(p.pedido_itens||[]).map(i=>({quantidade:Number(i.quantidade)||0,recheio:i.produtos?.nome||''}))}));
+      const normalizedPedidos=(pedidos||[]).map(p=>({id:p.id,data:(p.created_at||'').slice(0,10),status:['reservado','pendente','aguardando','confirmando'].includes(String(p.status||'').trim().toLowerCase())?'Reservado':String(p.status||'').trim().toLowerCase()==='confirmado'?'Confirmado':p.status,total:Number(p.total)||0,valorPago:0,saldo:Number(p.total)||0,itens:(p.pedido_itens||[]).map(i=>({quantidade:Number(i.quantidade)||0,recheio:i.produtos?.nome||''}))}));
       const normalizedVendas=(vendas||[]).map(v=>({row:v.id,data:v.data,total:Number(v.total)||0,valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),pedidoId:v.pedido_id||'',status:'Confirmado'}));
       const byPedido={}; normalizedVendas.forEach(v=>{if(v.pedidoId)byPedido[v.pedidoId]=v;});
       normalizedPedidos.forEach(p=>{const v=byPedido[p.id];if(v){p.valorPago=v.valorPago;p.saldo=v.deve;}});
