@@ -345,11 +345,11 @@ function renderCostRows(rows){
     )+'</td></tr>';
   }).join('');
 }
-async function editCost(row){
+async function editCost(row,dataInicial='',descricaoInicial='',valorInicial=0){
   const x=(costs||[]).find(v=>String(v.row)===String(row));
-  const data=prompt('Data (DD-MM-AAAA):',formatDate(x?.data||'')); if(data===null)return;
-  const descricao=prompt('Descrição:',x?.descricao||''); if(descricao===null)return;
-  const valor=prompt('Valor:',Number(x?.valor||0).toFixed(2)); if(valor===null)return;
+  const data=prompt('Data (DD-MM-AAAA):',formatDate(dataInicial||x?.data||'')); if(data===null)return;
+  const descricao=prompt('Descrição:',descricaoInicial||x?.descricao||''); if(descricao===null)return;
+  const valor=prompt('Valor:',Number(valorInicial||x?.valor||0).toFixed(2)); if(valor===null)return;
   if(!descricao.trim()){alert('Informe a descrição.');return}
   const j=await api('editar_custo',{row:Number(row),data:isoDate(data),descricao:descricao.trim(),valor:parseValor(valor)});
   if(!j){alert('Não foi possível editar o custo.');return}
@@ -906,7 +906,7 @@ $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{d
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
 document.addEventListener('click',e=>{
   const edit=e.target.closest?.('.edit-cost');
-  if(edit){editCost(Number(edit.dataset.row));return}
+  if(edit){editCost(Number(edit.dataset.row),edit.dataset.date||'',edit.dataset.desc||'',Number(edit.dataset.value)||0);return}
   const del=e.target.closest?.('.delete-cost');
   if(del){deleteCost(Number(del.dataset.row));return}
   const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client,target.dataset.clientId);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
