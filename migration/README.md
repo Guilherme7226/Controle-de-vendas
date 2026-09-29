@@ -18,7 +18,7 @@ A branch `v2-supabase` já contém os scripts necessários para migrar os dados 
 
 ## ÚNICA PARTE QUE VOCÊ PRECISA FAZER MANUALMENTE
 
-A chave secreta do Supabase não pode ficar no GitHub nem ser enviada pelo chat. O Supabase recomenda manter a secret key somente em ambiente confiável/server-side. citeturn3search10turn0search11
+A chave secreta do Supabase não pode ficar no GitHub nem ser enviada pelo chat. O Supabase recomenda manter a secret key somente em ambiente confiável/server-side.
 
 No projeto do Apps Script que tem acesso à planilha, abra:
 
@@ -29,7 +29,7 @@ Adicione:
 - `SUPABASE_URL` = `https://lsevhjjklsnqegrpkiku.supabase.co`
 - `SUPABASE_SECRET_KEY` = sua chave secreta do Supabase
 
-O código também aceita a chave legada `SUPABASE_SERVICE_ROLE_KEY`, mas a chave nova `sb_secret_...` é a opção recomendada atualmente. citeturn0search10turn0search11
+O código também aceita a chave legada `SUPABASE_SERVICE_ROLE_KEY`, mas a chave nova `sb_secret_...` é a opção recomendada atualmente.
 
 Depois copie os dois arquivos abaixo para o projeto Apps Script de migração:
 
@@ -48,7 +48,7 @@ Não coloque esses arquivos no frontend.
    - `SUPABASE_ADMIN_PASSWORD`
    e execute `criarAdminSupabase`.
 
-O Supabase suporta autenticação por telefone + senha e criação administrativa de usuários, desde que o fluxo de Phone Auth esteja habilitado. citeturn1search8turn1search0
+O Supabase suporta autenticação por telefone + senha e criação administrativa de usuários, desde que o fluxo de Phone Auth esteja habilitado.
 
 ## Importante
 
