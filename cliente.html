@@ -74,7 +74,7 @@ async function api(action,data,opts={}){const timeout=Number(opts.timeout||20000
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
-function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente.nome;$('clientSettingsPanel').classList.add('hidden');setClientTab('atual')}
+function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente?.nome||'';$('clientSettingsPanel').classList.add('hidden');setClientTab('atual');if(!s.mustChangePassword){if(!$('stockGrid').children.length)$('stockGrid').innerHTML='<div class="notice">⏳ Carregando estoque...</div>';if(!$('orders').children.length)$('orders').innerHTML='<div class="notice">⏳ Carregando seus pedidos...</div>'}}
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
@@ -107,7 +107,7 @@ async function refreshStock(tokenOverride=null){
  const s=session();
  const token=String(tokenOverride||s?.token||'').trim();
  if(!token)return;
- const j=await api('estoque_atual',{token});
+ const j=await api('estoque_atual',{token},{timeout:15000,retries:2,silent:true});
  if(j&&j.ok){stock=j.data.stock||j.data||[];renderStock(stock)}
 }
 function renderStock(data){
