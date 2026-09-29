@@ -294,7 +294,7 @@ function renderOrders(list, vendas=[]){
    const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));
   const registros=[
     ...pedidosNumerados.map(o=>({
-      type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
+      type:'pedido',numeroPedido:o.numeroPedido,data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
       total:Number(o.total)||0,valorPago:Number(o.valorPago)||0,
       saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,
       dataPagamento:o.dataPagamento||'',status:o.status,origem:o.origem||''
