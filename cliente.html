@@ -79,7 +79,9 @@ function showAuth(){$('auth').classList.remove('hidden');$('changePassword').cla
 let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
  const s=session();if(!s){showAuth();return}
- const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:s.token});
+ const token=String(s.token||'').trim();
+ if(!token){clearSession();showAuth();showMsg('Sessão inválida. Faça login novamente.','error');return}
+ const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:token});
  if(!j){
    const atual=session();
    if(atual)showApp(atual);
