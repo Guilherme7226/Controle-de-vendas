@@ -455,9 +455,79 @@ function aplicarFormatoVenda(sh, rowNumber) {
 }
 
 
+function corrigirOrdemCustos(ss) {
+  const sh = ss.getSheetByName(SHEET_CUSTOS);
+  if (!sh || sh.getLastRow() < 4) return false;
+
+  const lastRow = sh.getLastRow();
+  const values = sh.getRange(1,1,lastRow,3).getValues();
+  let paoRow = 0;
+
+  // O último lançamento conhecido é Pão.
+  // Tudo que foi lançado depois dele por engano é reposicionado logo abaixo dele.
+  for (let i = 3; i < values.length; i++) {
+    const descricao = normalize(values[i][1]);
+    if (descricao === 'PAO' || descricao.includes('PAO')) paoRow = i + 1;
+  }
+
+  if (!paoRow) return false;
+
+  const mover = [];
+  for (let i = paoRow; i <= values.length; i++) {
+    const r = values[i - 1];
+    if (isTotalValues(r)) continue;
+    if (!r[0] && !r[1] && !r[2]) continue;
+    if (!r[1]) continue;
+
+    const valor = parseMoney(r[2]);
+    if (!r[0] || !isFinite(valor)) continue;
+
+    mover.push({
+      row: i,
+      values: [r[0], String(r[1] || ''), Number(valor) || 0]
+    });
+  }
+
+  if (!mover.length) return false;
+
+  // Remove os lançamentos que ficaram fora da área correta.
+  for (let i = mover.length - 1; i >= 0; i--) {
+    sh.deleteRow(mover[i].row);
+  }
+
+  // Recalcula a posição do Pão depois das exclusões e reinsere os lançamentos
+  // imediatamente depois dele, mantendo a ordem original.
+  const dadosAtualizados = sh.getRange(1,1,sh.getLastRow(),3).getValues();
+  let novoPaoRow = 0;
+  for (let i = 3; i < dadosAtualizados.length; i++) {
+    const descricao = normalize(dadosAtualizados[i][1]);
+    if (descricao === 'PAO' || descricao.includes('PAO')) novoPaoRow = i + 1;
+  }
+  if (!novoPaoRow) return false;
+
+  sh.insertRowsAfter(novoPaoRow, mover.length);
+  const destino = novoPaoRow + 1;
+  sh.getRange(destino,1,mover.length,3).setValues(mover.map(x => x.values));
+
+  // Copia somente a formatação do lançamento Pão para os custos reposicionados.
+  sh.getRange(novoPaoRow,1,1,3).copyTo(
+    sh.getRange(destino,1,mover.length,3),
+    SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+    false
+  );
+
+  for (let i = 0; i < mover.length; i++) aplicarFormatoCusto(sh, destino + i);
+
+  SpreadsheetApp.flush();
+  return true;
+}
+
 function appendCost(ss, d) {
   const sh = ss.getSheetByName(SHEET_CUSTOS);
   if (!sh) throw new Error('Aba Custos não encontrada');
+
+  // Corrige primeiro os lançamentos já existentes que ficaram fora da ordem.
+  corrigirOrdemCustos(ss);
 
   const row = [
     d.data || '',
@@ -465,57 +535,31 @@ function appendCost(ss, d) {
     parseMoney(d.valor) || 0
   ];
 
-  // Mantém os custos dentro da área de lançamentos da planilha.
-  // Quando existir uma linha TOTAL, o novo custo entra imediatamente antes dela.
-  // Se não existir TOTAL, procura a primeira linha vazia a partir da linha 4
-  // em vez de jogar o lançamento para o fim da aba.
-  let totalRow = 0;
+  // O novo custo sempre entra logo após o último lançamento existente.
+  // A linha TOTAL, se existir, permanece abaixo dos lançamentos.
   const lastRow = sh.getLastRow();
-  if (lastRow >= 1) {
-    const values = sh.getRange(1,1,lastRow,3).getDisplayValues();
-    for (let i = 0; i < values.length; i++) {
-      const linha = values[i].map(v => normalize(v));
-      if (linha.some(v =>
-        v === 'TOTAL' ||
-        v === 'TOTAL GERAL' ||
-        v === 'TOTAL DE CUSTOS' ||
-        v === 'CUSTOS DE PRODUCAO'
-      )) {
-        totalRow = i + 1;
-        break;
-      }
+  const values = sh.getRange(1,1,lastRow,3).getValues();
+
+  let totalRow = 0;
+  let lastLancamento = 3;
+
+  for (let i = 3; i < values.length; i++) {
+    const r = values[i];
+    if (isTotalValues(r)) {
+      totalRow = i + 1;
+      break;
     }
+    if (r[0] || r[1] || r[2]) lastLancamento = i + 1;
   }
 
-  let targetRow;
+  let targetRow = lastLancamento + 1;
+  if (totalRow > 0) targetRow = totalRow;
 
-  if (totalRow > 0) {
-    targetRow = totalRow;
-    sh.insertRowsBefore(targetRow, 1);
-  } else {
-    targetRow = 4;
-    const ultimaLinha = Math.max(4, sh.getLastRow());
-
-    for (let rowNumber = 4; rowNumber <= ultimaLinha; rowNumber++) {
-      const values = sh.getRange(rowNumber,1,1,3).getDisplayValues()[0];
-      if (!values[0].trim() && !values[1].trim() && !values[2].trim()) {
-        targetRow = rowNumber;
-        break;
-      }
-      targetRow = rowNumber + 1;
-    }
-
-    if (targetRow > sh.getLastRow()) {
-      sh.insertRowsAfter(sh.getLastRow(), 1);
-    }
-  }
-
+  sh.insertRowsBefore(targetRow, 1);
   sh.getRange(targetRow,1,1,3).setValues([row]);
 
-  // Usa a linha 4 como modelo visual, quando ela já existir.
-  // Depois reaplica os formatos de data/moeda para garantir os números corretos.
-  if (targetRow !== 4 && sh.getLastRow() >= 4) {
-    sh.getRange(4,1,1,3).copyTo(
+  if (targetRow > 4) {
+    sh.getRange(targetRow - 1,1,1,3).copyTo(
       sh.getRange(targetRow,1,1,3),
       SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
       false
@@ -532,7 +576,6 @@ function appendCost(ss, d) {
     valor:Number(row[2])||0
   };
 }
-
 function updatePayment(ss, d) {
   const sh = ss.getSheetByName(SHEET_VENDAS);
   if (!sh) throw new Error('Aba Vendas não encontrada');
@@ -848,12 +891,11 @@ function recalcularResumo(ss) {
   let sh=ss.getSheetByName(SHEET_RESUMO);
   if(!sh) sh=ss.insertSheet(SHEET_RESUMO);
 
-  // A aba Resumo é exclusivamente contábil. Limpa conteúdos antigos
-  // para impedir que dados de vendas (ex.: nomes de clientes) fiquem
-  // misturados ao novo resumo.
+  // A aba Resumo é exclusivamente contábil.
+  // Limpa somente o conteúdo da tabela contábil, preservando a formatação
+  // existente da planilha.
   const oldLastRow=Math.max(10,sh.getLastRow());
-  const oldLastCol=Math.max(2,sh.getLastColumn());
-  sh.getRange(1,1,oldLastRow,oldLastCol).clearContent();
+  sh.getRange(1,1,oldLastRow,2).clearContent();
 
   const resumoValues=[
     ['Indicador','Valor'],
@@ -873,8 +915,6 @@ function recalcularResumo(ss) {
   sh.getRange(2,2,3,1).setNumberFormat('R$ #,##0.00');
   sh.getRange(5,2,2,1).setNumberFormat('0');
   sh.getRange(7,2,4,1).setNumberFormat('R$ #,##0.00');
-  sh.getRange(1,1,1,2).setFontWeight('bold');
-
   return {totalVendido,totalRecebido,totalAReceber,qtdPaes,qtdVendas,ticketMedio,custoTotal,saldoDisponivel,lucro};
 }
 
