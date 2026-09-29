@@ -258,8 +258,10 @@ async function api(action,data,opts={}){
     }
     throw Error('Ação ainda não migrada para o Supabase: '+action);
   }catch(e){
-    if(!opts.silent) showMsg(e.message||'Erro de comunicação com o Supabase.','error');
-    return null;
+    console.error('Erro Supabase ['+action+']:',e);
+    const mensagem=e?.message||e?.details||e?.hint||'Erro de comunicação com o Supabase.';
+    if(!opts.silent) showMsg(mensagem,'error');
+    return {ok:false,error:mensagem,details:e?.details||'',hint:e?.hint||''};
   }
 }
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
