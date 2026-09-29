@@ -560,11 +560,34 @@ function editarCusto(ss,d){
 }
 function excluirCusto(ss,d){
   const sh=ss.getSheetByName(SHEET_CUSTOS); if(!sh)throw new Error('Aba Custos não encontrada');
-  const row=Number(d.row); if(!row||row<7||row>sh.getLastRow())throw new Error('Linha do custo inválida.');
-  const atual=sh.getRange(row,1,1,3).getValues()[0];
-  if(isTotalValues(atual)||(!atual[0]&&!atual[1]&&!atual[2]))throw new Error('O registro informado não é um custo.');
-  if(normalize(atual[1])==='PAO'||normalize(atual[1]).includes('PAO'))throw new Error('O custo Pão é o lançamento-base e não pode ser excluído.');
-  sh.deleteRow(row); SpreadsheetApp.flush(); return {row:row,descricao:String(atual[1]||''),valor:parseMoney(atual[2])||0};
+  const lock=LockService.getScriptLock(); lock.waitLock(10000);
+  try{
+    const last=sh.getLastRow();
+    let row=Number(d.row);
+    // Se a linha mudou por outra exclusão/lançamento, localiza pelo conjunto
+    // data + descrição + valor enviado pelo site.
+    if(!row||row<7||row>last){
+      row=0;
+    }
+    let atual=row?sh.getRange(row,1,1,3).getValues()[0]:null;
+    const match=(r)=>{
+      if(!r)return false;
+      if(d.descricao!=null && normalize(r[1])!==normalize(d.descricao))return false;
+      if(d.valor!=null && Math.abs((parseMoney(r[2])||0)-(parseMoney(d.valor)||0))>0.005)return false;
+      if(d.data && String(dateValue(r[0]))!==String(dateValue(d.data)))return false;
+      return true;
+    };
+    if(!match(atual)){
+      row=0;
+      const values=last>=7?sh.getRange(7,1,last-6,3).getValues():[];
+      for(let i=0;i<values.length;i++){if(match(values[i])){row=i+7;atual=values[i];break;}}
+    }
+    if(!row||!atual||isTotalValues(atual)||(!atual[0]&&!atual[1]&&!atual[2]))throw new Error('Custo não encontrado. Atualize o histórico e tente novamente.');
+    if(normalize(atual[1])==='PAO'||normalize(atual[1]).includes('PAO'))throw new Error('O custo Pão é o lançamento-base e não pode ser excluído.');
+    sh.deleteRow(row);
+    SpreadsheetApp.flush();
+    return {row:row,descricao:String(atual[1]||''),valor:parseMoney(atual[2])||0};
+  }finally{lock.releaseLock();}
 }
 function padronizarFormatacaoTodasAbas(ss){
   const props=PropertiesService.getScriptProperties();
