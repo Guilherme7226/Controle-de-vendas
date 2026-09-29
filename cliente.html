@@ -468,7 +468,9 @@ $('orderBtn').onclick=async()=>{
        new Promise(resolve=>setTimeout(()=>resolve({ok:false,error:'Tempo limite ao reservar o pedido. Verifique sua conexão e tente novamente.'}),20000))
      ]);
      if(j&&!j.ok){
-       showMsg(j.error||'Não foi possível reservar o pedido.','error');
+       const erro=j.error||j.details||j.hint||'Não foi possível reservar o pedido.';
+       showMsg('❌ '+erro,'error');
+       alert('Não foi possível reservar o pedido:\n\n'+erro);
        return;
      }
      if(!j)return;
