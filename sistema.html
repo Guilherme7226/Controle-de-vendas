@@ -948,4 +948,53 @@ $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=d
     sessionStorage.removeItem('admin_token');
     fail(e&&e.message?e.message:'Erro desconhecido.');
   }
-})();</script></body></html>
+})();</script><script>
+(function(){
+  const form=document.getElementById('saleForm');
+  if(!form)return;
+  form.onsubmit=async function(e){
+    e.preventDefault();
+    e.stopPropagation();
+    const btn=form.querySelector('button.primary');
+    if(btn){btn.disabled=true;btn.textContent='⏳ Registrando...';}
+    try{
+      const select=document.getElementById('clienteSelect');
+      const clientId=select.value;
+      const option=select.selectedOptions[0];
+      const clienteNome=clientId==='avulso'
+        ? String(document.getElementById('clienteAvulsoNome')?.value||'').trim()
+        : String(option?.textContent||'').trim();
+      if(!clientId||!clienteNome){
+        alert(clientId==='avulso'?'Informe o nome do cliente.':'Selecione o cliente.');
+        return;
+      }
+      const itens=[
+        ['Frango','qFrango'],
+        ['Frango com milho','qFrangoMilho'],
+        ['Frango com milho e salada','qFrangoMilhoSalada'],
+        ['Frango sem milho com salada','qFrangoSemMilhoSalada']
+      ].map(x=>({recheio:x[0],quantidade:Math.max(0,Math.floor(Number(document.getElementById(x[1])?.value)||0)),valorUnitario:8}))
+       .filter(x=>x.quantidade>0);
+      const quantidade=itens.reduce((s,x)=>s+x.quantidade,0);
+      if(!quantidade){alert('Informe a quantidade de pelo menos um sabor.');return;}
+      const total=quantidade*8;
+      const pago=Math.min(Math.max(Number(document.getElementById('pago')?.value)||0,0),total);
+      const d=new Date(),pad=n=>String(n).padStart(2,'0');
+      const data=pad(d.getDate())+'-'+pad(d.getMonth()+1)+'-'+d.getFullYear();
+      if(typeof window.api!=='function')throw new Error('Função da API não carregada. Atualize a página.');
+      const j=await window.api('venda',{data,cliente:clienteNome,contatoEmpresa:'',quantidade,valorUnitario:8,pago,dataPagamento:pago?data:'',itens});
+      if(!j)throw new Error(window.lastApiError||'Não foi possível registrar a venda.');
+      form.reset();
+      alert('Venda registrada!');
+      if(typeof window.load==='function'){await window.load();}
+      if(typeof window.renderSaleStock==='function')window.renderSaleStock();
+      if(typeof window.renderSaleClients==='function')window.renderSaleClients();
+    }catch(err){
+      console.error('ERRO AO REGISTRAR VENDA:',err);
+      alert(err?.message||'Erro ao registrar venda.');
+    }finally{
+      if(btn){btn.disabled=false;btn.textContent='Registrar venda';}
+    }
+  };
+})();
+</script></body></html>
