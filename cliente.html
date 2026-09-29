@@ -185,7 +185,7 @@ async function api(action,data,opts={}){
       if(String(pedido.status||'').toLowerCase()!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser editado.');
 
       const itensEntrada=Array.isArray(data?.itens)?data.itens:[];
-      const itens=itensEntrada.map(x=>({recheio:String(x?.recheio||'').trim(),quantidade:Math.max(0,Math.floor(Number(x?.quantidade)||0))}).filter(x=>x.recheio&&x.quantidade>0);
+      const itens=itensEntrada.map(x=>({recheio:String(x?.recheio||'').trim(),quantidade:Math.max(0,Math.floor(Number(x?.quantidade)||0))})).filter(x=>x.recheio&&x.quantidade>0);
       if(!itens.length) throw Error('Escolha pelo menos um recheio.');
 
       const {data:produtos,error:produtosError}=await supabaseClient.from('produtos').select('id,nome,preco').eq('ativo',true);
