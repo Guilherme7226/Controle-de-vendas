@@ -45,7 +45,7 @@ function doPost(e) {
     const d = body.data || body || {};
 
     // Somente ações de cliente podem ser chamadas sem sessão administrativa.
-    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar'];
+    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','estoque_atual','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar'];
     if (!clientActions.includes(body.action)) {
       adminValidate({token: body.adminToken});
     }
@@ -96,6 +96,7 @@ function doPost(e) {
         return json({ok:true,data:resultClientePedido});
       }
       case 'estoque_atual':
+        findClientByToken(ss,d.token);
         return json({ok:true,data:readStock(ss)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
