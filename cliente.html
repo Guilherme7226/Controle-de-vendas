@@ -182,7 +182,8 @@ async function api(action,data,opts={}){
       const {data:pedido,error:pedidoError}=await supabaseClient.from('pedidos').select('id,status,total,created_at').eq('id',id).eq('cliente_id',cliente.id).maybeSingle();
       if(pedidoError) throw pedidoError;
       if(!pedido) throw Error('Pedido não encontrado.');
-      if(String(pedido.status||'').toLowerCase()!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser editado.');
+      const statusPedido=String(pedido.status||'').trim().toLowerCase();
+      if(statusPedido!=='reservado' && statusPedido!=='aguardando') throw Error('Este pedido já foi confirmado e não pode mais ser editado.');
 
       const itensEntrada=Array.isArray(data?.itens)?data.itens:[];
       const itens=itensEntrada.map(x=>({recheio:String(x?.recheio||'').trim(),quantidade:Math.max(0,Math.floor(Number(x?.quantidade)||0))})).filter(x=>x.recheio&&x.quantidade>0);
@@ -228,7 +229,8 @@ async function api(action,data,opts={}){
       const {data:pedido,error:pedidoError}=await supabaseClient.from('pedidos').select('id,status').eq('id',id).eq('cliente_id',cliente.id).maybeSingle();
       if(pedidoError) throw pedidoError;
       if(!pedido) throw Error('Pedido não encontrado.');
-      if(String(pedido.status||'').toLowerCase()!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser excluído.');
+      const statusPedido=String(pedido.status||'').trim().toLowerCase();
+   if(statusPedido!=='reservado' && statusPedido!=='aguardando') throw Error('Este pedido já foi confirmado e não pode mais ser excluído.');
 
       const {error:errorItems}=await supabaseClient.from('pedido_itens').delete().eq('pedido_id',id);
       if(errorItems) throw errorItems;
@@ -318,7 +320,7 @@ function renderOrders(list, vendas=[]){
     $('orders').innerHTML='<div class="notice success">✅ Nenhuma pendência no momento. Sua conta está zerada.</div>';
   }else{
     $('orders').innerHTML=[...atuais].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
-      const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (o.status==='Reservado')
+      const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (String(o.status||'').toLowerCase()==='reservado' || String(o.status||'').toLowerCase()==='aguardando')
         ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
         : '';
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
@@ -489,7 +491,11 @@ let clientOrderActionBusy=false;
 document.addEventListener('click',async e=>{
  const id=e.target.dataset.id;if(!id)return;
  const s=session();if(!s)return;
- if(e.target.classList.contains('order-edit')){
+ const editBtn=e.target.closest('.order-edit');
+ if(editBtn){
+   const editId=editBtn.dataset.id;
+   if(!editId)return;
+   e.target=editBtn;
    if(clientOrderActionBusy)return;
    const o=currentPedidos.find(x=>String(x.id)===String(id));if(!o)return;
    clientOrderActionBusy=true;
