@@ -461,7 +461,14 @@ $('orderBtn').onclick=async()=>{
        pendingOrderRequestId=(crypto.randomUUID?crypto.randomUUID():Date.now()+'-'+Math.random());
      }
      btn.textContent='Enviando...';
-     j=await api('cliente_pedido',{token:s.token,data:today(),itens,requestId:pendingOrderRequestId});
+     j=await Promise.race([
+       api('cliente_pedido',{token:s.token,data:today(),itens,requestId:pendingOrderRequestId}),
+       new Promise(resolve=>setTimeout(()=>resolve({ok:false,error:'Tempo limite ao reservar o pedido. Verifique sua conexão e tente novamente.'}),20000))
+     ]);
+     if(j&&!j.ok){
+       showMsg(j.error||'Não foi possível reservar o pedido.','error');
+       return;
+     }
      if(!j)return;
      showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');
    }
