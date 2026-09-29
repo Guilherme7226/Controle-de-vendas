@@ -80,7 +80,8 @@ async function api(action,data,opts={}){
       const senha=String(data?.senha||'');
       if(!digits||!senha) throw Error('Informe telefone e senha.');
       const phone=digits.startsWith('55') ? '+'+digits : (digits.length===10||digits.length===11 ? '+55'+digits : '+'+digits);
-      const {data:authData,error}=await supabaseClient.auth.signInWithPassword({phone,password:senha});
+      const email=phone.replace(/\\D/g,'')+'@clientes.paozinhos.local';
+      const {data:authData,error}=await supabaseClient.auth.signInWithPassword({email,password:senha});
       if(error) throw error;
       const user=authData.user;
       const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').eq('usuario_id',user.id).maybeSingle();
