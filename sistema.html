@@ -928,17 +928,19 @@ $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=d
     stock=d.stock||[];
     orders=d.orders||[];
     clients=d.clients||[];
-    fullDataLoaded=true;
-    clientsLoadedAt=Date.now();
+    // Bootstrap agora é parcial: produção, estoque, pedidos, clientes e custos
+    // são carregados sob demanda. Não marque como fullDataLoaded.
+    fullDataLoaded=false;
+    clientsLoadedAt=clients.length?Date.now():0;
     render();
     renderRanking();
-    renderStockAdmin();
-    renderProduction();
-    renderOrdersAdmin();
     renderClients();
     renderSaleClients();
     renderSaleStock();
     gate.remove();
+
+    // Pré-carrega os dados completos em segundo plano, sem bloquear a entrada.
+    setTimeout(()=>{ load().catch(err=>console.error('Falha no carregamento em segundo plano:',err)); },0);
     setInterval(()=>{
       const view=document.querySelector('.view.active')?.id||'dashboard';
       if(!document.hidden && (view==='estoque'||view==='venda'||view==='pedidos')) refreshAdminStockRealtime();
