@@ -1,3 +1,31 @@
+async function checkAdminPassword(){
+  const err=document.getElementById('adminError'), senha=document.getElementById('adminPassword').value;
+  err.textContent='Verificando...';
+  if(!senha){err.textContent='Informe a senha.';return}
+  let ultimoErro=null;
+  for(let tentativa=0;tentativa<2;tentativa++){
+    const controller=new AbortController();
+    const timer=setTimeout(()=>controller.abort(),20000);
+    try{
+      const r=await fetch(ADMIN_API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'text/plain;charset=UTF-8','Accept':'application/json'},body:JSON.stringify({action:'admin_login',data:{senha}})});
+      const text=await r.text();
+      if(!text.trim()) throw new Error('O servidor respondeu vazio.');
+      let j; try{j=JSON.parse(text)}catch(_){throw new Error('O servidor não retornou JSON válido.')}
+      if(!j.ok) throw new Error(j.error||'Senha incorreta.');
+      if(!j.data || !j.data.token) throw new Error('O servidor não retornou o token de administrador.');
+      sessionStorage.setItem('admin_token',j.data.token);
+      location.href='/sistema.html';
+      return;
+    }catch(e){
+      ultimoErro=e;
+      if(tentativa===0){await new Promise(r=>setTimeout(r,400));continue}
+    }finally{clearTimeout(timer)}
+  }
+  console.error('Falha no login administrativo:',ultimoErro);
+  err.textContent=ultimoErro?.name==='AbortError'
+    ? 'O servidor demorou para responder. Tente novamente.'
+    : (ultimoErro?.message||'Não foi possível validar a senha.');
+}
 <!doctype html>
 <html lang="pt-BR">
 <head>
