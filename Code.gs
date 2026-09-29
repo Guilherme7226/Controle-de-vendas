@@ -57,9 +57,11 @@ function doPost(e) {
       case 'venda':
         registrarVendaDiretaProtegida(ss, d);
         break;
-      case 'custo':
-        appendCost(ss, d);
-        break;
+      case 'custo': {
+        const costResult=appendCost(ss, d);
+        const accounting=recalcularResumo(ss);
+        return json({ok:true,data:{cost:costResult,summary:accounting}});
+      }
       case 'pagamento':
         updatePayment(ss, d);
         break;
@@ -479,6 +481,14 @@ function appendCost(ss, d) {
 
   const targetRow = totalRow > 0 ? totalRow : sh.getLastRow();
   aplicarFormatoCusto(sh,targetRow);
+  SpreadsheetApp.flush();
+
+  return {
+    row:targetRow,
+    data:row[0],
+    descricao:String(row[1]||''),
+    valor:Number(row[2])||0
+  };
 }
 
 function updatePayment(ss, d) {
@@ -795,12 +805,34 @@ function recalcularResumo(ss) {
 
   let sh=ss.getSheetByName(SHEET_RESUMO);
   if(!sh) sh=ss.insertSheet(SHEET_RESUMO);
-  sh.getRange(1,1,10,2).setValues([
-    ['Indicador','Valor'],['Total Vendido',totalVendido],['Total Recebido',totalRecebido],
-    ['Total a Receber',totalAReceber],['Quantidade de Pães Vendidos',qtdPaes],
-    ['Quantidade de Vendas',qtdVendas],['Ticket Médio',ticketMedio],['Custo Total',custoTotal],
-    ['Saldo Disponível',saldoDisponivel],['Lucro',lucro]
-  ]);
+
+  // A aba Resumo é exclusivamente contábil. Limpa conteúdos antigos
+  // para impedir que dados de vendas (ex.: nomes de clientes) fiquem
+  // misturados ao novo resumo.
+  const oldLastRow=Math.max(10,sh.getLastRow());
+  const oldLastCol=Math.max(2,sh.getLastColumn());
+  sh.getRange(1,1,oldLastRow,oldLastCol).clearContent();
+
+  const resumoValues=[
+    ['Indicador','Valor'],
+    ['Total Vendido',totalVendido],
+    ['Total Recebido',totalRecebido],
+    ['Total a Receber',totalAReceber],
+    ['Quantidade de Pães Vendidos',qtdPaes],
+    ['Quantidade de Vendas',qtdVendas],
+    ['Ticket Médio',ticketMedio],
+    ['Custo Total',custoTotal],
+    ['Saldo Disponível',saldoDisponivel],
+    ['Lucro',lucro]
+  ];
+  sh.getRange(1,1,resumoValues.length,2).setValues(resumoValues);
+
+  // Formatação explícita: quantidades nunca podem aparecer como moeda.
+  sh.getRange(2,2,3,1).setNumberFormat('R$ #,##0.00');
+  sh.getRange(5,2,2,1).setNumberFormat('0');
+  sh.getRange(7,2,4,1).setNumberFormat('R$ #,##0.00');
+  sh.getRange(1,1,1,2).setFontWeight('bold');
+
   return {totalVendido,totalRecebido,totalAReceber,qtdPaes,qtdVendas,ticketMedio,custoTotal,saldoDisponivel,lucro};
 }
 
