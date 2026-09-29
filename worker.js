@@ -59,6 +59,19 @@ export default {
         });
       }
     }
-    return env.ASSETS.fetch(request);
+    const assetResponse = await env.ASSETS.fetch(request);
+    // Evita que o HTML antigo do painel administrativo fique preso no cache.
+    const contentType = assetResponse.headers.get("content-type") || "";
+    if (contentType.includes("text/html")) {
+      const headers = new Headers(assetResponse.headers);
+      headers.set("cache-control", "no-store, no-cache, must-revalidate, max-age=0");
+      headers.set("pragma", "no-cache");
+      return new Response(assetResponse.body, {
+        status: assetResponse.status,
+        statusText: assetResponse.statusText,
+        headers
+      });
+    }
+    return assetResponse;
   }
 };
