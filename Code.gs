@@ -1334,8 +1334,12 @@ function loginClient(ss, d) {
     const telefone=String(r[2]||'').replace(/\D/g,'');
     const ativo=r[7] !== false;
     if (ativo && login.replace(/\D/g,'')===telefone && telefone && hashPassword(senha)===String(r[4]||'')) {
-      const token=newToken();
+      // Reutiliza o token existente para não invalidar outra aba/sessão do mesmo cliente.
+      // Se ainda não houver token, cria um novo. O flush garante que a próxima
+      // requisição (cliente_dados/estoque_atual) enxergue o valor imediatamente.
+      const token=String(r[5]||'').trim() || newToken();
       sh.getRange(i+2,6).setValue(token);
+      SpreadsheetApp.flush();
       const cliente={id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3]),mustChangePassword:r[8] === true};
       // Login retorna somente a sessão. Os dados do cliente são carregados em
       // uma única chamada separada, evitando duas leituras completas seguidas.
