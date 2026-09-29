@@ -129,8 +129,8 @@ function doPost(e) {
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
-        corrigirOrdemCustos(ss);
-        padronizarFormatacaoTodasAbas(ss);
+        // O bootstrap deve somente carregar dados. Correções/formatação
+        // da planilha não devem bloquear o login do administrador.
         return json({ok:true,data:readAdminOperationalData(ss)});
 
       case 'admin_listar_pedidos':
