@@ -475,7 +475,7 @@ function corrigirOrdemCustos(ss) {
   const custos=[]; let pao=null;
   for(let i=6;i<values.length;i++){
     const r=values[i];
-    if(isTotalValues(r)||(!r[0]&&!r[1]&&!r[2])||!r[0]||!r[1]||normalize(r[1])==='CUSTOS DE PRODUCAO')continue;
+    if(isTotalValues(r)||(!r[0]&&!r[1]&&!r[2])||!r[0]||!r[1]||isLegendaCustoProducao(r[1]))continue;
     const valor=parseMoney(r[2]); if(!isFinite(valor))continue;
     const item={data:r[0],descricao:String(r[1]||''),valor:Number(valor)||0};
     if(normalize(item.descricao)==='PAO'||normalize(item.descricao).includes('PAO'))pao=item; else custos.push(item);
@@ -850,7 +850,8 @@ function readDashboardData(ss) {
   summary.ticketMedio = summary.qtdVendas
     ? summary.totalVendido / summary.qtdVendas
     : 0;
-  summary.lucro = summary.totalVendido - (Number(summary.custoTotal) || 0);
+  summary.custoTotal = calcularCustoTotal(ss);
+  summary.lucro = summary.totalVendido - summary.custoTotal;
 
   return {
     sales: sales,
@@ -936,19 +937,13 @@ function readAll() {
 
 function recalcularResumo(ss) {
   const vendas = readDashboardData(ss).sales || [];
-  const cs = ss.getSheetByName(SHEET_CUSTOS);
-  const custos = [];
-  if (cs && cs.getLastRow() >= 1) {
-    cs.getRange(1,1,cs.getLastRow(),3).getValues().forEach(r => {
-      if ((r[0] || r[1] || r[2]) && !isTotalValues(r) && normalize(r[1])!=='CUSTOS DE PRODUCAO') custos.push(parseMoney(r[2]) || 0);
-    });
-  }
+  const custoTotalCalculado = calcularCustoTotal(ss);
   const totalVendido=vendas.reduce((s,x)=>s+(Number(x.total)||0),0);
   const totalRecebido=vendas.reduce((s,x)=>s+(Number(x.valorPago)||0),0);
   const totalAReceber=vendas.reduce((s,x)=>s+(Number(x.deve)||0),0);
   const qtdPaes=vendas.reduce((s,x)=>s+(Number(x.quantidade)||0),0);
   const qtdVendas=vendas.length;
-  const custoTotal=custos.reduce((s,x)=>s+x,0);
+  const custoTotal=custoTotalCalculado;
   const stock=calculateStock(readProduction(ss),readOrders(ss),readStockAdjustments(ss));
   const saldoDisponivel=stock.reduce((s,x)=>s+(Number(x.disponivel)||0),0);
   const ticketMedio=qtdVendas?totalVendido/qtdVendas:0;
@@ -984,6 +979,21 @@ function recalcularResumo(ss) {
   sh.getRange(5,2,2,1).setNumberFormat('0');
   sh.getRange(7,2,4,1).setNumberFormat('R$ #,##0.00');
   return {totalVendido,totalRecebido,totalAReceber,qtdPaes,qtdVendas,ticketMedio,custoTotal,saldoDisponivel,lucro};
+}
+
+function calcularCustoTotal(ss) {
+  const sh=ss.getSheetByName(SHEET_CUSTOS);
+  if(!sh || sh.getLastRow()<1)return 0;
+  let total=0;
+  sh.getRange(1,1,sh.getLastRow(),3).getValues().forEach(r=>{
+    const descricao=normalize(r[1]);
+    if(!r[0]&&!r[1]&&!r[2])return;
+    if(isTotalValues(r))return;
+    if(isLegendaCustoProducao(r[1]))return;
+    const valor=parseMoney(r[2]);
+    if(isFinite(valor))total+=valor;
+  });
+  return total;
 }
 
 function atualizarResumoPorPessoa(ss, vendas) {
@@ -1146,6 +1156,11 @@ function isTotalValues(r) {
     a.includes('REGISTRE AQUI OS GASTOS') ||
     b.includes('REGISTRE AQUI OS GASTOS')
   );
+}
+
+function isLegendaCustoProducao(v) {
+  const s=normalize(v);
+  return s==='CUSTOS DE PRODUCAO' || s.startsWith('CUSTOS DE PRODUCAO:');
 }
 
 function normalize(v) {
@@ -2617,7 +2632,7 @@ function readCostHistory(ss) {
   const rows=sh.getRange(1,1,sh.getLastRow(),3).getValues();
   rows.forEach((r,i)=>{
     const a=normalize(r[0]), b=normalize(r[1]);
-    if(a==='DATA'||b==='DESCRICAO'||b==='CUSTOS DE PRODUCAO'||isTotalValues(r))return;
+    if(a==='DATA'||b==='DESCRICAO'||isLegendaCustoProducao(r[1])||isTotalValues(r))return;
     if(!r[0]&&!r[1]&&!r[2])return;
     out.push({row:i+1,data:dateValue(r[0]),descricao:String(r[1]||''),valor:parseMoney(r[2])||0});
   });
