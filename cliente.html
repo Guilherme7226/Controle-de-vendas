@@ -61,16 +61,73 @@
 </div>
 </section>
 </div>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script>
-const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;const API_URL='/api';
-const API_KEY='';
+const savedTheme=localStorage.getItem('vendas_theme')||'light';document.documentElement.dataset.theme=savedTheme;
+const SUPABASE_URL='https://lsevhjjklsnqegrpkiku.supabase.co';
+const SUPABASE_PUBLISHABLE_KEY='sb_publishable_sKFjadsYvUhjSW3kkrhkzw_Y9GGmoj2';
+const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const PRECO=8;
 const recheios=['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
-async function api(action,data,opts={}){const timeout=Number(opts.timeout||20000);const retries=Math.max(0,Number(opts.retries??1));let lastError=null;for(let attempt=0;attempt<=retries;attempt++){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeout);try{const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8','Accept':'application/json'},signal:controller.signal,body:JSON.stringify({action,apiKey:API_KEY,data})});const text=await r.text();if(!text.trim())throw Error('O servidor respondeu vazio.');let j;try{j=JSON.parse(text)}catch(_){throw Error('O servidor não retornou JSON válido.')}if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){lastError=e;if(attempt<retries){await new Promise(r=>setTimeout(r,350*(attempt+1)));continue}if(!opts.silent)showMsg(e.name==='AbortError'?'O servidor demorou para responder. Tente novamente.':(e.message||'Erro de comunicação.'),'error');return null}finally{clearTimeout(timer)}}return null}
+async function api(action,data,opts={}){
+  try{
+    if(action==='cliente_login'){
+      const login=String(data?.login||'').replace(/\\D/g,'');
+      const senha=String(data?.senha||'');
+      if(!login||!senha) throw Error('Informe telefone e senha.');
+      const email=login+'@clientes.paozinhos.local';
+      const {data:authData,error}=await supabaseClient.auth.signInWithPassword({email,password:senha});
+      if(error) throw error;
+      const user=authData.user;
+      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').eq('usuario_id',user.id).maybeSingle();
+      if(clienteError) throw clienteError;
+      if(!cliente) throw Error('Cadastro do cliente não encontrado.');
+      if(cliente.ativo===false) throw Error('Este cadastro está inativo.');
+      return {ok:true,data:{token:authData.session?.access_token||'',mustChangePassword:!!cliente.primeira_senha,cliente}};
+    }
+    if(action==='cliente_dados'){
+      const {data:sessionData}=await supabaseClient.auth.getSession();
+      const user=sessionData.session?.user;
+      if(!user) throw Error('Sessão expirada.');
+      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').eq('usuario_id',user.id).maybeSingle();
+      if(clienteError) throw clienteError;
+      if(!cliente) throw Error('Cadastro do cliente não encontrado.');
+      const {data:pedidos,error:pedidosError}=await supabaseClient.from('pedidos').select('id,status,total,observacao,created_at,updated_at,pedido_itens(id,quantidade,preco_unitario,subtotal,produtos(id,nome))').eq('cliente_id',cliente.id).order('created_at',{ascending:false});
+      if(pedidosError) throw pedidosError;
+      const {data:vendas,error:vendasError}=await supabaseClient.from('vendas').select('id,data,total,valor_pago,observacao,pedido_id,created_at').eq('cliente_id',cliente.id).order('data',{ascending:false});
+      if(vendasError) throw vendasError;
+      const normalizedPedidos=(pedidos||[]).map(p=>({id:p.id,data:(p.created_at||'').slice(0,10),status:p.status,total:Number(p.total)||0,valorPago:0,saldo:Number(p.total)||0,itens:(p.pedido_itens||[]).map(i=>({quantidade:Number(i.quantidade)||0,recheio:i.produtos?.nome||''}))}));
+      const normalizedVendas=(vendas||[]).map(v=>({row:v.id,data:v.data,total:Number(v.total)||0,valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),pedidoId:v.pedido_id||'',status:'Confirmado'}));
+      const byPedido={}; normalizedVendas.forEach(v=>{if(v.pedidoId)byPedido[v.pedidoId]=v;});
+      normalizedPedidos.forEach(p=>{const v=byPedido[p.id];if(v){p.valorPago=v.valorPago;p.saldo=v.deve;}});
+      return {ok:true,data:{mustChangePassword:!!cliente.primeira_senha,cliente,pedidos:normalizedPedidos,vendas:normalizedVendas}};
+    }
+    if(action==='cliente_alterar_senha'){
+      const novaSenha=String(data?.novaSenha||'');
+      if(novaSenha.length<6) throw Error('A nova senha deve ter pelo menos 6 caracteres.');
+      const {data:authData,error}=await supabaseClient.auth.updateUser({password:novaSenha});
+      if(error) throw error;
+      const user=authData.user;
+      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').update({primeira_senha:false,updated_at:new Date().toISOString()}).eq('usuario_id',user.id).select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').single();
+      if(clienteError) throw clienteError;
+      return {ok:true,data:{token:authData.session?.access_token||'',mustChangePassword:false,cliente}};
+    }
+    if(action==='cliente_cadastro') throw Error('Novos cadastros estão desativados nesta versão. O acesso é criado pelo administrador.');
+    if(action==='estoque_atual'){
+      const {data,error}=await supabaseClient.from('estoque').select('quantidade,produtos(nome)').order('produto_id');
+      if(error) throw error;
+      return {ok:true,data:{stock:(data||[]).map(x=>({recheio:x.produtos?.nome||'',disponivel:Number(x.quantidade)||0}))}};
+    }
+    throw Error('Ação ainda não migrada para o Supabase: '+action);
+  }catch(e){
+    if(!opts.silent) showMsg(e.message||'Erro de comunicação com o Supabase.','error');
+    return null;
+  }
+}
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
@@ -78,37 +135,18 @@ function showApp(s){$('auth').classList.add('hidden');$('changePassword').classL
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
- const s=session();if(!s){showAuth();return false}
- const token=String(s.token||'').trim();
- if(!token){clearSession();showAuth();showMsg('Sessão inválida. Faça login novamente.','error');return false}
- const stockPromise=refreshStock(token);
- const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:token},{timeout:20000,retries:2,silent:true});
- if(!j){
-   // Nunca apaga a sessão por uma falha de rede/tempo limite.
-   // A sessão só é descartada quando o servidor confirma explicitamente
-   // que o token não existe mais.
-   const atual=session();
-   if(atual)showApp(atual);
-   return false;
- }
- const mustChangePassword=!!j.data.mustChangePassword;
- const sess={token:s.token,mustChangePassword,cliente:j.data.cliente||s.cliente};
- saveSession(sess);
- showApp(sess);
- if(!mustChangePassword){
-   currentPedidos=j.data.pedidos||[];
-   currentVendas=j.data.vendas||[];
-   await stockPromise;
-   renderOrders(currentPedidos,currentVendas);
- }
- return true;
+  const {data:sessionData}=await supabaseClient.auth.getSession();
+  if(!sessionData.session){showAuth();return false;}
+  const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{}, {timeout:20000,retries:0,silent:true});
+  if(!j){showAuth();return false;}
+  const sess={mustChangePassword:!!j.data.mustChangePassword,cliente:j.data.cliente};
+  saveSession(sess);showApp(sess);
+  if(!sess.mustChangePassword){currentPedidos=j.data.pedidos||[];currentVendas=j.data.vendas||[];await refreshStock();renderOrders(currentPedidos,currentVendas);}
+  return true;
 }
-async function refreshStock(tokenOverride=null){
- const s=session();
- const token=String(tokenOverride||s?.token||'').trim();
- if(!token)return;
- const j=await api('estoque_atual',{token},{timeout:15000,retries:2,silent:true});
- if(j&&j.ok){stock=j.data.stock||j.data||[];renderStock(stock)}
+async function refreshStock(){
+  const j=await api('estoque_atual',{}, {timeout:15000,retries:0,silent:true});
+  if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}
 }
 function renderStock(data){
  stock=data;const map={};data.forEach(x=>map[x.recheio]=x);
@@ -189,7 +227,7 @@ function setClientTab(tab){
 
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
-$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value},{timeout:20000,retries:1});if(!j)return;saveSession(j.data);showApp(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');if(j.data.mustChangePassword)return;loadClient().catch(err=>console.error('Falha ao carregar dados do cliente:',err))}finally{btn.disabled=false;btn.textContent='Entrar'}};
+$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value},{timeout:20000,retries:0});if(!j)return;saveSession(j.data);showApp(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');if(j.data.mustChangePassword)return;await loadClient()}finally{btn.disabled=false;btn.textContent='Entrar'}};
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
 $('tabAtual').onclick=()=>setClientTab('atual');
 $('tabHistorico').onclick=()=>setClientTab('historico');
@@ -323,11 +361,7 @@ document.addEventListener('click',async e=>{
 });
 loadClient();
 let clientRefreshBusy=false;
-setInterval(()=>{
-  if(document.hidden || clientRefreshBusy || !session())return;
-  clientRefreshBusy=true;
-  loadClient().finally(()=>{clientRefreshBusy=false});
-},60000);
+setInterval(()=>{if(document.hidden||clientRefreshBusy)return;clientRefreshBusy=true;loadClient().finally(()=>{clientRefreshBusy=false})},60000);
 </script>
 </body>
 </html>
