@@ -55,7 +55,18 @@ button,.tab,input,select{touch-action:manipulation;-webkit-tap-highlight-color:t
 }
 .page-header{display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:12px}.page-header h2{margin:0}.refresh-page{white-space:nowrap}.dashboard-filter{display:flex;gap:8px;flex-wrap:wrap;align-items:end}.dashboard-filter .period-btn.active{background:var(--primary);color:#fff;border-color:var(--primary)}.dashboard-date-fields{display:grid;grid-template-columns:1fr 1fr;gap:10px;flex:1;min-width:280px}@media(max-width:700px){.dashboard-filter{align-items:stretch}.dashboard-filter .period-btn{flex:1}.dashboard-date-fields{grid-template-columns:1fr;min-width:100%}}@media(max-width:700px){.page-header h2{font-size:1.05rem}}</style>
 </head>
-<body><div id="adminGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font:16px system-ui;color:var(--text)">Verificando acesso...</div>
+<body><script>
+(function(){
+  try{
+    if(sessionStorage.getItem('admin_token')){
+      document.addEventListener('DOMContentLoaded',function(){
+        var gate=document.getElementById('adminGate');
+        if(gate)gate.remove();
+      },{once:true});
+    }
+  }catch(_){}
+})();
+</script><div id="adminGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font:16px system-ui;color:var(--text)">Verificando acesso...</div>
 <header><div class="wrap"><div><h1>🥖 Controle de Vendas</h1><small>Vendas • custos • recebimentos • clientes</small></div><div class="header-actions"><button id="backHome" class="theme-btn">← Voltar</button><button id="themeToggle" class="theme-btn">🌙 Modo escuro</button></div></div></header>
 <div class="wrap"><nav><button class="tab active" data-view="dashboard">Dashboard</button><button class="tab" data-view="receber">Contas a receber</button><button class="tab" data-view="venda">Nova venda</button><button class="tab" data-view="vendas">Vendas</button><button class="tab" data-view="custos">Custos</button><button class="tab" data-view="estoque">📦 Estoque</button><button class="tab" data-view="pedidos">🛒 Pedidos</button><button class="tab" data-view="clientes">👥 Clientes</button></nav>
 <main>
