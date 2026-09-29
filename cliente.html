@@ -104,7 +104,7 @@ async function api(action,data,opts={}){
       const {data:vendas,error:vendasError}=await supabaseClient.from('vendas').select('id,data,total,valor_pago,observacao,pedido_id,created_at').eq('cliente_id',cliente.id).order('data',{ascending:false});
       if(vendasError) throw vendasError;
       const normalizedPedidos=(pedidos||[]).map(p=>({id:p.id,data:(p.created_at||'').slice(0,10),status:['reservado','pendente','aguardando','confirmando'].includes(String(p.status||'').trim().toLowerCase())?'Reservado':String(p.status||'').trim().toLowerCase()==='confirmado'?'Confirmado':p.status,total:Number(p.total)||0,valorPago:0,saldo:Number(p.total)||0,itens:(p.pedido_itens||[]).map(i=>({quantidade:Number(i.quantidade)||0,recheio:i.produtos?.nome||''}))}));
-      const normalizedVendas=(vendas||[]).map(v=>({row:v.id,data:v.data,total:Number(v.total)||0,valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),pedidoId:v.pedido_id||'',status:'Confirmado'}));
+      const normalizedVendas=(vendas||[]).map(v=>({row:v.id,data:v.data,total:Number(v.total)||0,valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),pedidoId:v.pedido_id||'',status:'confirmado'}));
       const byPedido={}; normalizedVendas.forEach(v=>{if(v.pedidoId)byPedido[v.pedidoId]=v;});
       normalizedPedidos.forEach(p=>{const v=byPedido[p.id];if(v){p.valorPago=v.valorPago;p.saldo=v.deve;}});
       return {ok:true,data:{mustChangePassword:!!cliente.primeira_senha,cliente,pedidos:normalizedPedidos,vendas:normalizedVendas}};
@@ -324,11 +324,11 @@ function renderOrders(list, vendas=[]){
       const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (String(o.status||'').toLowerCase()==='reservado')
         ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">❌ Cancelar</button></div>'
         : '';
-      const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
+      const badgeClass=String(o.status||'').toLowerCase()==='confirmado'?'badge confirmed':'badge';
       const pagamento=o.valorPago>0
         ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
         : '';
-      return '<div class="order"><div class="order-top"><strong>Pedido '+o.numeroPedido+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Reservado':o.status)+'</span></div><div style="margin-top:5px">'+brl(o.total)+' • '+formatDateBR(o.data)+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
+      return '<div class="order"><div class="order-top"><strong>Pedido '+o.numeroPedido+'</strong><span class="'+badgeClass+'">'+(String(o.status||'').toLowerCase()==='reservado'?'Reservado':(String(o.status||'').toLowerCase()==='confirmado'?'Confirmado':o.status))+'</span></div><div style="margin-top:5px">'+brl(o.total)+' • '+formatDateBR(o.data)+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
     }).join('');
   }
 
