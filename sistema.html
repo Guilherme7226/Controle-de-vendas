@@ -917,11 +917,10 @@ $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=d
   const fail=(msg)=>{console.error('Falha ao abrir administração:',msg);if(gate){const authError=/sessão administrativa inválida|expirada|sessão administrativa não encontrada/i.test(String(msg||''));gate.innerHTML='<div style="max-width:520px;padding:24px;text-align:center"><strong>Não foi possível abrir a administração.</strong><div style="margin-top:10px;font-size:14px;line-height:1.5">'+esc(msg)+'</div>'+(!authError?'<button style="margin-top:16px" onclick="location.reload()">🔄 Tentar novamente</button>':'')+'<button style="margin-top:16px;margin-left:8px" onclick="location.href=\'/\'">Voltar ao login</button></div>'}};
   try{
     if(!ADMIN_TOKEN) throw new Error('Sessão administrativa não encontrada.');
-    // Valida a sessão primeiro. Assim distinguimos autenticação de falha
-    // no carregamento dos dados administrativos.
-    const valid=await api('admin_validar',{token:ADMIN_TOKEN},{timeout:10000,silent:true});
-    if(!valid) throw new Error(lastApiError||'Não foi possível validar a sessão do administrador.');
-    const j=await api('admin_bootstrap',{token:ADMIN_TOKEN},{timeout:15000,silent:true});
+    // O próprio admin_bootstrap já é protegido pelo backend e valida
+    // o token antes de carregar os dados. Uma única chamada evita deixar
+    // a tela presa entre validação e bootstrap.
+    const j=await api('admin_bootstrap',{token:ADMIN_TOKEN},{timeout:20000,silent:true});
     if(!j) throw new Error(lastApiError||'O Apps Script não respondeu ao carregamento administrativo.');
     const d=j.data||{};
     sales=d.sales||[];
