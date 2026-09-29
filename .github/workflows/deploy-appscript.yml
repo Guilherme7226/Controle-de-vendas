@@ -67,7 +67,7 @@ jobs:
 
           # O Apps Script não deve receber arquivos do Worker/Cloudflare.
           # O clasp pull pode baixar arquivos antigos que já existem no projeto.
-          rm -rf functions
+          rm -rf functions migration
           rm -f Code.gs worker.gs worker.js wrangler.toml
 
           # Remove duplicatas baixadas pelo clasp para evitar:
