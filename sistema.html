@@ -68,7 +68,7 @@ button,.tab,input,select{touch-action:manipulation;-webkit-tap-highlight-color:t
 })();
 </script><div id="adminGate" style="position:fixed;inset:0;background:var(--bg);z-index:9999;display:flex;align-items:center;justify-content:center;font:16px system-ui;color:var(--text)">Verificando acesso...</div>
 <header><div class="wrap"><div><h1>🥖 Controle de Vendas</h1><small>Vendas • custos • recebimentos • clientes</small></div><div class="header-actions"><button id="backHome" class="theme-btn">← Voltar</button><button id="themeToggle" class="theme-btn">🌙 Modo escuro</button></div></div></header>
-<div class="wrap"><nav><button class="tab active" data-view="dashboard">Dashboard</button><button class="tab" data-view="receber">Contas a receber</button><button class="tab" data-view="venda">Nova venda</button><button class="tab" data-view="vendas">Vendas</button><button class="tab" data-view="custos">Custos</button><button class="tab" data-view="estoque">📦 Estoque</button><button class="tab" data-view="pedidos">🛒 Pedidos</button><button class="tab" data-view="clientes">👥 Clientes</button></nav>
+<div id="adminLoadStatus" style="position:fixed;right:12px;bottom:12px;z-index:1000;display:none;padding:10px 14px;border-radius:10px;background:var(--header);color:#fff;font-size:13px;box-shadow:0 6px 18px rgba(0,0,0,.18)">⏳ Carregando dados...</div><div class="wrap"><nav><button class="tab active" data-view="dashboard">Dashboard</button><button class="tab" data-view="receber">Contas a receber</button><button class="tab" data-view="venda">Nova venda</button><button class="tab" data-view="vendas">Vendas</button><button class="tab" data-view="custos">Custos</button><button class="tab" data-view="estoque">📦 Estoque</button><button class="tab" data-view="pedidos">🛒 Pedidos</button><button class="tab" data-view="clientes">👥 Clientes</button></nav>
 <main>
 <section id="dashboard" class="view active"><div class="page-header"><h2>📊 Dashboard</h2><button type="button" class="secondary refresh-page" data-refresh="dashboard">🔄 Atualizar</button></div><div id="msg"></div><div class="panel"><div class="page-header"><h2>📅 Período</h2><span id="dashboardPeriodLabel" class="rank-note">Todos os períodos</span></div><div class="dashboard-filter"><button type="button" class="secondary period-btn active" data-period="all">Tudo</button><button type="button" class="secondary period-btn" data-period="day">Hoje</button><button type="button" class="secondary period-btn" data-period="week">Semana</button><button type="button" class="secondary period-btn" data-period="month">Mês</button><div class="dashboard-date-fields"><div class="field"><label>Data inicial</label><input id="dashboardDateStart" type="date"></div><div class="field"><label>Data final</label><input id="dashboardDateEnd" type="date"></div></div><button type="button" class="primary period-btn" data-period="custom">Aplicar</button></div></div><div class="cards"><div class="card"><div class="label">Faturamento</div><div class="value" id="fat">R$ 0,00</div></div><div class="card"><div class="label">Custos</div><div class="value" id="cust">R$ 0,00</div></div><div class="card"><div class="label">Lucro</div><div class="value" id="lucro">R$ 0,00</div></div><div class="card"><div class="label">A receber</div><div class="value" id="receber">R$ 0,00</div></div><div class="card"><div class="label">Pães vendidos</div><div class="value" id="qtd">0</div></div><div class="card"><div class="label">Vendas</div><div class="value" id="nvendas">0</div></div><div class="card"><div class="label">Clientes</div><div class="value" id="nclientes">0</div></div><div class="card"><div class="label">Ticket médio</div><div class="value" id="ticket">R$ 0,00</div></div></div><div class="panel"><h2>Resumo</h2><p class="rank-note">Os números acima respeitam o período selecionado. Custos também são filtrados pela data do lançamento.</p></div><div class="panel"><h2>🏆 Ranking de clientes</h2><div id="rankingPeriodNote" class="rank-note">Ranking por quantidade de pães no período selecionado.</div><div class="table-wrap"><table><thead><tr><th>#</th><th>Cliente</th><th>Pães comprados</th><th>Vendas</th><th>Total comprado</th><th>Ticket médio</th></tr></thead><tbody id="rankingTable"></tbody></table></div></div></section>
 <section id="receber" class="view"><div class="panel"><div class="page-header"><h2>Contas a receber por cliente</h2><button type="button" class="secondary refresh-page" data-refresh="receber">🔄 Atualizar</button></div><div class="receber-filter"><input id="receberFiltro" type="text" placeholder="Filtrar por nome do cliente"><button type="button" id="receberFiltrar" class="btn">Filtrar</button><button type="button" id="receberLimpar" class="secondary">Limpar</button></div><div class="table-wrap"><table><thead><tr><th>Cliente</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Ação</th></tr></thead><tbody id="receberTable"></tbody></table></div></div><div id="clienteHistoricoPanel" class="panel" hidden><button id="fecharHistorico" class="secondary history-close">Fechar</button><h2 id="clienteHistoricoTitulo">Histórico do cliente</h2><div id="clienteResumo" class="history-summary"></div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th></tr></thead><tbody id="clienteHistorico"></tbody></table></div></div></section>
@@ -198,6 +198,7 @@ function setDates(){
  if($('pedidoDataFimPicker'))$('pedidoDataFimPicker').value=dataIso(fimSemana);
 }
 function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[1]+'-'+m[2]+'-'+m[3]:s.slice(0,10)}
+function setAdminLoading(show,text='⏳ Carregando dados...'){const el=$('adminLoadStatus');if(!el)return;el.textContent=text;el.style.display=show?'block':'none'}
 async function api(action,data,options={}){const retries=Math.max(0,Number(options.retries??1));const timeoutMs=Number(options.timeout||20000);for(let attempt=0;attempt<=retries;attempt++){try{lastApiError='';const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),timeoutMs);let r;try{r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'text/plain;charset=UTF-8','Accept':'application/json'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})})}finally{clearTimeout(timeout)}const text=await r.text();if(!text.trim())throw new Error('Servidor respondeu vazio (HTTP '+r.status+').');let j;try{j=JSON.parse(text)}catch(_){const trecho=text.replace(/\\s+/g,' ').trim().slice(0,300);throw new Error('Resposta inválida da API (HTTP '+r.status+'): '+trecho)}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.name==='AbortError'?'Tempo limite da API excedido.':(e.message||'Erro desconhecido');if(attempt<retries){await new Promise(r=>setTimeout(r,350*(attempt+1)));continue}if(options.silent!==true)showMsg('Erro ao salvar: '+lastApiError,'error');return null}}return null}
 let stockRealtimeBusy=false;
 async function refreshAdminStockRealtime(){
@@ -313,21 +314,22 @@ function fillSaleFromOrder(){
 }
 async function load(){
   if(fullDataPromise)return fullDataPromise;
+  setAdminLoading(true,'⏳ Carregando dados completos...');
   fullDataPromise=(async()=>{
-    const j=await api('admin_full_data',{}, {timeout:60000,silent:true});
-    if(!j)return false;
+    const j=await api('admin_full_data',{}, {timeout:30000,retries:0,silent:true});
+    if(!j){
+      setAdminLoading(false);
+      showMsg(lastApiError||'Não foi possível carregar os dados completos.','error');
+      return false;
+    }
     const d=j.data||{};
     sales=d.sales||[];
     costs=d.costs||[];
     summary=d.summary||{};
     clientSummary=d.clientSummary||[];
     production=d.production||[];
-    stock=d.stock||stock||[];
-    // O endpoint operacional também devolve os pedidos. Nunca zere a lista
-    // ao atualizar as vendas, pois isso fazia pedidos reservados desaparecerem
-    // depois de registrar uma nova venda.
-    orders=d.orders||orders||[];
-    // Clientes continuam sendo carregados separadamente pela aba Clientes/Nova venda.
+    stock=d.stock||[];
+    orders=d.orders||[];
     fullDataLoaded=true;
     clientsLoadedAt=0;
     render();
@@ -336,8 +338,14 @@ async function load(){
     renderProduction();
     renderOrdersAdmin();
     renderSaleStock();
+    setAdminLoading(false);
     return true;
-  })().finally(()=>{fullDataPromise=null});
+  })().catch(err=>{
+    console.error('Falha no carregamento completo:',err);
+    setAdminLoading(false);
+    showMsg(err?.message||'Falha ao carregar os dados.','error');
+    return false;
+  }).finally(()=>{fullDataPromise=null});
   return fullDataPromise;
 }
 async function ensureFullData(){
@@ -748,39 +756,54 @@ document.addEventListener('click',async e=>{
  const costPage=e.target.closest?.('[data-cost-page]');
  if(costPage){await loadCostHistory(Number(costPage.dataset.costPage));return}
 });
-document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
-  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===b.dataset.view));
+document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
+  const view=b.dataset.view;
+  document.querySelectorAll('.view').forEach(v=>v.classList.toggle('active',v.id===view));
   document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x===b));
-  if(b.dataset.view==='dashboard'){
+
+  if(view==='dashboard'){
     render();
     renderRanking();
     return;
   }
-  if(b.dataset.view==='clientes'){
-    await loadClients(false);
-    renderClients();
+
+  // A aba abre imediatamente. Dados pesados são buscados em segundo plano.
+  if(view==='clientes'){
+    setAdminLoading(true,'⏳ Carregando clientes...');
+    loadClients(false).finally(()=>setAdminLoading(false));
     return;
   }
-  if(b.dataset.view==='venda'){
-    await loadClients(false);
-    await refreshAdminStockRealtime();
-    renderSaleClients();
-    renderSaleStock();
+
+  if(view==='venda'){
+    setAdminLoading(true,'⏳ Carregando clientes e estoque...');
+    Promise.all([
+      loadClients(false),
+      refreshAdminStockRealtime()
+    ]).then(()=>{
+      renderSaleClients();
+      renderSaleStock();
+    }).finally(()=>setAdminLoading(false));
     return;
   }
-  await ensureFullData();
-  if(b.dataset.view==='venda'){
-    await refreshAdminStockRealtime();
-    renderSaleStock();
+
+  if(!fullDataLoaded){
+    setAdminLoading(true,'⏳ Carregando dados para esta aba...');
+    load().then(()=>{
+      render();
+      if(view==='receber')renderReceber();
+      if(view==='estoque')renderStockAdmin();
+      if(view==='pedidos')renderOrdersAdmin();
+    }).finally(()=>setAdminLoading(false));
+    return;
   }
+
   render();
-  if(b.dataset.view==='receber')renderReceber();
-  if(b.dataset.view==='vendas')render();
-  if(b.dataset.view==='custos'){render();await loadRecentCosts();}
-  if(b.dataset.view==='estoque')renderStockAdmin();
-  if(b.dataset.view==='pedidos'){
-    await refreshAdminOrdersRealtime();
-    renderOrdersAdmin();
+  if(view==='receber')renderReceber();
+  if(view==='vendas')render();
+  if(view==='custos')loadRecentCosts();
+  if(view==='estoque')renderStockAdmin();
+  if(view==='pedidos'){
+    refreshAdminOrdersRealtime().then(()=>renderOrdersAdmin());
   }
 });
 $('fecharHistorico').onclick=()=>{$('clienteHistoricoPanel').hidden=true};$('loadCostHistory')?.remove();
@@ -955,16 +978,14 @@ $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=d
         console.error('Falha no Dashboard:',err);
       }
 
-      try{
-        await load();
-      }catch(err){
-        console.error('Falha no carregamento completo:',err);
-      }
+      // NÃO inicia a carga completa junto com o Dashboard.
+      // Isso evitava duas leituras pesadas da planilha ao mesmo tempo.
+      setAdminLoading(false);
 
       try{
         await loadClients(true);
       }catch(err){
-        console.error('Falha no carregamento dos clientes:',err);
+        console.error('Falha ao carregar clientes:',err);
       }
     },0);
 
