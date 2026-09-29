@@ -260,6 +260,7 @@ function migrarDadosParaSupabase() {
   // Produção.
   const producaoRows = migRead_(ss, MIGRACAO_SUPABASE_SHEETS.producao, 4);
   const producao = [];
+  const producaoPorProduto = {};
   (producaoRows || []).forEach(r => {
     const produtoId = produtoMap[migNormalize_(r[1]).toUpperCase()];
     const quantidade = Math.floor(migNumber_(r[2]));
@@ -271,7 +272,7 @@ function migrarDadosParaSupabase() {
       observacao:'Migração da planilha'
     });
   });
-  if (producao.length) supabaseInsertBatch_('producao', producao);
+  if (producao.length) supabaseInsertBatch_('producao', producao);\n\n  // Reconstrói o estoque atual usando a mesma regra operacional da V1:\n  // produção - reservas - vendidos - descartes + correções legadas.\n  const estoquePorProduto = {};\n  Object.keys(producaoPorProduto).forEach(id => estoquePorProduto[id]=producaoPorProduto[id]);\n  (pedidosRows || []).forEach(r => {\n    let itens=[]; try { itens=JSON.parse(migNormalize_(r[4]) || '[]'); } catch (_) { itens=[]; }\n    const status=migNormalize_(r[7]).toUpperCase();\n    const consome=['CONFIRMADO','ENTREGUE'].indexOf(status)>=0;\n    const reserva=['RESERVADO','AGUARDANDO','CONFIRMANDO'].indexOf(status)>=0;\n    if (!consome && !reserva) return;\n    itens.forEach(item=>{\n      const pid=produtoMap[migNormalize_(item.recheio).toUpperCase()];\n      if (!pid) return;\n      const q=Math.max(0,Math.floor(migNumber_(item.quantidade)));\n      estoquePorProduto[pid]=(estoquePorProduto[pid]||0)-(q);\n    });\n  });\n  const ajustesRows=migRead_(ss,MIGRACAO_SUPABASE_SHEETS.ajustes,7);\n  const movimentos=[];\n  (ajustesRows||[]).forEach(r=>{\n    const pid=produtoMap[migNormalize_(r[1]).toUpperCase()];\n    const tipo=migNormalize_(r[6]).toUpperCase();\n    const q=Math.abs(Math.floor(migNumber_(r[2])));\n    if (!pid || !q) return;\n    if (tipo==='DESCARTE') {\n      estoquePorProduto[pid]=(estoquePorProduto[pid]||0)-q;\n      movimentos.push({produto_id:pid,tipo:'ajuste',quantidade:q,observacao:'Descarte importado da planilha'});\n    }\n  });\n  if (movimentos.length) supabaseInsertBatch_('movimentacoes_estoque',movimentos);\n  const estoque=[];\n  Object.keys(produtoMap).forEach(nome=>{\n    const pid=produtoMap[nome];\n    estoque.push({produto_id:pid,quantidade:Math.max(0,Math.floor(estoquePorProduto[pid]||0)),estoque_minimo:0});\n  });\n  if (estoque.length) supabaseInsertBatch_('estoque',estoque,'produto_id');
 
   return {
     ok:true,
@@ -282,4 +283,18 @@ function migrarDadosParaSupabase() {
     custos:custos.length,
     producao:producao.length
   };
+}
+
+
+/**
+ * Confere somente contagens do novo banco.
+ */
+function verificarSupabaseMigracao() {
+  const tabelas = ['clientes','pedidos','pedido_itens','vendas','pagamentos','custos','producao','estoque'];
+  const out = {};
+  tabelas.forEach(t => {
+    const rows = supabaseRequest_('/rest/v1/' + t + '?select=id', 'get');
+    out[t] = (rows || []).length;
+  });
+  return out;
 }
