@@ -869,15 +869,15 @@ function readDashboardData(ss) {
 }
 
 function readAdminOperationalData(ss) {
-  // O carregamento inicial do ADM deve ser leve. Produção, pedidos e cálculo
-  // completo de estoque são carregados sob demanda pelas respectivas abas.
+  // Bootstrap ultraleve: somente Dashboard para liberar a entrada do ADM.
+  // Clientes, custos, produção, estoque e pedidos são carregados sob demanda.
   const dashboard = readDashboardData(ss);
   return {
     sales: dashboard.sales || [],
     summary: dashboard.summary || {},
-    clientSummary: readClientSummary(ss),
-    clients: adminListClientsFast(ss),
-    costs: readCostHistory(ss),
+    clientSummary: [],
+    clients: [],
+    costs: [],
     production: [],
     stock: [],
     orders: []
@@ -2343,9 +2343,8 @@ function getClientDataForClient(ss,client){
   const vendas=readClientSales(ss,client,pedidosTodos);
   // Não chama readAll(): login e atualização do cliente não precisam ler
   // custos, resumos, ranking e demais dados administrativos.
-  const production=readProduction(ss);
-  const adjustments=readStockAdjustments(ss);
-  const stock=calculateStock(production,pedidosTodos,adjustments);
+  // O estoque é carregado separadamente pela área do cliente.
+  // Evita ler Produção + Ajustes + todos os pedidos durante o login.
   const totalComprado=vendas.reduce((a,x)=>a+Number(x.total||0),0);
   const totalPago=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
   const totalAberto=vendas.reduce((a,x)=>a+Number(x.deve||0),0);
