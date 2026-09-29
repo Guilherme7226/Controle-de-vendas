@@ -290,7 +290,7 @@ function renderOrders(list, vendas=[]){
   // Cada pedido confirmado já possui uma venda vinculada pelo pedidoId.
   // A venda vinculada não pode aparecer como um segundo registro no cliente.
   let numeroPedido=0;
-   const pedidosNumerados=list.map(o=>Object.assign({},o,{numeroPedido:++numeroPedido}));
+   const pedidosNumerados=list.map((o)=>Object.assign({},o,{numeroPedido:list.indexOf(o)+1}));
    const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));
   const registros=[
     ...pedidosNumerados.map(o=>({
