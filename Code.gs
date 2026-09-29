@@ -146,7 +146,9 @@ function doPost(e) {
       case 'admin_listar_pedidos':
         return json({ok:true,data:{orders:readOrders(ss)}});
       case 'admin_full_data':
-        return json({ok:true,data:readAdminOperationalData(ss)});
+        // Dados completos somente depois que a tela do ADM já abriu.
+        // Mantém o bootstrap de autenticação leve sem sacrificar o painel.
+        return json({ok:true,data:readAll()});
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
       case 'admin_criar_cliente':
