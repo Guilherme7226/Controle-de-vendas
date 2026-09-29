@@ -1672,7 +1672,7 @@ function findClientByToken(ss, token) {
   for(let i=0;i<rows.length;i++){
     const r=rows[i];
     if(String(r[5]||'')===t && r[7]!==false){
-      return {row:i+2,id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3])};
+      return {row:i+2,id:String(r[0]),nome:String(r[1]),telefone:String(r[2]),email:String(r[3]),mustChangePassword:r[8] === true};
     }
   }
   throw new Error('Sessão expirada. Faça login novamente.');
