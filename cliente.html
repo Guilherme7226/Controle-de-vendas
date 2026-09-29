@@ -136,7 +136,7 @@ async function api(action,data,opts={}){
         if(!produto) throw Error('Produto não encontrado: '+item.recheio);
         const preco=Number(produto.preco)||8;
         total+=item.quantidade*preco;
-        linhas.push({produto_id:produto.id,quantidade:item.quantidade,preco_unitario:preco,subtotal:item.quantidade*preco});
+        linhas.push({produto_id:produto.id,quantidade:item.quantidade,preco_unitario:preco});
       }
 
       const requestId=String(data?.requestId||'').trim();
@@ -199,7 +199,7 @@ async function api(action,data,opts={}){
         if(!produto) throw Error('Produto não encontrado: '+item.recheio);
         const preco=Number(produto.preco)||8;
         total+=item.quantidade*preco;
-        linhas.push({pedido_id:id,produto_id:produto.id,quantidade:item.quantidade,preco_unitario:preco,subtotal:item.quantidade*preco});
+        linhas.push({pedido_id:id,produto_id:produto.id,quantidade:item.quantidade,preco_unitario:preco});
       }
 
       const {error:deleteItemsError}=await supabaseClient.from('pedido_itens').delete().eq('pedido_id',id);
