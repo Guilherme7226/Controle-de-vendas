@@ -314,7 +314,7 @@ function fillSaleFromOrder(){
 async function load(){
   if(fullDataPromise)return fullDataPromise;
   fullDataPromise=(async()=>{
-    const j=await api('admin_full_data',{});
+    const j=await api('admin_full_data',{}, {timeout:60000,silent:true});
     if(!j)return false;
     const d=j.data||{};
     sales=d.sales||[];
@@ -935,17 +935,37 @@ $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=d
   try{
     if(!ADMIN_TOKEN) throw new Error('Sessão administrativa não encontrada.');
 
-    // A entrada do ADM NÃO depende mais de uma chamada de bootstrap.
-    // O token já foi criado pelo login e cada operação administrativa
-    // continua sendo validada pelo backend.
+    // A entrada do ADM continua instantânea. O Dashboard é carregado
+    // primeiro e o restante do sistema é carregado depois.
     fullDataLoaded=false;
     sales=[]; costs=[]; summary={}; clientSummary=[]; production=[]; stock=[]; orders=[]; clients=[];
     if(gate) gate.remove();
 
-    // Carrega os dados depois que a tela já abriu.
-    setTimeout(()=>{
-      load().catch(err=>console.error('Falha no carregamento em segundo plano:',err));
-      loadClients(true).catch(err=>console.error('Falha ao carregar clientes:',err));
+    setTimeout(async()=>{
+      try{
+        const boot=await api('admin_bootstrap',{}, {timeout:30000,silent:true});
+        if(boot&&boot.data){
+          sales=boot.data.sales||[];
+          summary=boot.data.summary||{};
+          clientSummary=boot.data.clientSummary||[];
+          render();
+          renderRanking();
+        }
+      }catch(err){
+        console.error('Falha no Dashboard:',err);
+      }
+
+      try{
+        await load();
+      }catch(err){
+        console.error('Falha no carregamento completo:',err);
+      }
+
+      try{
+        await loadClients(true);
+      }catch(err){
+        console.error('Falha no carregamento dos clientes:',err);
+      }
     },0);
 
     setInterval(()=>{
