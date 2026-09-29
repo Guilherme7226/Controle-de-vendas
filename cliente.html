@@ -231,13 +231,11 @@ async function api(action,data,opts={}){
       if(pedidoError) throw pedidoError;
       if(!pedido) throw Error('Pedido não encontrado.');
       const statusPedido=String(pedido.status||'').trim().toLowerCase();
-   if(statusPedido!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser excluído.');
+   if(statusPedido!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser cancelado.');
 
-      const {error:errorItems}=await supabaseClient.from('pedido_itens').delete().eq('pedido_id',id);
-      if(errorItems) throw errorItems;
-      const {error:errorPedido}=await supabaseClient.from('pedidos').delete().eq('id',id).eq('cliente_id',cliente.id);
+      const {data:atualizado,error:errorPedido}=await supabaseClient.from('pedidos').update({status:'cancelado',updated_at:new Date().toISOString()}).eq('id',id).eq('cliente_id',cliente.id).select('id,status,total,created_at').single();
       if(errorPedido) throw errorPedido;
-      return {ok:true,data:{id}};
+      return {ok:true,data:{id:atualizado.id,status:'cancelado'}};
     }
 
     if(action==='cliente_alterar_senha'){
@@ -324,7 +322,7 @@ function renderOrders(list, vendas=[]){
   }else{
     $('orders').innerHTML=[...atuais].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
       const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (String(o.status||'').toLowerCase()==='reservado')
-        ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
+        ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">❌ Cancelar</button></div>'
         : '';
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento=o.valorPago>0
@@ -345,7 +343,7 @@ function renderOrders(list, vendas=[]){
     $('historyList').innerHTML='<div class="notice">Nenhum histórico disponível.</div>';
   }else{
     $('historyList').innerHTML=[...registros].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
-      const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Reservado':o.status);
+      const status=o.status==='Cancelado'?'Cancelado':(o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Reservado':o.status));
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';
       return '<div class="order"><div class="order-top"><strong>Pedido '+o.numeroPedido+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px">'+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + '</div>';
@@ -524,18 +522,15 @@ document.addEventListener('click',async e=>{
  if(!s||clientOrderActionBusy)return;
  const pedido=currentPedidos.find(o=>String(o.id)===String(id));
  if(!pedido)return;
- if(!confirm('Excluir este pedido?'))return;
+ if(!confirm('Cancelar este pedido?\n\nO pedido ficará registrado como cancelado e não poderá mais ser editado.'))return;
  const btn=e.target;
- clientOrderActionBusy=true;btn.disabled=true;btn.textContent='⏳ Excluindo...';
+ clientOrderActionBusy=true;btn.disabled=true;btn.textContent='⏳ Cancelando...';
  try{
    const j=await api('cliente_excluir_pedido',{token:s.token,id});
    if(!j)return;
-   currentPedidos=currentPedidos.filter(o=>String(o.id)!==String(id));
-   // A reserva deixa de existir: devolve imediatamente as quantidades ao estoque local.
-   const devolvidos={};(pedido.itens||[]).forEach(i=>devolvidos[i.recheio]=(devolvidos[i.recheio]||0)+(Number(i.quantidade)||0));
-   stock=(stock||[]).map(x=>{const add=Number(devolvidos[x.recheio]||0);return Object.assign({},x,{reservado:Math.max(0,(Number(x.reservado)||0)-add),disponivel:(Number(x.disponivel)||0)+add})});
-   editingOrderId=null;quantities={};renderStock(stock);renderOrders(currentPedidos,currentVendas);showMsg('Pedido excluído com sucesso.','success');
- }finally{clientOrderActionBusy=false;btn.disabled=false;btn.textContent='🗑️ Excluir'}
+   currentPedidos=currentPedidos.map(o=>String(o.id)===String(id)?Object.assign({},o,{status:'Cancelado',saldo:0,valorPago:0}):o);
+   editingOrderId=null;quantities={};renderStock(stock);renderOrders(currentPedidos,currentVendas);showMsg('Pedido cancelado com sucesso.','success');
+ }finally{clientOrderActionBusy=false;btn.disabled=false;btn.textContent='❌ Cancelar'}
 });
 loadClient();
 let clientRefreshBusy=false;
