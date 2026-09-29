@@ -188,7 +188,7 @@ function migrarDadosParaSupabase() {
     });
   });
 
-  if (pedidos.length) supabaseInsertBatch_('pedidos', pedidos, 'id');
+  if (pedidos.length) supabaseInsertBatch_('pedidos', pedidos, 'id');\n  if (pedidoItens.length) supabaseInsertBatch_('pedido_itens', pedidoItens);
 
   // Vendas. Mantemos o vínculo com pedido quando a coluna 12 existir.
   const vendasRows = migRead_(ss, MIGRACAO_SUPABASE_SHEETS.vendas, 12);
@@ -276,7 +276,7 @@ function migrarDadosParaSupabase() {
   return {
     ok:true,
     clientes:clientes.length,
-    pedidos:pedidos.length,
+    pedidos:pedidos.length,\n    pedidoItens:pedidoItens.length,
     vendas:vendas.length,
     pagamentos:pagamentos.length,
     custos:custos.length,
