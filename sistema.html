@@ -361,13 +361,27 @@ async function editCost(row,dataInicial='',descricaoInicial='',valorInicial=0){
 async function deleteCost(row){
   const x=(costs||[]).find(v=>String(v.row)===String(row));
   if(!x)return;
-  if(!confirm('Excluir este custo?\n\n'+x.descricao+' — '+brl(x.valor)+'\n\nEssa ação não pode ser desfeita.'))return;
-  const j=await api('excluir_custo',{row:Number(row)});
-  if(!j){alert('Não foi possível excluir o custo.');return}
-  await loadRecentCosts();
-  if($('costHistoryPanel')&&!$('costHistoryPanel').hidden)await loadCostHistory();
-  await load();
-  showMsg('Custo excluído com sucesso.','success');
+  if(!confirm('Excluir este custo?\\n\\n'+x.descricao+' — '+brl(x.valor)+'\\n\\nEssa ação não pode ser desfeita.'))return;
+  const btn=document.querySelector('.delete-cost[data-row="'+row+'"]');
+  if(btn){btn.disabled=true;btn.textContent='Excluindo...';}
+  try{
+    const j=await api('excluir_custo',{
+      row:Number(row),
+      data:x.data||'',
+      descricao:x.descricao||'',
+      valor:Number(x.valor||0)
+    });
+    if(!j)return;
+    costs=(costs||[]).filter(v=>String(v.row)!==String(row));
+    if($('costTable'))$('costTable').innerHTML=renderCostRows([...costs].reverse())||'<tr><td colspan="4">Nenhum custo registrado.</td></tr>';
+    if($('recentCostTable'))$('recentCostTable').innerHTML=renderCostRows((costs||[]).slice(-10).reverse())||'<tr><td colspan="4">Nenhum custo registrado.</td></tr>';
+    if(j.data&&j.data.summary)summary=j.data.summary;
+    recalcLocalSummary();
+    render();
+    showMsg('Custo excluído com sucesso.','success');
+  }finally{
+    if(btn){btn.disabled=false;btn.textContent='Excluir';}
+  }
 }
 async function loadCostHistory(){
   const panel=$('costHistoryPanel'); if(panel)panel.hidden=false;
