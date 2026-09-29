@@ -775,9 +775,11 @@ function recalcularResumo(ss) {
   const vendas = readDashboardData(ss).sales || [];
   const cs = ss.getSheetByName(SHEET_CUSTOS);
   const custos = [];
-  if (cs && cs.getLastRow() >= 1) cs.getRange(1,1,cs.getLastRow(),3).getValues().forEach(r => {
-    if (r[0] || r[1] || r[2]) { if (!isTotalValues(r)) custos.push(Number(r[2]) || 0); }
-  });
+  if (cs && cs.getLastRow() >= 1) {
+    cs.getRange(1,1,cs.getLastRow(),3).getValues().forEach(r => {
+      if ((r[0] || r[1] || r[2]) && !isTotalValues(r)) custos.push(Number(r[2]) || 0);
+    });
+  }
   const totalVendido=vendas.reduce((s,x)=>s+(Number(x.total)||0),0);
   const totalRecebido=vendas.reduce((s,x)=>s+(Number(x.valorPago)||0),0);
   const totalAReceber=vendas.reduce((s,x)=>s+(Number(x.deve)||0),0);
@@ -789,9 +791,6 @@ function recalcularResumo(ss) {
   const ticketMedio=qtdVendas?totalVendido/qtdVendas:0;
   const lucro=totalVendido-custoTotal;
 
-  // Atualiza também o resumo por cliente, que é a base do CONTAS A RECEBER.
-  // O cálculo é feito diretamente das vendas consolidadas para não depender
-  // de fórmulas antigas ou de uma atualização manual da planilha.
   atualizarResumoPorPessoa(ss, vendas);
 
   let sh=ss.getSheetByName(SHEET_RESUMO);
@@ -799,82 +798,42 @@ function recalcularResumo(ss) {
   sh.getRange(1,1,10,2).setValues([
     ['Indicador','Valor'],['Total Vendido',totalVendido],['Total Recebido',totalRecebido],
     ['Total a Receber',totalAReceber],['Quantidade de Pães Vendidos',qtdPaes],
-    ['Quantidad
+    ['Quantidade de Vendas',qtdVendas],['Ticket Médio',ticketMedio],['Custo Total',custoTotal],
+    ['Saldo Disponível',saldoDisponivel],['Lucro',lucro]
+  ]);
+  return {totalVendido,totalRecebido,totalAReceber,qtdPaes,qtdVendas,ticketMedio,custoTotal,saldoDisponivel,lucro};
+}
+
 function atualizarResumoPorPessoa(ss, vendas) {
   let sh = ss.getSheetByName(SHEET_RESUMO_PESSOA);
   if (!sh) sh = ss.insertSheet(SHEET_RESUMO_PESSOA);
-
   const porCliente = {};
   (vendas || []).forEach(v => {
     const cliente = String(v.cliente || '').trim();
     if (!cliente) return;
-
-    const chave = normalize(cliente) || cliente.toUpperCase();
-    if (!porCliente[chave]) {
-      porCliente[chave] = {
-        cliente: cliente,
-        qtdPaes: 0,
-        qtdVendas: 0,
-        totalVendido: 0,
-        totalPago: 0,
-        saldoDevedor: 0
-      };
-    }
-
-    const item = porCliente[chave];
-    item.qtdPaes += Number(v.quantidade) || 0;
-    item.qtdVendas += 1;
-    item.totalVendido += Number(v.total) || 0;
-    item.totalPago += Number(v.valorPago) || 0;
-    item.saldoDevedor += Number(v.deve) || 0;
+    const chave = normalize(cliente);
+    if (!porCliente[chave]) porCliente[chave]={cliente,qtdPaes:0,qtdVendas:0,totalVendido:0,totalPago:0,saldoDevedor:0};
+    const x=porCliente[chave];
+    x.qtdPaes += Number(v.quantidade)||0;
+    x.qtdVendas += 1;
+    x.totalVendido += Number(v.total)||0;
+    x.totalPago += Number(v.valorPago)||0;
+    x.saldoDevedor += Number(v.deve)||0;
   });
-
-  const lista = Object.keys(porCliente)
-    .map(k => porCliente[k])
-    .sort((a,b) => a.cliente.localeCompare(b.cliente, 'pt-BR'));
-
-  const values = [
-    ['Cliente','Qtd. Pães','Qtd. Vendas','Total Vendido','Total Pago','Saldo Devedor']
-  ];
-
-  lista.forEach(x => values.push([
-    x.cliente,
-    x.qtdPaes,
-    x.qtdVendas,
-    x.totalVendido,
-    x.totalPago,
-    x.saldoDevedor
-  ]));
-
-  // Mantém uma linha de total no final para facilitar o uso da planilha.
-  values.push([
-    'TOTAL GERAL',
-    lista.reduce((s,x)=>s+x.qtdPaes,0),
-    lista.reduce((s,x)=>s+x.qtdVendas,0),
-    lista.reduce((s,x)=>s+x.totalVendido,0),
-    lista.reduce((s,x)=>s+x.totalPago,0),
-    lista.reduce((s,x)=>s+x.saldoDevedor,0)
-  ]);
-
-  const oldRows = Math.max(1, sh.getLastRow());
-  const rowsToClear = Math.max(oldRows, values.length);
+  const lista=Object.keys(porCliente).map(k=>porCliente[k]).sort((a,b)=>a.cliente.localeCompare(b.cliente,'pt-BR'));
+  const values=[['Cliente','Qtd. Pães','Qtd. Vendas','Total Vendido','Total Pago','Saldo Devedor']];
+  lista.forEach(x=>values.push([x.cliente,x.qtdPaes,x.qtdVendas,x.totalVendido,x.totalPago,x.saldoDevedor]));
+  values.push(['TOTAL GERAL',lista.reduce((s,x)=>s+x.qtdPaes,0),lista.reduce((s,x)=>s+x.qtdVendas,0),lista.reduce((s,x)=>s+x.totalVendido,0),lista.reduce((s,x)=>s+x.totalPago,0),lista.reduce((s,x)=>s+x.saldoDevedor,0)]);
+  const oldRows=Math.max(1,sh.getLastRow());
+  const rowsToClear=Math.max(oldRows,values.length);
   sh.getRange(1,1,rowsToClear,6).clearContent();
   sh.getRange(1,1,values.length,6).setValues(values);
-
-  if (values.length > 1) {
-    sh.getRange(2,2,values.length-1,1).setNumberFormat('0');
-    sh.getRange(2,3,values.length-1,1).setNumberFormat('0');
+  if(values.length>1){
+    sh.getRange(2,2,values.length-1,2).setNumberFormat('0');
     sh.getRange(2,4,values.length-1,3).setNumberFormat('R$ #,##0.00');
   }
-
   SpreadsheetApp.flush();
   return lista;
-}
-
-e de Vendas',qtdVendas],['Ticket Médio',ticketMedio],['Custo Total',custoTotal],
-    ['Saldo Disponível',saldoDisponivel],['Lucro',lucro]
-  ]);
-  return {totalVendido,totalRecebido,totalAReceber,qtdPaes,qtdVendas,ticketMedio,custoTotal,saldoDisponivel,lucro};
 }
 
 function readSummary(ss) {
