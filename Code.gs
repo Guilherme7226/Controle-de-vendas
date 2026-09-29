@@ -1939,6 +1939,13 @@ function deleteClientOrder(ss,d) {
 }
 
 function adminConfirmOrder(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try { return adminConfirmOrderUnlocked(ss,d); }
+  finally { lock.releaseLock(); }
+}
+
+function adminConfirmOrderUnlocked(ss,d) {
   const id=String(d.id||'').trim();
   if(!id) throw new Error('Pedido não informado.');
 
@@ -2002,6 +2009,13 @@ function adminConfirmOrder(ss,d) {
   return old;
 }
 function adminConfirmOrdersBatch(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try { return adminConfirmOrdersBatchUnlocked(ss,d); }
+  finally { lock.releaseLock(); }
+}
+
+function adminConfirmOrdersBatchUnlocked(ss,d) {
   const ids=Array.isArray(d.ids) ? [...new Set(d.ids.map(x=>String(x||'').trim()).filter(Boolean))] : [];
   if(!ids.length) throw new Error('Nenhum pedido selecionado.');
   if(ids.length>100) throw new Error('Selecione no máximo 100 pedidos por vez.');
@@ -2609,6 +2623,9 @@ function migrarVendasParaPedidos(ss){
 }
 
 function addProduction(ss,d) {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
   ensureClientSheets(ss);
   const data=String(d.data||formatToday()).slice(0,10);
   const itens=Array.isArray(d.itens)?d.itens:[];
@@ -2627,6 +2644,7 @@ function addProduction(ss,d) {
   sh.getRange(startRow,1,rows.length,4).setValues(rows);
   sh.getRange(startRow,1,rows.length,1).setNumberFormat('dd/MM/yyyy');
   sh.getRange(startRow,3,rows.length,1).setNumberFormat('0');
+  } finally { lock.releaseLock(); }
 }
 
 function readCostHistory(ss) {
@@ -2702,6 +2720,9 @@ function readStockAdjustments(ss){
 }
 
 function adminEditStock(ss,d){
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
+  try {
   ensureClientSheets(ss);
   const recheio=String(d.recheio||'').trim();
   const key=normalize(recheio);
@@ -2738,6 +2759,7 @@ function adminEditStock(ss,d){
   sh.getRange(row,1).setNumberFormat('dd/MM/yyyy');
   sh.getRange(row,3,1,3).setNumberFormat('0');
   return {recheio:canonical,anterior:estoqueAtual,novo:novo,descarte:descarte};
+  } finally { lock.releaseLock(); }
 }
 
 function calculateStock(production,orders,adjustments) {
