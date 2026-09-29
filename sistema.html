@@ -187,7 +187,7 @@ function setDates(){
  if($('pedidoDataFimPicker'))$('pedidoDataFimPicker').value=dataIso(fimSemana);
 }
 function dateOnly(v){const s=String(v||'').trim();if(!s)return '';let m=s.match(/^(\d{2})[-\/](\d{2})[-\/](\d{4})$/);if(m)return m[3]+'-'+m[2]+'-'+m[1];m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);return m?m[1]+'-'+m[2]+'-'+m[3]:s.slice(0,10)}
-async function api(action,data){try{lastApiError='';const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8','Accept':'application/json'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})});const text=await r.text();if(!text.trim())throw new Error('Servidor respondeu vazio (HTTP '+r.status+').');let j;try{j=JSON.parse(text)}catch(_){const trecho=text.replace(/\\s+/g,' ').trim().slice(0,300);throw new Error('Resposta inválida da API (HTTP '+r.status+'): '+trecho)}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.message||'Erro desconhecido';showMsg('Erro ao salvar: '+lastApiError,'error');return null}}
+async function api(action,data,options={}){try{lastApiError='';const controller=new AbortController();const timeout=setTimeout(()=>controller.abort(),Number(options.timeout||15000));let r;try{r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',signal:controller.signal,headers:{'Content-Type':'text/plain;charset=UTF-8','Accept':'application/json'},body:JSON.stringify({action:action,apiKey:API_KEY,data:data,adminToken:ADMIN_TOKEN})})}finally{clearTimeout(timeout)}const text=await r.text();if(!text.trim())throw new Error('Servidor respondeu vazio (HTTP '+r.status+').');let j;try{j=JSON.parse(text)}catch(_){const trecho=text.replace(/\\s+/g,' ').trim().slice(0,300);throw new Error('Resposta inválida da API (HTTP '+r.status+'): '+trecho)}if(!j.ok)throw new Error(j.error||'Erro retornado pelo Apps Script.');return j}catch(e){console.error('ERRO NA API:',e);lastApiError=e.name==='AbortError'?'Tempo limite da API excedido.':(e.message||'Erro desconhecido');if(options.silent!==true)showMsg('Erro ao salvar: '+lastApiError,'error');return null}}
 let stockRealtimeBusy=false;
 async function refreshAdminStockRealtime(){
   if(stockRealtimeBusy)return;
@@ -917,7 +917,11 @@ $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=d
   const fail=(msg)=>{console.error('Falha ao abrir administração:',msg);if(gate){const authError=/sessão administrativa inválida|expirada|sessão administrativa não encontrada/i.test(String(msg||''));gate.innerHTML='<div style="max-width:520px;padding:24px;text-align:center"><strong>Não foi possível abrir a administração.</strong><div style="margin-top:10px;font-size:14px;line-height:1.5">'+esc(msg)+'</div>'+(!authError?'<button style="margin-top:16px" onclick="location.reload()">🔄 Tentar novamente</button>':'')+'<button style="margin-top:16px;margin-left:8px" onclick="location.href=\'/\'">Voltar ao login</button></div>'}};
   try{
     if(!ADMIN_TOKEN) throw new Error('Sessão administrativa não encontrada.');
-    const j=await api('admin_bootstrap',{token:ADMIN_TOKEN});
+    // Valida a sessão primeiro. Assim distinguimos autenticação de falha
+    // no carregamento dos dados administrativos.
+    const valid=await api('admin_validar',{token:ADMIN_TOKEN},{timeout:10000,silent:true});
+    if(!valid) throw new Error(lastApiError||'Não foi possível validar a sessão do administrador.');
+    const j=await api('admin_bootstrap',{token:ADMIN_TOKEN},{timeout:15000,silent:true});
     if(!j) throw new Error(lastApiError||'O Apps Script não respondeu ao carregamento administrativo.');
     const d=j.data||{};
     sales=d.sales||[];
