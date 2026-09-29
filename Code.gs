@@ -129,9 +129,19 @@ function doPost(e) {
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
-        // O bootstrap deve somente carregar dados. Correções/formatação
-        // da planilha não devem bloquear o login do administrador.
-        return json({ok:true,data:readAdminOperationalData(ss)});
+        // Bootstrap SOMENTE de autenticação. Não lê a planilha aqui.
+        // O carregamento completo acontece em segundo plano no frontend,
+        // depois que o acesso do ADM já foi liberado.
+        return json({ok:true,data:{
+          sales:[],
+          summary:{},
+          clientSummary:[],
+          clients:[],
+          costs:[],
+          production:[],
+          stock:[],
+          orders:[]
+        }});
 
       case 'admin_listar_pedidos':
         return json({ok:true,data:{orders:readOrders(ss)}});
