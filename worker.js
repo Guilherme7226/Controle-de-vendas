@@ -6,18 +6,46 @@ async function proxyToAppsScript(request) {
   const contentType = request.headers.get("content-type");
   const accept = request.headers.get("accept");
   if (contentType) headers.set("content-type", contentType);
-  if (accept) headers.set("accept", accept);
-  else headers.set("accept", "application/json");
+  headers.set("accept", accept || "application/json");
 
-  const init = {method: request.method, headers, redirect: "follow"};
-  if (request.method !== "GET" && request.method !== "HEAD") init.body = await request.arrayBuffer();
+  const init = { method: request.method, headers, redirect: "follow" };
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    init.body = await request.arrayBuffer();
+  }
 
   const response = await fetch(APPS_SCRIPT_URL, init);
-  const responseHeaders = new Headers(response.headers);
-  responseHeaders.delete("set-cookie");
-  responseHeaders.delete("location");
-  responseHeaders.set("cache-control", "no-store, no-cache, must-revalidate");
-  return new Response(response.body, {status: response.status, statusText: response.statusText, headers: responseHeaders});
+  const text = await response.text();
+
+  // Nunca deixar uma página HTML do Google chegar ao frontend como resposta da API.
+  if (!text.trim()) {
+    return new Response(JSON.stringify({ok:false,error:"O Apps Script respondeu vazio.",status:response.status}), {
+      status:502, headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}
+    });
+  }
+
+  try {
+    JSON.parse(text);
+    return new Response(text, {
+      status: response.status,
+      statusText: response.statusText,
+      headers: {
+        "content-type":"application/json; charset=UTF-8",
+        "cache-control":"no-store, no-cache, must-revalidate",
+        "x-paozinhos-api":"worker"
+      }
+    });
+  } catch (_) {
+    return new Response(JSON.stringify({
+      ok:false,
+      error:"O Apps Script não retornou JSON válido.",
+      status:response.status,
+      contentType:response.headers.get("content-type") || "",
+      detail:text.replace(/\\s+/g," ").trim().slice(0,800)
+    }), {
+      status:502,
+      headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store","x-paozinhos-api":"worker"}
+    });
+  }
 }
 
 export default {
@@ -27,7 +55,7 @@ export default {
       try { return await proxyToAppsScript(request); }
       catch (error) {
         return new Response(JSON.stringify({ok:false,error:"Falha ao comunicar com o Apps Script: "+String(error && error.message || error)}), {
-          status: 502, headers: {"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}
+          status:502, headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store","x-paozinhos-api":"worker"}
         });
       }
     }
