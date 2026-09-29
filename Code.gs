@@ -123,7 +123,8 @@ function doPost(e) {
       case 'admin_bootstrap':
         corrigirOrdemCustos(ss);
         padronizarFormatacaoTodasAbas(ss);
-        return json({ok:true,data:readDashboardData(ss)});
+        return json({ok:true,data:readAdminOperationalData(ss)});
+
       case 'admin_listar_pedidos':
         return json({ok:true,data:{orders:readOrders(ss)}});
       case 'admin_full_data':
