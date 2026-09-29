@@ -465,21 +465,63 @@ function appendCost(ss, d) {
     parseMoney(d.valor) || 0
   ];
 
-  const totalRow = findTotalRow(sh, 1, 2);
-
-  if (totalRow > 0) {
-    sh.insertRowsBefore(totalRow, 1);
-    sh.getRange(totalRow,1,1,3).setValues([row]);
-
-    if (totalRow > 1) {
-      sh.getRange(totalRow - 1,1,1,3)
-        .copyTo(sh.getRange(totalRow,1,1,3), SpreadsheetApp.CopyPasteType.PASTE_FORMAT, false);
+  // Mantém os custos dentro da área de lançamentos da planilha.
+  // Quando existir uma linha TOTAL, o novo custo entra imediatamente antes dela.
+  // Se não existir TOTAL, procura a primeira linha vazia a partir da linha 4
+  // em vez de jogar o lançamento para o fim da aba.
+  let totalRow = 0;
+  const lastRow = sh.getLastRow();
+  if (lastRow >= 1) {
+    const values = sh.getRange(1,1,lastRow,3).getDisplayValues();
+    for (let i = 0; i < values.length; i++) {
+      const linha = values[i].map(v => normalize(v));
+      if (linha.some(v =>
+        v === 'TOTAL' ||
+        v === 'TOTAL GERAL' ||
+        v === 'TOTAL DE CUSTOS' ||
+        v === 'CUSTOS DE PRODUCAO'
+      )) {
+        totalRow = i + 1;
+        break;
+      }
     }
-  } else {
-    sh.appendRow(row);
   }
 
-  const targetRow = totalRow > 0 ? totalRow : sh.getLastRow();
+  let targetRow;
+
+  if (totalRow > 0) {
+    targetRow = totalRow;
+    sh.insertRowsBefore(targetRow, 1);
+  } else {
+    targetRow = 4;
+    const ultimaLinha = Math.max(4, sh.getLastRow());
+
+    for (let rowNumber = 4; rowNumber <= ultimaLinha; rowNumber++) {
+      const values = sh.getRange(rowNumber,1,1,3).getDisplayValues()[0];
+      if (!values[0].trim() && !values[1].trim() && !values[2].trim()) {
+        targetRow = rowNumber;
+        break;
+      }
+      targetRow = rowNumber + 1;
+    }
+
+    if (targetRow > sh.getLastRow()) {
+      sh.insertRowsAfter(sh.getLastRow(), 1);
+    }
+  }
+
+  sh.getRange(targetRow,1,1,3).setValues([row]);
+
+  // Usa a linha 4 como modelo visual, quando ela já existir.
+  // Depois reaplica os formatos de data/moeda para garantir os números corretos.
+  if (targetRow !== 4 && sh.getLastRow() >= 4) {
+    sh.getRange(4,1,1,3).copyTo(
+      sh.getRange(targetRow,1,1,3),
+      SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
+      false
+    );
+  }
+
   aplicarFormatoCusto(sh,targetRow);
   SpreadsheetApp.flush();
 
