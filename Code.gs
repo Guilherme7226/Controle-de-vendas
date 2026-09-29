@@ -12,8 +12,9 @@ const SHEET_PRODUCAO = 'Produção';
 const SHEET_AJUSTES_ESTOQUE = 'Ajustes Estoque';
 const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
 const PRECO_PAODEFINIDO = 8;
-const APP_VERSION = '2026-09-28-contabilidade-v13';
-const SUPPORTED_ACTIONS = ['venda','custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes'];
+const APP_VERSION = '2026-09-28-contabilidade-v14';
+const FORMATACAO_PLANILHA_VERSAO = '2026-09-28-1';
+const SUPPORTED_ACTIONS = ['venda','custo','editar_custo','excluir_custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -59,6 +60,16 @@ function doPost(e) {
         break;
       case 'custo': {
         const costResult=appendCost(ss, d);
+        const accounting=recalcularResumo(ss);
+        return json({ok:true,data:{cost:costResult,summary:accounting}});
+      }
+      case 'editar_custo': {
+        const costResult=editarCusto(ss, d);
+        const accounting=recalcularResumo(ss);
+        return json({ok:true,data:{cost:costResult,summary:accounting}});
+      }
+      case 'excluir_custo': {
+        const costResult=excluirCusto(ss, d);
         const accounting=recalcularResumo(ss);
         return json({ok:true,data:{cost:costResult,summary:accounting}});
       }
@@ -110,6 +121,8 @@ function doPost(e) {
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
+        corrigirOrdemCustos(ss);
+        padronizarFormatacaoTodasAbas(ss);
         return json({ok:true,data:readDashboardData(ss)});
       case 'admin_listar_pedidos':
         return json({ok:true,data:{orders:readOrders(ss)}});
@@ -456,70 +469,27 @@ function aplicarFormatoVenda(sh, rowNumber) {
 
 
 function corrigirOrdemCustos(ss) {
-  const sh = ss.getSheetByName(SHEET_CUSTOS);
-  if (!sh || sh.getLastRow() < 4) return false;
-
-  const lastRow = sh.getLastRow();
-  const values = sh.getRange(1,1,lastRow,3).getValues();
-  let paoRow = 0;
-
-  // O último lançamento conhecido é Pão.
-  // Tudo que foi lançado depois dele por engano é reposicionado logo abaixo dele.
-  for (let i = 3; i < values.length; i++) {
-    const descricao = normalize(values[i][1]);
-    if (descricao === 'PAO' || descricao.includes('PAO')) paoRow = i + 1;
+  const sh=ss.getSheetByName(SHEET_CUSTOS);
+  if(!sh || sh.getLastRow()<7)return false;
+  const lastRow=sh.getLastRow(), values=sh.getRange(1,1,lastRow,3).getValues();
+  const custos=[]; let pao=null;
+  for(let i=6;i<values.length;i++){
+    const r=values[i];
+    if(isTotalValues(r)||(!r[0]&&!r[1]&&!r[2])||!r[0]||!r[1])continue;
+    const valor=parseMoney(r[2]); if(!isFinite(valor))continue;
+    const item={data:r[0],descricao:String(r[1]||''),valor:Number(valor)||0};
+    if(normalize(item.descricao)==='PAO'||normalize(item.descricao).includes('PAO'))pao=item; else custos.push(item);
   }
-
-  if (!paoRow) return false;
-
-  const mover = [];
-  for (let i = paoRow; i <= values.length; i++) {
-    const r = values[i - 1];
-    if (isTotalValues(r)) continue;
-    if (!r[0] && !r[1] && !r[2]) continue;
-    if (!r[1]) continue;
-
-    const valor = parseMoney(r[2]);
-    if (!r[0] || !isFinite(valor)) continue;
-
-    mover.push({
-      row: i,
-      values: [r[0], String(r[1] || ''), Number(valor) || 0]
-    });
-  }
-
-  if (!mover.length) return false;
-
-  // Remove os lançamentos que ficaram fora da área correta.
-  for (let i = mover.length - 1; i >= 0; i--) {
-    sh.deleteRow(mover[i].row);
-  }
-
-  // Recalcula a posição do Pão depois das exclusões e reinsere os lançamentos
-  // imediatamente depois dele, mantendo a ordem original.
-  const dadosAtualizados = sh.getRange(1,1,sh.getLastRow(),3).getValues();
-  let novoPaoRow = 0;
-  for (let i = 3; i < dadosAtualizados.length; i++) {
-    const descricao = normalize(dadosAtualizados[i][1]);
-    if (descricao === 'PAO' || descricao.includes('PAO')) novoPaoRow = i + 1;
-  }
-  if (!novoPaoRow) return false;
-
-  sh.insertRowsAfter(novoPaoRow, mover.length);
-  const destino = novoPaoRow + 1;
-  sh.getRange(destino,1,mover.length,3).setValues(mover.map(x => x.values));
-
-  // Copia somente a formatação do lançamento Pão para os custos reposicionados.
-  sh.getRange(novoPaoRow,1,1,3).copyTo(
-    sh.getRange(destino,1,mover.length,3),
-    SpreadsheetApp.CopyPasteType.PASTE_FORMAT,
-    false
-  );
-
-  for (let i = 0; i < mover.length; i++) aplicarFormatoCusto(sh, destino + i);
-
-  SpreadsheetApp.flush();
-  return true;
+  if(!pao)return false;
+  const ordem=[pao].concat(custos);
+  const qtdLimpar=Math.max(ordem.length,lastRow-6);
+  if(sh.getMaxRows()<6+ordem.length)sh.insertRowsAfter(sh.getMaxRows(),6+ordem.length-sh.getMaxRows());
+  sh.getRange(7,1,qtdLimpar,3).clearContent();
+  sh.getRange(7,1,ordem.length,3).setValues(ordem.map(x=>[x.data,x.descricao,x.valor]));
+  const modelo=sh.getRange(7,1,1,3);
+  if(ordem.length>1)modelo.copyTo(sh.getRange(8,1,ordem.length-1,3),SpreadsheetApp.CopyPasteType.PASTE_FORMAT,false);
+  for(let i=0;i<ordem.length;i++)aplicarFormatoCusto(sh,7+i);
+  SpreadsheetApp.flush(); return true;
 }
 
 function appendCost(ss, d) {
@@ -576,6 +546,61 @@ function appendCost(ss, d) {
     valor:Number(row[2])||0
   };
 }
+function editarCusto(ss,d){
+  const sh=ss.getSheetByName(SHEET_CUSTOS); if(!sh)throw new Error('Aba Custos não encontrada');
+  const row=Number(d.row); if(!row||row<7||row>sh.getLastRow())throw new Error('Linha do custo inválida.');
+  const atual=sh.getRange(row,1,1,3).getValues()[0];
+  if(isTotalValues(atual)||(!atual[0]&&!atual[1]&&!atual[2]))throw new Error('O registro informado não é um custo.');
+  if(normalize(atual[1])==='PAO'||normalize(atual[1]).includes('PAO'))throw new Error('O custo Pão é o lançamento-base e não pode ser alterado.');
+  const data=String(d.data||'').slice(0,10), descricao=String(d.descricao||'').trim(), valor=parseMoney(d.valor);
+  if(!data)throw new Error('Informe a data do custo.'); if(!descricao)throw new Error('Informe a descrição do custo.');
+  if(!isFinite(valor)||valor<0)throw new Error('Informe um valor válido.');
+  sh.getRange(row,1,1,3).setValues([[data,descricao,valor]]); aplicarFormatoCusto(sh,row); SpreadsheetApp.flush();
+  return {row:row,data:data,descricao:descricao,valor:valor};
+}
+function excluirCusto(ss,d){
+  const sh=ss.getSheetByName(SHEET_CUSTOS); if(!sh)throw new Error('Aba Custos não encontrada');
+  const row=Number(d.row); if(!row||row<7||row>sh.getLastRow())throw new Error('Linha do custo inválida.');
+  const atual=sh.getRange(row,1,1,3).getValues()[0];
+  if(isTotalValues(atual)||(!atual[0]&&!atual[1]&&!atual[2]))throw new Error('O registro informado não é um custo.');
+  if(normalize(atual[1])==='PAO'||normalize(atual[1]).includes('PAO'))throw new Error('O custo Pão é o lançamento-base e não pode ser excluído.');
+  sh.deleteRow(row); SpreadsheetApp.flush(); return {row:row,descricao:String(atual[1]||''),valor:parseMoney(atual[2])||0};
+}
+function padronizarFormatacaoTodasAbas(ss){
+  const props=PropertiesService.getScriptProperties();
+  if(props.getProperty('FORMATACAO_PLANILHA_VERSAO')===FORMATACAO_PLANILHA_VERSAO)return false;
+  const nomes=[SHEET_VENDAS,SHEET_CUSTOS,SHEET_RESUMO,SHEET_RESUMO_PESSOA,SHEET_CLIENTES,SHEET_PEDIDOS,SHEET_PRODUCAO,SHEET_AJUSTES_ESTOQUE];
+  nomes.forEach(nome=>{
+    const sh=ss.getSheetByName(nome); if(!sh||sh.getLastRow()<1||sh.getLastColumn()<1)return;
+    const lastRow=sh.getLastRow(),lastCol=sh.getLastColumn();
+    sh.getRange(1,1,lastRow,lastCol).setFontFamily('Arial').setFontSize(10).setVerticalAlignment('middle');
+    const headerRow=encontrarLinhaCabecalho(sh);
+    if(headerRow){
+      const h=sh.getRange(headerRow,1,1,lastCol);
+      h.setFontFamily('Arial').setFontSize(10).setFontWeight('bold').setBackground('#1f2937').setFontColor('#ffffff').setVerticalAlignment('middle');
+      sh.setFrozenRows(Math.max(sh.getFrozenRows(),headerRow));
+    }
+    if(nome===SHEET_VENDAS&&lastRow>=2){
+      sh.getRange(2,1,lastRow-1,1).setNumberFormat('dd/MM/yyyy'); sh.getRange(2,4,lastRow-1,1).setNumberFormat('0');
+      sh.getRange(2,5,lastRow-1,2).setNumberFormat('R$ #,##0.00'); sh.getRange(2,7,lastRow-1,1).setNumberFormat('dd/MM/yyyy'); sh.getRange(2,10,lastRow-1,2).setNumberFormat('R$ #,##0.00');
+    }
+    if(nome===SHEET_CUSTOS&&lastRow>=7){const q=lastRow-6;sh.getRange(7,1,q,1).setNumberFormat('dd/MM/yyyy');sh.getRange(7,3,q,1).setNumberFormat('R$ #,##0.00');}
+    if(nome===SHEET_RESUMO){if(lastRow>=4)sh.getRange(2,2,3,1).setNumberFormat('R$ #,##0.00');if(lastRow>=6)sh.getRange(5,2,2,1).setNumberFormat('0');if(lastRow>=10)sh.getRange(7,2,4,1).setNumberFormat('R$ #,##0.00');}
+    if(nome===SHEET_RESUMO_PESSOA&&lastRow>=2){sh.getRange(2,2,lastRow-1,2).setNumberFormat('0');sh.getRange(2,4,lastRow-1,3).setNumberFormat('R$ #,##0.00');}
+    if(nome===SHEET_CLIENTES&&lastRow>=2)sh.getRange(2,7,lastRow-1,1).setNumberFormat('dd/MM/yyyy HH:mm:ss');
+    if(nome===SHEET_PEDIDOS&&lastRow>=2){sh.getRange(2,4,lastRow-1,1).setNumberFormat('dd/MM/yyyy');sh.getRange(2,6,lastRow-1,1).setNumberFormat('0');sh.getRange(2,7,lastRow-1,1).setNumberFormat('R$ #,##0.00');sh.getRange(2,9,lastRow-1,1).setNumberFormat('dd/MM/yyyy HH:mm:ss');sh.getRange(2,10,lastRow-1,1).setNumberFormat('R$ #,##0.00');sh.getRange(2,11,lastRow-1,1).setNumberFormat('dd/MM/yyyy');sh.getRange(2,12,lastRow-1,1).setNumberFormat('R$ #,##0.00');}
+    if(nome===SHEET_PRODUCAO&&lastRow>=2){sh.getRange(2,1,lastRow-1,1).setNumberFormat('dd/MM/yyyy');sh.getRange(2,3,lastRow-1,1).setNumberFormat('0');}
+    if(nome===SHEET_AJUSTES_ESTOQUE&&lastRow>=2){sh.getRange(2,1,lastRow-1,1).setNumberFormat('dd/MM/yyyy');sh.getRange(2,3,lastRow-1,3).setNumberFormat('0');}
+  });
+  props.setProperty('FORMATACAO_PLANILHA_VERSAO',FORMATACAO_PLANILHA_VERSAO); SpreadsheetApp.flush(); return true;
+}
+function encontrarLinhaCabecalho(sh){
+  const max=Math.min(10,sh.getLastRow()); if(!max)return 0;
+  const rows=sh.getRange(1,1,max,Math.min(12,sh.getLastColumn())).getDisplayValues();
+  for(let i=0;i<rows.length;i++){const s=rows[i].map(x=>normalize(x)).join('|');if(s.includes('DATA')&&(s.includes('DESCRICAO')||s.includes('CLIENTE')||s.includes('INDICADOR')||s.includes('ID PEDIDO')))return i+1;}
+  return 1;
+}
+
 function updatePayment(ss, d) {
   const sh = ss.getSheetByName(SHEET_VENDAS);
   if (!sh) throw new Error('Aba Vendas não encontrada');
@@ -872,7 +897,7 @@ function recalcularResumo(ss) {
   const custos = [];
   if (cs && cs.getLastRow() >= 1) {
     cs.getRange(1,1,cs.getLastRow(),3).getValues().forEach(r => {
-      if ((r[0] || r[1] || r[2]) && !isTotalValues(r)) custos.push(Number(r[2]) || 0);
+      if ((r[0] || r[1] || r[2]) && !isTotalValues(r)) custos.push(parseMoney(r[2]) || 0);
     });
   }
   const totalVendido=vendas.reduce((s,x)=>s+(Number(x.total)||0),0);
@@ -2551,7 +2576,7 @@ function readCostHistory(ss) {
     const a=normalize(r[0]), b=normalize(r[1]);
     if(a==='DATA'||b==='DESCRICAO'||isTotalValues(r))return;
     if(!r[0]&&!r[1]&&!r[2])return;
-    out.push({row:i+1,data:dateValue(r[0]),descricao:String(r[1]||''),valor:Number(r[2])||0});
+    out.push({row:i+1,data:dateValue(r[0]),descricao:String(r[1]||''),valor:parseMoney(r[2])||0});
   });
   return out;
 }
