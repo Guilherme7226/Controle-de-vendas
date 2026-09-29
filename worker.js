@@ -13,7 +13,28 @@ async function proxyToAppsScript(request) {
     init.body = await request.arrayBuffer();
   }
 
-  const response = await fetch(APPS_SCRIPT_URL, init);
+  let response;
+  let lastError=null;
+  for(let attempt=0;attempt<3;attempt++){
+    try{
+      const target=APPS_SCRIPT_URL + (APPS_SCRIPT_URL.includes('?')?'&':'?') + '_=' + Date.now() + '_' + attempt;
+      response=await fetch(target, {...init, cache:'no-store'});
+      const text0=await response.text();
+      if(text0.trim()){
+        // Se o Google responder com uma página HTML de erro/intersticial,
+        // tente novamente antes de declarar o Apps Script indisponível.
+        if(!/<html[\\s>]/i.test(text0) || attempt===2){
+          const text=text0;
+          // handled below through a synthetic response body
+          response=new Response(text,{status:response.status,headers:response.headers});
+          break;
+        }
+      }
+      lastError='Resposta HTML/vazia do Apps Script';
+    }catch(e){lastError=String(e&&e.message||e)}
+    await new Promise(r=>setTimeout(r,300*(attempt+1)));
+  }
+  if(!response) throw new Error(lastError||'Falha ao comunicar com o Apps Script.');
   const text = await response.text();
 
   // Nunca deixar uma página HTML do Google chegar ao frontend como resposta da API.
@@ -40,7 +61,7 @@ async function proxyToAppsScript(request) {
       error:"O Apps Script não retornou JSON válido.",
       status:response.status,
       contentType:response.headers.get("content-type") || "",
-      detail:text.replace(/\\s+/g," ").trim().slice(0,800)
+      detail:text.replace(/\s+/g," ").trim().slice(0,800)
     }), {
       status:502,
       headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store","x-paozinhos-api":"worker"}
