@@ -81,6 +81,7 @@ async function loadClient(prefetched=null){
  const s=session();if(!s){showAuth();return}
  const token=String(s.token||'').trim();
  if(!token){clearSession();showAuth();showMsg('Sessão inválida. Faça login novamente.','error');return}
+ const stockPromise=refreshStock(token);
  const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:token});
  if(!j){
    const atual=session();
@@ -94,15 +95,17 @@ async function loadClient(prefetched=null){
  if(!mustChangePassword){
    currentPedidos=j.data.pedidos||[];
    currentVendas=j.data.vendas||[];
-   renderStock(j.data.stock||[]);
-   // Reconsulta o estoque separadamente para garantir que o cardápio
-   // sempre mostre a disponibilidade atual para reserva.
-   await refreshStock();
+   // O estoque é carregado em paralelo com os dados do cliente,
+   // reduzindo o tempo total de abertura da área do cliente.
+   await stockPromise;
    renderOrders(currentPedidos,currentVendas);
  }
 }
-async function refreshStock(){
- const s=session(); if(!s)return; const j=await api('estoque_atual',{token:s.token});
+async function refreshStock(tokenOverride=null){
+ const s=session();
+ const token=String(tokenOverride||s?.token||'').trim();
+ if(!token)return;
+ const j=await api('estoque_atual',{token});
  if(j&&j.ok){stock=j.data.stock||j.data||[];renderStock(stock)}
 }
 function renderStock(data){
