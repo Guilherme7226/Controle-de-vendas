@@ -183,7 +183,7 @@ async function api(action,data,opts={}){
       if(pedidoError) throw pedidoError;
       if(!pedido) throw Error('Pedido não encontrado.');
       const statusPedido=String(pedido.status||'').trim().toLowerCase();
-      if(statusPedido!=='reservado' && statusPedido!=='aguardando') throw Error('Este pedido já foi confirmado e não pode mais ser editado.');
+      if(statusPedido!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser editado.');
 
       const itensEntrada=Array.isArray(data?.itens)?data.itens:[];
       const itens=itensEntrada.map(x=>({recheio:String(x?.recheio||'').trim(),quantidade:Math.max(0,Math.floor(Number(x?.quantidade)||0))})).filter(x=>x.recheio&&x.quantidade>0);
@@ -230,7 +230,7 @@ async function api(action,data,opts={}){
       if(pedidoError) throw pedidoError;
       if(!pedido) throw Error('Pedido não encontrado.');
       const statusPedido=String(pedido.status||'').trim().toLowerCase();
-   if(statusPedido!=='reservado' && statusPedido!=='aguardando') throw Error('Este pedido já foi confirmado e não pode mais ser excluído.');
+   if(statusPedido!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser excluído.');
 
       const {error:errorItems}=await supabaseClient.from('pedido_itens').delete().eq('pedido_id',id);
       if(errorItems) throw errorItems;
@@ -320,14 +320,14 @@ function renderOrders(list, vendas=[]){
     $('orders').innerHTML='<div class="notice success">✅ Nenhuma pendência no momento. Sua conta está zerada.</div>';
   }else{
     $('orders').innerHTML=[...atuais].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
-      const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (String(o.status||'').toLowerCase()==='reservado' || String(o.status||'').toLowerCase()==='aguardando')
+      const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (String(o.status||'').toLowerCase()==='reservado')
         ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
         : '';
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento=o.valorPago>0
         ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
         : '';
-      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
+      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Reservado':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
     }).join('');
   }
 
@@ -343,7 +343,7 @@ function renderOrders(list, vendas=[]){
     $('historyList').innerHTML='<div class="notice">Nenhum histórico disponível.</div>';
   }else{
     $('historyList').innerHTML=[...registros].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
-      const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Aguardando':o.status);
+      const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Reservado':o.status);
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';
       return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + '</div>';
