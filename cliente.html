@@ -79,8 +79,9 @@ async function api(action,data,opts={}){
       const digits=String(data?.login||'').replace(/\D/g,'');
       const senha=String(data?.senha||'');
       if(!digits||!senha) throw Error('Informe telefone e senha.');
-      const phone=digits.startsWith('55') ? '+'+digits : (digits.length===10||digits.length===11 ? '+55'+digits : '+'+digits);
-      const email=phone.replace(/\\D/g,'')+'@clientes.paozinhos.local';
+      // O cliente informa somente o telefone. Se vier com 55, removemos o código do país.
+      const emailDigits=(digits.startsWith('55') && (digits.length===12||digits.length===13)) ? digits.slice(2) : digits;
+      const email=emailDigits+'@clientes.paozinhos.local';
       const {data:authData,error}=await supabaseClient.auth.signInWithPassword({email,password:senha});
       if(error) throw error;
       const user=authData.user;
