@@ -914,7 +914,7 @@ document.addEventListener('click',e=>{
 $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();
 </script><script>(async()=>{
   const gate=document.getElementById('adminGate');
-  const fail=(msg)=>{console.error('Falha ao abrir administração:',msg);if(gate){gate.innerHTML='<div style="max-width:520px;padding:24px;text-align:center"><strong>Não foi possível abrir a administração.</strong><div style="margin-top:10px;font-size:14px;line-height:1.5">'+esc(msg)+'</div><button style="margin-top:16px" onclick="location.href='/'">Voltar ao login</button></div>'}};
+  const fail=(msg)=>{console.error('Falha ao abrir administração:',msg);if(gate){const authError=/sessão administrativa inválida|expirada|sessão administrativa não encontrada/i.test(String(msg||''));gate.innerHTML='<div style="max-width:520px;padding:24px;text-align:center"><strong>Não foi possível abrir a administração.</strong><div style="margin-top:10px;font-size:14px;line-height:1.5">'+esc(msg)+'</div>'+(!authError?'<button style="margin-top:16px" onclick="location.reload()">🔄 Tentar novamente</button>':'')+'<button style="margin-top:16px;margin-left:8px" onclick="location.href=\'/\'">Voltar ao login</button></div>'}};
   try{
     if(!ADMIN_TOKEN) throw new Error('Sessão administrativa não encontrada.');
     const j=await api('admin_bootstrap',{token:ADMIN_TOKEN});
@@ -945,8 +945,11 @@ $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=d
       if(!document.hidden && view==='pedidos') refreshAdminOrdersRealtime();
     },5000);
   }catch(e){
-    sessionStorage.removeItem('admin_token');
-    fail(e&&e.message?e.message:'Erro desconhecido.');
+    const msg=e&&e.message?e.message:'Erro desconhecido.';
+    if(/sessão administrativa inválida|expirada|sessão administrativa não encontrada/i.test(String(msg||''))){
+      sessionStorage.removeItem('admin_token');
+    }
+    fail(msg);
   }
 })();</script><script>
 (function(){
