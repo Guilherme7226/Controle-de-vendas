@@ -76,7 +76,7 @@ function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String
 async function api(action,data,opts={}){
   try{
     if(action==='cliente_login'){
-      const login=String(data?.login||'').replace(/\\D/g,'');
+      const login=String(data?.login||'').replace(/\D/g,'');
       const senha=String(data?.senha||'');
       if(!login||!senha) throw Error('Informe telefone e senha.');
       const email=login+'@clientes.paozinhos.local';
@@ -227,7 +227,37 @@ function setClientTab(tab){
 
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
-$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value},{timeout:20000,retries:0});if(!j)return;saveSession(j.data);showApp(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');if(j.data.mustChangePassword)return;await loadClient()}finally{btn.disabled=false;btn.textContent='Entrar'}};
+$('loginBtn').onclick=async()=>{
+ const btn=$('loginBtn');
+ btn.disabled=true;
+ btn.textContent='Entrando...';
+ try{
+   const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value},{timeout:20000,retries:0});
+   if(!j)return;
+   saveSession(j.data);
+   if(j.data.mustChangePassword){
+     showApp(j.data);
+     showMsg('Primeiro acesso: defina sua nova senha.','success');
+     return;
+   }
+   showMsg('Login validado. Carregando seus dados...','success');
+   const carregou=await loadClient();
+   if(!carregou){
+     clearSession();
+     showAuth();
+     return;
+   }
+   showMsg('Login realizado com sucesso.','success');
+ }catch(e){
+   console.error('Falha no login do cliente:',e);
+   clearSession();
+   showAuth();
+   showMsg(e?.message||'Não foi possível entrar.','error');
+ }finally{
+   btn.disabled=false;
+   btn.textContent='Entrar';
+ }
+};
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
 $('tabAtual').onclick=()=>setClientTab('atual');
 $('tabHistorico').onclick=()=>setClientTab('historico');
