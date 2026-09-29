@@ -129,12 +129,13 @@ function doPost(e) {
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsFast(ss)});
       case 'admin_bootstrap':
-        // Bootstrap SOMENTE de autenticação. Não lê a planilha aqui.
-        // O carregamento completo acontece em segundo plano no frontend,
-        // depois que o acesso do ADM já foi liberado.
+        // Bootstrap leve: entrega somente Dashboard/resumo.
+        // A tela já está liberada antes desta chamada; o restante
+        // continua sendo carregado separadamente pelo frontend.
+        const dashboardBootstrap=readDashboardData(ss);
         return json({ok:true,data:{
-          sales:[],
-          summary:{},
+          sales:dashboardBootstrap.sales||[],
+          summary:dashboardBootstrap.summary||{},
           clientSummary:[],
           clients:[],
           costs:[],
