@@ -450,7 +450,7 @@ function enviarAcessoClienteWhatsApp(nome,telefone,senha){
    showMsg('Login criado, mas o cliente não possui telefone/WhatsApp cadastrado.','error');
    return;
  }
- window.open(url,'_blank','noopener');
+ window.location.href=url;
 }
 async function openWhatsApp(name,telefone){
  const phone=whatsappPhone(telefone);
@@ -465,7 +465,7 @@ async function openWhatsApp(name,telefone){
  const saldo=vendasAbertas.reduce((a,x)=>a+(Number(x.deve)||0),0);
  const palavraPaes=paesEmAberto===1?'pão':'pães';
  const mensagem='Olá, '+String(name||'')+'! Tudo bem?\n\nVocê tem '+paesEmAberto+' '+palavraPaes+' em aberto, no valor de '+brl(saldo)+'.\n\nPIX: 44558352883\n\nObrigado!';
- window.open('https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem),'_blank','noopener');
+ window.location.href='https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem);
 }
 function renderReceber(){
  const filtro=String($('receberFiltro')?.value||'').trim().toLowerCase();
