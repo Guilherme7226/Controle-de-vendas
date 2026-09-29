@@ -2348,7 +2348,7 @@ function getClientDataForClient(ss,client){
   const totalComprado=vendas.reduce((a,x)=>a+Number(x.total||0),0);
   const totalPago=vendas.reduce((a,x)=>a+Number(x.valorPago||0),0);
   const totalAberto=vendas.reduce((a,x)=>a+Number(x.deve||0),0);
-  return {cliente:client,pedidos:pedidos,vendas:vendas,totalComprado:totalComprado,totalPago:totalPago,totalAberto:totalAberto,stock:stock,mustChangePassword:!!client.mustChangePassword};
+  return {cliente:client,pedidos:pedidos,vendas:vendas,totalComprado:totalComprado,totalPago:totalPago,totalAberto:totalAberto,mustChangePassword:!!client.mustChangePassword};
 }
 function getClientData(ss,d){
   const client=findClientByToken(ss,d.token);
