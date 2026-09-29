@@ -70,7 +70,7 @@ const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
-async function api(action,data){try{const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action,apiKey:API_KEY,data})});const text=await r.text();if(!text.trim())throw Error('O servidor respondeu vazio. Verifique o deploy do /api.');let j;try{j=JSON.parse(text)}catch(_){throw Error('O servidor não retornou JSON válido. Atualize a página e tente novamente.')}if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){showMsg(e.message||'Erro de comunicação.','error');return null}}
+async function api(action,data,opts={}){const timeout=Number(opts.timeout||20000);const retries=Math.max(0,Number(opts.retries??1));let lastError=null;for(let attempt=0;attempt<=retries;attempt++){const controller=new AbortController();const timer=setTimeout(()=>controller.abort(),timeout);try{const r=await fetch(API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8','Accept':'application/json'},signal:controller.signal,body:JSON.stringify({action,apiKey:API_KEY,data})});const text=await r.text();if(!text.trim())throw Error('O servidor respondeu vazio.');let j;try{j=JSON.parse(text)}catch(_){throw Error('O servidor não retornou JSON válido.')}if(!j.ok)throw Error(j.error||'Erro');return j}catch(e){lastError=e;if(attempt<retries){await new Promise(r=>setTimeout(r,350*(attempt+1)));continue}if(!opts.silent)showMsg(e.name==='AbortError'?'O servidor demorou para responder. Tente novamente.':(e.message||'Erro de comunicação.'),'error');return null}finally{clearTimeout(timer)}}return null}
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
@@ -78,28 +78,30 @@ function showApp(s){$('auth').classList.add('hidden');$('changePassword').classL
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
- const s=session();if(!s){showAuth();return}
+ const s=session();if(!s){showAuth();return false}
  const token=String(s.token||'').trim();
- if(!token){clearSession();showAuth();showMsg('Sessão inválida. Faça login novamente.','error');return}
+ if(!token){clearSession();showAuth();showMsg('Sessão inválida. Faça login novamente.','error');return false}
  const stockPromise=refreshStock(token);
- const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:token});
+ const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{token:token},{timeout:20000,retries:2,silent:true});
  if(!j){
+   // Nunca apaga a sessão por uma falha de rede/tempo limite.
+   // A sessão só é descartada quando o servidor confirma explicitamente
+   // que o token não existe mais.
    const atual=session();
    if(atual)showApp(atual);
-   return;
+   return false;
  }
  const mustChangePassword=!!j.data.mustChangePassword;
- const sess={token:s.token,mustChangePassword,cliente:j.data.cliente};
+ const sess={token:s.token,mustChangePassword,cliente:j.data.cliente||s.cliente};
  saveSession(sess);
  showApp(sess);
  if(!mustChangePassword){
    currentPedidos=j.data.pedidos||[];
    currentVendas=j.data.vendas||[];
-   // O estoque é carregado em paralelo com os dados do cliente,
-   // reduzindo o tempo total de abertura da área do cliente.
    await stockPromise;
    renderOrders(currentPedidos,currentVendas);
  }
+ return true;
 }
 async function refreshStock(tokenOverride=null){
  const s=session();
@@ -187,7 +189,7 @@ function setClientTab(tab){
 
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
-$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value});if(!j)return;saveSession(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');await loadClient()}finally{btn.disabled=false;btn.textContent='Entrar'}};
+$('loginBtn').onclick=async()=>{const btn=$('loginBtn');btn.disabled=true;btn.textContent='Entrando...';try{const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value},{timeout:20000,retries:1});if(!j)return;saveSession(j.data);showApp(j.data);showMsg(j.data.mustChangePassword?'Primeiro acesso: defina sua nova senha.':'Login realizado.','success');if(j.data.mustChangePassword)return;loadClient().catch(err=>console.error('Falha ao carregar dados do cliente:',err))}finally{btn.disabled=false;btn.textContent='Entrar'}};
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
 $('tabAtual').onclick=()=>setClientTab('atual');
 $('tabHistorico').onclick=()=>setClientTab('historico');
