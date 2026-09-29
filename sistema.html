@@ -465,7 +465,7 @@ async function openWhatsApp(name,telefone){
  const saldo=vendasAbertas.reduce((a,x)=>a+(Number(x.deve)||0),0);
  const palavraPaes=paesEmAberto===1?'pão':'pães';
  const mensagem='Olá, '+String(name||'')+'! Tudo bem?\n\nVocê tem '+paesEmAberto+' '+palavraPaes+' em aberto, no valor de '+brl(saldo)+'.\n\nPIX: 44558352883\n\nObrigado!';
- window.location.href='https://wa.me/'+phone+'?text='+encodeURIComponent(mensagem);
+ const whatsappUrl='https://api.whatsapp.com/send?phone='+encodeURIComponent(phone)+'&text='+encodeURIComponent(mensagem);\n const link=document.createElement('a');\n link.href=whatsappUrl;\n link.target='_blank';\n link.rel='noopener noreferrer';\n link.click();
 }
 function renderReceber(){
  const filtro=String($('receberFiltro')?.value||'').trim().toLowerCase();
