@@ -5,3 +5,4 @@ wrangler.toml
 .github/
 README.md
 functions/
+migration/
