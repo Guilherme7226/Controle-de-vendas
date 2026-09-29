@@ -93,12 +93,15 @@ async function loadClient(prefetched=null){
    currentPedidos=j.data.pedidos||[];
    currentVendas=j.data.vendas||[];
    renderStock(j.data.stock||[]);
+   // Reconsulta o estoque separadamente para garantir que o cardápio
+   // sempre mostre a disponibilidade atual para reserva.
+   await refreshStock();
    renderOrders(currentPedidos,currentVendas);
  }
 }
 async function refreshStock(){
- const j=await fetch(API_URL,{method:'GET',mode:'same-origin',cache:'no-store'}).then(async r=>{const t=await r.text();if(!t.trim())return null;try{return JSON.parse(t)}catch(_){return null}}).catch(()=>null);
- if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}
+ const j=await api('estoque_atual',{});
+ if(j&&j.ok){stock=j.data.stock||j.data||[];renderStock(stock)}
 }
 function renderStock(data){
  stock=data;const map={};data.forEach(x=>map[x.recheio]=x);
