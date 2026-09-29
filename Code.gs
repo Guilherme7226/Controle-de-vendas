@@ -559,35 +559,55 @@ function editarCusto(ss,d){
   return {row:row,data:data,descricao:descricao,valor:valor};
 }
 function excluirCusto(ss,d){
-  const sh=ss.getSheetByName(SHEET_CUSTOS); if(!sh)throw new Error('Aba Custos não encontrada');
-  const lock=LockService.getScriptLock(); lock.waitLock(10000);
+  const sh=ss.getSheetByName(SHEET_CUSTOS);
+  if(!sh)throw new Error('Aba Custos não encontrada');
+  const lock=LockService.getScriptLock();
+  lock.waitLock(10000);
   try{
     const last=sh.getLastRow();
-    let row=Number(d.row);
-    // Se a linha mudou por outra exclusão/lançamento, localiza pelo conjunto
-    // data + descrição + valor enviado pelo site.
-    if(!row||row<7||row>last){
-      row=0;
+    if(last<7)throw new Error('Nenhum custo encontrado.');
+    const rowInformada=Number(d.row)||0;
+    const descricao=normalize(String(d.descricao||'').trim());
+    const valorInformado=parseMoney(d.valor);
+    let row=0, atual=null;
+
+    // Primeiro usa a linha enviada pelo site. Isso é mais rápido e evita
+    // falhas causadas por datas armazenadas como Date/string.
+    if(rowInformada>=7 && rowInformada<=last){
+      const r=sh.getRange(rowInformada,1,1,3).getValues()[0];
+      const mesmaDescricao=!descricao || normalize(String(r[1]||''))===descricao;
+      const mesmoValor=d.valor==null || Math.abs((parseMoney(r[2])||0)-(valorInformado||0))<0.005;
+      if(mesmaDescricao && mesmoValor){
+        row=rowInformada; atual=r;
+      }
     }
-    let atual=row?sh.getRange(row,1,1,3).getValues()[0]:null;
-    const match=(r)=>{
-      if(!r)return false;
-      if(d.descricao!=null && normalize(r[1])!==normalize(d.descricao))return false;
-      if(d.valor!=null && Math.abs((parseMoney(r[2])||0)-(parseMoney(d.valor)||0))>0.005)return false;
-      if(d.data && String(dateValue(r[0]))!==String(dateValue(d.data)))return false;
-      return true;
-    };
-    if(!match(atual)){
-      row=0;
-      const values=last>=7?sh.getRange(7,1,last-6,3).getValues():[];
-      for(let i=0;i<values.length;i++){if(match(values[i])){row=i+7;atual=values[i];break;}}
+
+    // Se a linha mudou, procura por descrição + valor.
+    if(!row){
+      const values=sh.getRange(7,1,last-6,3).getValues();
+      for(let i=0;i<values.length;i++){
+        const r=values[i];
+        if(!r[0]&&!r[1]&&!r[2])continue;
+        if(isTotalValues(r))continue;
+        const mesmaDescricao=!descricao || normalize(String(r[1]||''))===descricao;
+        const mesmoValor=d.valor==null || Math.abs((parseMoney(r[2])||0)-(valorInformado||0))<0.005;
+        if(mesmaDescricao && mesmoValor){
+          row=i+7; atual=r; break;
+        }
+      }
     }
-    if(!row||!atual||isTotalValues(atual)||(!atual[0]&&!atual[1]&&!atual[2]))throw new Error('Custo não encontrado. Atualize o histórico e tente novamente.');
+
+    if(!row||!atual)throw new Error('Custo não encontrado. Atualize a página e tente novamente.');
+    if(isTotalValues(atual)||(!atual[0]&&!atual[1]&&!atual[2]))throw new Error('O registro informado não é um custo.');
     if(normalize(atual[1])==='PAO'||normalize(atual[1]).includes('PAO'))throw new Error('O custo Pão é o lançamento-base e não pode ser excluído.');
+
+    const removido={row:row,descricao:String(atual[1]||''),valor:parseMoney(atual[2])||0};
     sh.deleteRow(row);
     SpreadsheetApp.flush();
-    return {row:row,descricao:String(atual[1]||''),valor:parseMoney(atual[2])||0};
-  }finally{lock.releaseLock();}
+    return removido;
+  }finally{
+    lock.releaseLock();
+  }
 }
 function padronizarFormatacaoTodasAbas(ss){
   const props=PropertiesService.getScriptProperties();
