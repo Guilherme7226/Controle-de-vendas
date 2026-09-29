@@ -870,7 +870,9 @@ function readAdminOperationalData(ss) {
     sales: dashboard.sales || [],
     summary: dashboard.summary || {},
     clientSummary: readClientSummary(ss),
+    clients: adminListClientsFast(ss),
     costs: readCostHistory(ss),
+    production: production,
     stock: calculateStock(production, orders, adjustments),
     orders: orders
   };
