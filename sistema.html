@@ -376,8 +376,8 @@ async function deleteCost(row,dataInicial='',descricaoInicial='',valorInicial=0)
     });
     if(!j)return;
     costs=(costs||[]).filter(v=>String(v.row)!==String(row));
-    if($('costTable'))$('costTable').innerHTML=renderCostRows([...costs].reverse())||'<tr><td colspan="4">Nenhum custo registrado.</td></tr>';
-    if($('recentCostTable'))$('recentCostTable').innerHTML=renderCostRows((costs||[]).slice(-10).reverse())||'<tr><td colspan="4">Nenhum custo registrado.</td></tr>';
+    if($('costTable'))loadCostHistory(costHistoryPage);
+    
     if(j.data&&j.data.summary)summary=j.data.summary;
     recalcLocalSummary();
     render();
@@ -800,8 +800,7 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=async()=>{
     renderOrdersAdmin();
   }
 });
-$('fecharHistorico').onclick=()=>{$('clienteHistoricoPanel').hidden=true};$('loadCostHistory').onclick=loadCostHistory;
-$('closeCostHistory').onclick=()=>{$('costHistoryPanel').hidden=true};
+$('fecharHistorico').onclick=()=>{$('clienteHistoricoPanel').hidden=true};$('loadCostHistory')?.remove();
 $('loadProductionHistory').onclick=loadProductionHistory;
 $('closeProductionHistory').onclick=()=>{$('productionHistoryPanel').hidden=true};
 let rankMes=new Date();rankMes.setDate(1);function rankMesPeriodo(){const y=rankMes.getFullYear(),m=rankMes.getMonth();const p=n=>String(n).padStart(2,'0');$('rankMesTitulo').textContent=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m]+' de '+y;const ini=y+'-'+p(m+1)+'-01',fim=y+'-'+p(m+1)+'-'+p(new Date(y,m+1,0).getDate());$('rankMesInicio')?.remove();$('rankMesFim')?.remove();const a=document.createElement('input');a.type='hidden';a.id='rankMesInicio';a.value=ini;const b=document.createElement('input');b.type='hidden';b.id='rankMesFim';b.value=fim;document.body.append(a,b);renderRanking()}$('rankMesAnterior').onclick=()=>{rankMes.setMonth(rankMes.getMonth()-1);rankMesPeriodo()};$('rankMesProximo').onclick=()=>{rankMes.setMonth(rankMes.getMonth()+1);rankMesPeriodo()};rankMesPeriodo();
