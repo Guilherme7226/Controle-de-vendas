@@ -289,9 +289,11 @@ function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));
 function renderOrders(list, vendas=[]){
   // Cada pedido confirmado já possui uma venda vinculada pelo pedidoId.
   // A venda vinculada não pode aparecer como um segundo registro no cliente.
-  const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));
+  let numeroPedido=0;
+   const pedidosNumerados=list.map(o=>Object.assign({},o,{numeroPedido:++numeroPedido}));
+   const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));
   const registros=[
-    ...list.map(o=>({
+    ...pedidosNumerados.map(o=>({
       type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
       total:Number(o.total)||0,valorPago:Number(o.valorPago)||0,
       saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,
@@ -309,9 +311,7 @@ function renderOrders(list, vendas=[]){
   const totalAtual=atuais.reduce((a,x)=>a+(Number(x.total)||0),0);
   const pagoAtual=atuais.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
   const abertoAtual=atuais.reduce((a,x)=>a+(Number(x.saldo)||0),0);
-  const paesAtuais=atuais.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);
-
-  $('accountOrders').textContent=atuais.length;
+     $('accountOrders').textContent=atuais.length;
   $('accountTotal').textContent=brl(totalAtual);
   $('accountPaid').textContent=brl(pagoAtual);
   $('accountOpen').textContent=brl(abertoAtual);
@@ -327,15 +327,14 @@ function renderOrders(list, vendas=[]){
       const pagamento=o.valorPago>0
         ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
         : '';
-      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Reservado':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
+      return '<div class="order"><div class="order-top"><strong>Pedido '+o.numeroPedido+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Reservado':o.status)+'</span></div><div style="margin-top:5px">'+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
     }).join('');
   }
 
   const totalHistorico=registros.reduce((a,x)=>a+(Number(x.total)||0),0);
   const pagoHistorico=registros.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
-  const paesHistorico=registros.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);
-  $('historyOrders').textContent=registros.length;
-  $('historyBreads').textContent=paesHistorico;
+     $('historyOrders').textContent=registros.length;
+  $('historyBreads').textContent=registros.length;
   $('historyBought').textContent=brl(totalHistorico);
   $('historyPaid').textContent=brl(pagoHistorico);
 
@@ -346,7 +345,7 @@ function renderOrders(list, vendas=[]){
       const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Reservado':o.status);
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';
-      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + '</div>';
+      return '<div class="order"><div class="order-top"><strong>Pedido '+o.numeroPedido+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px">'+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + '</div>';
     }).join('');
   }
 }
