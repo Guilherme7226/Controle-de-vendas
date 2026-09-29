@@ -869,20 +869,18 @@ function readDashboardData(ss) {
 }
 
 function readAdminOperationalData(ss) {
+  // O carregamento inicial do ADM deve ser leve. Produção, pedidos e cálculo
+  // completo de estoque são carregados sob demanda pelas respectivas abas.
   const dashboard = readDashboardData(ss);
-  const production = readProduction(ss);
-  const orders = readOrders(ss);
-  const adjustments = readStockAdjustments(ss);
-
   return {
     sales: dashboard.sales || [],
     summary: dashboard.summary || {},
     clientSummary: readClientSummary(ss),
     clients: adminListClientsFast(ss),
     costs: readCostHistory(ss),
-    production: production,
-    stock: calculateStock(production, orders, adjustments),
-    orders: orders
+    production: [],
+    stock: [],
+    orders: []
   };
 }
 
