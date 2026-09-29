@@ -327,7 +327,7 @@ function renderOrders(list, vendas=[]){
       const pagamento=o.valorPago>0
         ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
         : '';
-      return '<div class="order"><div class="order-top"><strong>Pedido '+o.numeroPedido+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Reservado':o.status)+'</span></div><div style="margin-top:5px">'+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
+      return '<div class="order"><div class="order-top"><strong>Pedido '+o.numeroPedido+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Reservado':o.status)+'</span></div><div style="margin-top:5px">'+brl(o.total)+' • '+formatDateBR(o.data)+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
     }).join('');
   }
 
