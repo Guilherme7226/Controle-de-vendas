@@ -108,6 +108,135 @@ async function api(action,data,opts={}){
       normalizedPedidos.forEach(p=>{const v=byPedido[p.id];if(v){p.valorPago=v.valorPago;p.saldo=v.deve;}});
       return {ok:true,data:{mustChangePassword:!!cliente.primeira_senha,cliente,pedidos:normalizedPedidos,vendas:normalizedVendas}};
     }
+    if(action==='cliente_pedido'){
+      const {data:sessionData}=await supabaseClient.auth.getSession();
+      const user=sessionData.session?.user;
+      if(!user) throw Error('Sessão expirada.');
+      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id,nome,ativo').eq('usuario_id',user.id).maybeSingle();
+      if(clienteError) throw clienteError;
+      if(!cliente) throw Error('Cadastro do cliente não encontrado.');
+      if(cliente.ativo===false) throw Error('Este cadastro está inativo.');
+
+      const itensEntrada=Array.isArray(data?.itens)?data.itens:[];
+      const itens=itensEntrada
+        .map(x=>({recheio:String(x?.recheio||'').trim(),quantidade:Math.max(0,Math.floor(Number(x?.quantidade)||0))}))
+        .filter(x=>x.recheio&&x.quantidade>0);
+      if(!itens.length) throw Error('Escolha pelo menos um recheio.');
+
+      const {data:produtos,error:produtosError}=await supabaseClient.from('produtos').select('id,nome,preco').eq('ativo',true);
+      if(produtosError) throw produtosError;
+      const produtoMap={};
+      (produtos||[]).forEach(p=>produtoMap[String(p.nome||'').trim()]=p);
+
+      let total=0;
+      const linhas=[];
+      for(const item of itens){
+        const produto=produtoMap[item.recheio];
+        if(!produto) throw Error('Produto não encontrado: '+item.recheio);
+        const preco=Number(produto.preco)||8;
+        total+=item.quantidade*preco;
+        linhas.push({produto_id:produto.id,quantidade:item.quantidade,preco_unitario:preco,subtotal:item.quantidade*preco});
+      }
+
+      const requestId=String(data?.requestId||'').trim();
+      const observacao=requestId?'Solicitação '+requestId:'';
+      const {data:pedido,error:pedidoError}=await supabaseClient.from('pedidos')
+        .insert({cliente_id:cliente.id,status:'Reservado',total,observacao})
+        .select('id,status,total,created_at')
+        .single();
+      if(pedidoError) throw pedidoError;
+
+      const itensComPedido=linhas.map(x=>Object.assign({},x,{pedido_id:pedido.id}));
+      const {error:itensError}=await supabaseClient.from('pedido_itens').insert(itensComPedido);
+      if(itensError){
+        await supabaseClient.from('pedidos').delete().eq('id',pedido.id);
+        throw itensError;
+      }
+
+      return {ok:true,data:{
+        id:pedido.id,
+        data:(pedido.created_at||'').slice(0,10),
+        cliente:cliente.nome,
+        itens:itens.map((x,i)=>({recheio:x.recheio,quantidade:x.quantidade,valorUnitario:linhas[i].preco_unitario})),
+        quantidadeTotal:itens.reduce((a,x)=>a+x.quantidade,0),
+        total,
+        status:'Reservado',
+        valorPago:0,
+        dataPagamento:'',
+        saldo:total,
+        origem:'CLIENTE',
+        referencia:pedido.id
+      }};
+    }
+
+    if(action==='cliente_editar_pedido'){
+      const {data:sessionData}=await supabaseClient.auth.getSession();
+      const user=sessionData.session?.user;
+      if(!user) throw Error('Sessão expirada.');
+      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id,nome,ativo').eq('usuario_id',user.id).maybeSingle();
+      if(clienteError) throw clienteError;
+      if(!cliente) throw Error('Cadastro do cliente não encontrado.');
+
+      const id=String(data?.id||'').trim();
+      if(!id) throw Error('Pedido não informado.');
+      const {data:pedido,error:pedidoError}=await supabaseClient.from('pedidos').select('id,status,total,created_at').eq('id',id).eq('cliente_id',cliente.id).maybeSingle();
+      if(pedidoError) throw pedidoError;
+      if(!pedido) throw Error('Pedido não encontrado.');
+      if(String(pedido.status||'').toLowerCase()!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser editado.');
+
+      const itensEntrada=Array.isArray(data?.itens)?data.itens:[];
+      const itens=itensEntrada.map(x=>({recheio:String(x?.recheio||'').trim(),quantidade:Math.max(0,Math.floor(Number(x?.quantidade)||0))}).filter(x=>x.recheio&&x.quantidade>0);
+      if(!itens.length) throw Error('Escolha pelo menos um recheio.');
+
+      const {data:produtos,error:produtosError}=await supabaseClient.from('produtos').select('id,nome,preco').eq('ativo',true);
+      if(produtosError) throw produtosError;
+      const produtoMap={};(produtos||[]).forEach(p=>produtoMap[String(p.nome||'').trim()]=p);
+      let total=0;const linhas=[];
+      for(const item of itens){
+        const produto=produtoMap[item.recheio];
+        if(!produto) throw Error('Produto não encontrado: '+item.recheio);
+        const preco=Number(produto.preco)||8;
+        total+=item.quantidade*preco;
+        linhas.push({pedido_id:id,produto_id:produto.id,quantidade:item.quantidade,preco_unitario:preco,subtotal:item.quantidade*preco});
+      }
+
+      const {error:deleteItemsError}=await supabaseClient.from('pedido_itens').delete().eq('pedido_id',id);
+      if(deleteItemsError) throw deleteItemsError;
+      const {error:insertItemsError}=await supabaseClient.from('pedido_itens').insert(linhas);
+      if(insertItemsError) throw insertItemsError;
+      const {data:updated,error:updateError}=await supabaseClient.from('pedidos').update({total,updated_at:new Date().toISOString()}).eq('id',id).eq('cliente_id',cliente.id).select('id,status,total,created_at').single();
+      if(updateError) throw updateError;
+
+      return {ok:true,data:{
+        id:updated.id,data:(updated.created_at||'').slice(0,10),cliente:cliente.nome,
+        itens:itens.map((x,i)=>({recheio:x.recheio,quantidade:x.quantidade,valorUnitario:linhas[i].preco_unitario})),
+        quantidadeTotal:itens.reduce((a,x)=>a+x.quantidade,0),total:Number(updated.total)||0,status:updated.status,
+        valorPago:0,dataPagamento:'',saldo:Number(updated.total)||0,origem:'CLIENTE',referencia:updated.id
+      }};
+    }
+
+    if(action==='cliente_excluir_pedido'){
+      const {data:sessionData}=await supabaseClient.auth.getSession();
+      const user=sessionData.session?.user;
+      if(!user) throw Error('Sessão expirada.');
+      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id').eq('usuario_id',user.id).maybeSingle();
+      if(clienteError) throw clienteError;
+      if(!cliente) throw Error('Cadastro do cliente não encontrado.');
+      const id=String(data?.id||'').trim();
+      if(!id) throw Error('Pedido não informado.');
+
+      const {data:pedido,error:pedidoError}=await supabaseClient.from('pedidos').select('id,status').eq('id',id).eq('cliente_id',cliente.id).maybeSingle();
+      if(pedidoError) throw pedidoError;
+      if(!pedido) throw Error('Pedido não encontrado.');
+      if(String(pedido.status||'').toLowerCase()!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser excluído.');
+
+      const {error:errorItems}=await supabaseClient.from('pedido_itens').delete().eq('pedido_id',id);
+      if(errorItems) throw errorItems;
+      const {error:errorPedido}=await supabaseClient.from('pedidos').delete().eq('id',id).eq('cliente_id',cliente.id);
+      if(errorPedido) throw errorPedido;
+      return {ok:true,data:{id}};
+    }
+
     if(action==='cliente_alterar_senha'){
       const novaSenha=String(data?.novaSenha||'');
       if(novaSenha.length<6) throw Error('A nova senha deve ter pelo menos 6 caracteres.');
