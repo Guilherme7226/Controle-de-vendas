@@ -72,6 +72,7 @@ const recheios=['Frango','Frango com milho','Frango com milho e salada','Frango 
 const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
+function formatDateBR(v){const s=String(v||'').trim();if(!s)return '-';let m=s.match(/^(\d{4})-(\d{2})-(\d{2})/);if(m)return m[3]+'/'+m[2]+'/'+m[1];m=s.match(/^(\d{2})[\/-](\d{2})[\/-](\d{4})$/);return m?m[1]+'/'+m[2]+'/'+m[3]:s;}
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
 async function api(action,data,opts={}){
   try{
