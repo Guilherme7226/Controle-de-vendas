@@ -475,7 +475,7 @@ function corrigirOrdemCustos(ss) {
   const custos=[]; let pao=null;
   for(let i=6;i<values.length;i++){
     const r=values[i];
-    if(isTotalValues(r)||(!r[0]&&!r[1]&&!r[2])||!r[0]||!r[1])continue;
+    if(isTotalValues(r)||(!r[0]&&!r[1]&&!r[2])||!r[0]||!r[1]||normalize(r[1])==='CUSTOS DE PRODUCAO')continue;
     const valor=parseMoney(r[2]); if(!isFinite(valor))continue;
     const item={data:r[0],descricao:String(r[1]||''),valor:Number(valor)||0};
     if(normalize(item.descricao)==='PAO'||normalize(item.descricao).includes('PAO'))pao=item; else custos.push(item);
@@ -940,7 +940,7 @@ function recalcularResumo(ss) {
   const custos = [];
   if (cs && cs.getLastRow() >= 1) {
     cs.getRange(1,1,cs.getLastRow(),3).getValues().forEach(r => {
-      if ((r[0] || r[1] || r[2]) && !isTotalValues(r)) custos.push(parseMoney(r[2]) || 0);
+      if ((r[0] || r[1] || r[2]) && !isTotalValues(r) && normalize(r[1])!=='CUSTOS DE PRODUCAO') custos.push(parseMoney(r[2]) || 0);
     });
   }
   const totalVendido=vendas.reduce((s,x)=>s+(Number(x.total)||0),0);
@@ -2617,7 +2617,7 @@ function readCostHistory(ss) {
   const rows=sh.getRange(1,1,sh.getLastRow(),3).getValues();
   rows.forEach((r,i)=>{
     const a=normalize(r[0]), b=normalize(r[1]);
-    if(a==='DATA'||b==='DESCRICAO'||isTotalValues(r))return;
+    if(a==='DATA'||b==='DESCRICAO'||b==='CUSTOS DE PRODUCAO'||isTotalValues(r))return;
     if(!r[0]&&!r[1]&&!r[2])return;
     out.push({row:i+1,data:dateValue(r[0]),descricao:String(r[1]||''),valor:parseMoney(r[2])||0});
   });
