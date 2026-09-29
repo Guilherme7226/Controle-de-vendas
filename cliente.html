@@ -100,7 +100,7 @@ async function loadClient(prefetched=null){
  }
 }
 async function refreshStock(){
- const j=await api('estoque_atual',{});
+ const s=session(); if(!s)return; const j=await api('estoque_atual',{token:s.token});
  if(j&&j.ok){stock=j.data.stock||j.data||[];renderStock(stock)}
 }
 function renderStock(data){
