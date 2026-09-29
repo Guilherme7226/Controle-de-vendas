@@ -142,7 +142,7 @@ async function api(action,data,opts={}){
       const requestId=String(data?.requestId||'').trim();
       const observacao=requestId?'Solicitação '+requestId:'';
       const {data:pedido,error:pedidoError}=await supabaseClient.from('pedidos')
-        .insert({cliente_id:cliente.id,status:'Reservado',total,observacao})
+        .insert({cliente_id:cliente.id,status:'reservado',total,observacao})
         .select('id,status,total,created_at')
         .single();
       if(pedidoError) throw pedidoError;
@@ -161,7 +161,7 @@ async function api(action,data,opts={}){
         itens:itens.map((x,i)=>({recheio:x.recheio,quantidade:x.quantidade,valorUnitario:linhas[i].preco_unitario})),
         quantidadeTotal:itens.reduce((a,x)=>a+x.quantidade,0),
         total,
-        status:'Reservado',
+        status:'reservado',
         valorPago:0,
         dataPagamento:'',
         saldo:total,
