@@ -74,7 +74,7 @@ button,.tab,input,select{touch-action:manipulation;-webkit-tap-highlight-color:t
 <div class="field"><label>Valor pago</label><input id="pago" type="number" min="0" step=".01" value="0"></div>
 </div><div class="actions"><button class="primary">Registrar venda</button><button type="reset" class="secondary">Limpar</button></div></form></div></section>
 <section id="vendas" class="view"><div class="panel"><h2>Histórico de vendas</h2><div class="grid"><div class="field"><label>Pesquisar</label><input id="buscaVenda" placeholder="Cliente"></div><div class="field"><label>Status</label><select id="filtroStatus"><option value="">Todos</option><option>Pago</option><option>Parcial</option><option>Pendente</option></select></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="filtroDataVenda" type="text" placeholder="26-09-2026"><button type="button" id="filtroDataVendaBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="filtroDataVendaPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="table-wrap" style="margin-top:16px"><table><thead><tr><th>Data</th><th>Cliente</th><th>Empresa</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Pagamento</th><th>Ações</th></tr></thead><tbody id="salesTable"></tbody></table></div></div></section>
-<section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="cdata" type="text" placeholder="26-09-2026" required><button type="button" id="cdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="cdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="actions"><button class="primary">Registrar custo</button></div></form></div><div class="panel"><h2>Últimos 10 custos</h2><div id="recentCostsMsg" class="rank-note">Carregando custos recentes...</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="recentCostTable"></tbody></table></div><div class="actions"><button type="button" id="loadCostHistory" class="secondary">📋 Abrir histórico completo</button></div></div><div id="costHistoryPanel" class="panel" hidden><button type="button" id="closeCostHistory" class="secondary history-close">Fechar</button><h2>Histórico de custos</h2><div id="costHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
+<section id="custos" class="view"><div class="panel"><h2>Registrar custo</h2><form id="costForm"><div class="grid"><div class="field"><label>Descrição</label><input id="cdesc" required></div><div class="field"><label>Valor</label><input id="cvalor" type="number" min="0" step=".01" required></div><div class="field"><label>Data</label><div class="date-picker-row"><input id="cdata" type="text" placeholder="26-09-2026" required><button type="button" id="cdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="cdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div></div><div class="actions"><button class="primary">Registrar custo</button></div></form></div><div class="panel"><h2>Últimos 10 custos</h2><div id="recentCostsMsg" class="rank-note">Carregando custos recentes...</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead><tbody id="recentCostTable"></tbody></table></div><div class="actions"><button type="button" id="loadCostHistory" class="secondary">📋 Abrir histórico completo</button></div></div><div id="costHistoryPanel" class="panel" hidden><button type="button" id="closeCostHistory" class="secondary history-close">Fechar</button><h2>Histórico de custos</h2><div id="costHistoryMsg" class="rank-note">Clique em atualizar para carregar.</div><div class="table-wrap"><table><thead><tr><th>Data</th><th>Descrição</th><th>Valor</th><th>Ações</th></tr></thead><tbody id="costTable"></tbody></table></div></div></section>
 <section id="estoque" class="view">
 <div class="panel"><h2>📦 Produção e estoque</h2><p class="rank-note">Cadastre a produção de cada dia. O estoque disponível desconta reservas, vendas confirmadas e descartes. <strong>Editar estoque registra descarte</strong>; para aumentar o estoque, registre uma nova produção.</p>
 <form id="productionForm"><div class="grid"><div class="field"><label>Data da produção</label><div class="date-picker-row"><input id="pdata" type="text" placeholder="26-09-2026" required><button type="button" id="pdataBtn" class="calendar-btn" title="Selecionar data">📅</button><input id="pdataPicker" class="native-date-picker" type="date" aria-hidden="true"></div></div><div class="field"><label>Frango</label><input id="pfrango" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho</label><input id="pfrangomilho" type="number" min="0" value="0"></div><div class="field"><label>Frango com milho e salada</label><input id="pfrangomilhosalada" type="number" min="0" value="0"></div><div class="field"><label>Frango sem milho com salada</label><input id="pfrangosemmilhosalada" type="number" min="0" value="0"></div></div><div class="actions"><button class="primary">Registrar produção</button></div></form></div>
@@ -335,6 +335,40 @@ async function ensureFullData(){
   if(!ok)showMsg(lastApiError||'Não foi possível carregar os dados desta aba.','error');
   return !!ok;
 }
+function renderCostRows(rows){
+  return (rows||[]).map(x=>{
+    const protegido=/^p[aã]o$/i.test(String(x.descricao||'').trim());
+    return '<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td><td>'+(
+      protegido
+        ? '<span class="rank-note">Base</span>'
+        : '<button type="button" class="secondary edit-cost" data-row="'+x.row+'" data-date="'+esc(x.data||'')+'" data-desc="'+esc(x.descricao||'')+'" data-value="'+Number(x.valor||0)+'">Editar</button> <button type="button" class="danger-btn delete-cost" data-row="'+x.row+'">Excluir</button>'
+    )+'</td></tr>';
+  }).join('');
+}
+async function editCost(row){
+  const x=(costs||[]).find(v=>String(v.row)===String(row));
+  const data=prompt('Data (DD-MM-AAAA):',formatDate(x?.data||'')); if(data===null)return;
+  const descricao=prompt('Descrição:',x?.descricao||''); if(descricao===null)return;
+  const valor=prompt('Valor:',Number(x?.valor||0).toFixed(2)); if(valor===null)return;
+  if(!descricao.trim()){alert('Informe a descrição.');return}
+  const j=await api('editar_custo',{row:Number(row),data:isoDate(data),descricao:descricao.trim(),valor:parseValor(valor)});
+  if(!j){alert('Não foi possível editar o custo.');return}
+  await loadRecentCosts();
+  if($('costHistoryPanel')&&!$('costHistoryPanel').hidden)await loadCostHistory();
+  await load();
+  showMsg('Custo editado com sucesso.','success');
+}
+async function deleteCost(row){
+  const x=(costs||[]).find(v=>String(v.row)===String(row));
+  if(!x)return;
+  if(!confirm('Excluir este custo?\n\n'+x.descricao+' — '+brl(x.valor)+'\n\nEssa ação não pode ser desfeita.'))return;
+  const j=await api('excluir_custo',{row:Number(row)});
+  if(!j){alert('Não foi possível excluir o custo.');return}
+  await loadRecentCosts();
+  if($('costHistoryPanel')&&!$('costHistoryPanel').hidden)await loadCostHistory();
+  await load();
+  showMsg('Custo excluído com sucesso.','success');
+}
 async function loadCostHistory(){
   const panel=$('costHistoryPanel'); if(panel)panel.hidden=false;
   const msg=$('costHistoryMsg'); if(msg)msg.textContent='Carregando histórico...';
@@ -342,7 +376,7 @@ async function loadCostHistory(){
   if(!j){if(msg)msg.textContent=lastApiError||'Não foi possível carregar o histórico.';return}
   costs=(j.data&&j.data.costs)||[];
   if(msg)msg.textContent=costs.length+' registro(s) carregado(s).';
-  if($('costTable'))$('costTable').innerHTML=[...costs].reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo registrado.</td></tr>';
+  if($('costTable'))$('costTable').innerHTML=renderCostRows([...costs].reverse())||'<tr><td colspan="4">Nenhum custo registrado.</td></tr>';
 }
 async function loadRecentCosts(){
   const msg=$('recentCostsMsg');
@@ -351,7 +385,7 @@ async function loadRecentCosts(){
   if(!j){if(msg)msg.textContent=lastApiError||'Não foi possível carregar os custos.';return}
   const rows=(j.data&&j.data.costs)||[];
   if(msg)msg.textContent=rows.length+' de no máximo 10 custos recentes.';
-  if($('recentCostTable'))$('recentCostTable').innerHTML=rows.slice().reverse().map(x=>'<tr><td>'+formatDate(x.data)+'</td><td>'+esc(x.descricao)+'</td><td>'+brl(x.valor)+'</td></tr>').join('')||'<tr><td colspan="3">Nenhum custo registrado.</td></tr>';
+  if($('recentCostTable'))$('recentCostTable').innerHTML=renderCostRows(rows.slice().reverse())||'<tr><td colspan="4">Nenhum custo registrado.</td></tr>';
 }
 async function loadProductionHistory(){
   const panel=$('productionHistoryPanel'); if(panel)panel.hidden=false;
@@ -870,7 +904,12 @@ document.addEventListener('click',async e=>{
 });
 $('costForm').onsubmit=async e=>{e.preventDefault();const j=await api('custo',{data:isoDate($('cdata').value),descricao:$('cdesc').value.trim(),valor:+$('cvalor').value});if(!j){alert('Não foi possível salvar o custo.');return}e.target.reset();$('cdata').value=today();await loadRecentCosts();alert('Custo registrado!');load()};
 $('buscaVenda').oninput=render;$('filtroStatus').onchange=render;
-document.addEventListener('click',e=>{const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client,target.dataset.clientId);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
+document.addEventListener('click',e=>{
+  const edit=e.target.closest?.('.edit-cost');
+  if(edit){editCost(Number(edit.dataset.row));return}
+  const del=e.target.closest?.('.delete-cost');
+  if(del){deleteCost(Number(del.dataset.row));return}
+  const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client,target.dataset.clientId);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
 $('backHome').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();
 </script><script>(async()=>{
   const gate=document.getElementById('adminGate');
