@@ -66,10 +66,15 @@ jobs:
           done
 
           # O Apps Script não deve receber arquivos do Worker/Cloudflare.
-          # O clasp pull pode baixar arquivos antigos que já existem no projeto
-          # remoto, portanto removemos explicitamente a pasta Functions antes do push.
+          # O clasp pull pode baixar arquivos antigos que já existem no projeto.
           rm -rf functions
           rm -f Code.gs worker.gs worker.js wrangler.toml
+
+          # Remove duplicatas baixadas pelo clasp para evitar:
+          # "Conflicting files found".
+          find . -maxdepth 1 -type f \( -name "*.js" -o -name "*.gs" \) ! -name "Código.js" -delete
+
+          test -f "Código.js" || (echo "ERRO: Código.js não encontrado." && exit 1)
 
           echo "Arquivos que serão enviados:"
           find . -maxdepth 2 -type f \( -name "*.gs" -o -name "*.html" -o -name "appsscript.json" \) -print
