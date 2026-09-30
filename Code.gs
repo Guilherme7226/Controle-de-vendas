@@ -132,11 +132,11 @@ function doPost(e) {
         // Bootstrap leve: entrega somente Dashboard/resumo.
         // A tela já está liberada antes desta chamada; o restante
         // continua sendo carregado separadamente pelo frontend.
-        const dashboardBootstrap=readDashboardData(ss);
+        const dashboardBootstrap=readDashboardDataSupabase_();
         return json({ok:true,data:{
           sales:dashboardBootstrap.sales||[],
           summary:dashboardBootstrap.summary||{},
-          clientSummary:[],
+          clientSummary:dashboardBootstrap.clientSummary||[],
           clients:[],
           costs:[],
           production:[],
@@ -814,6 +814,111 @@ function readSaleRow(ss,rowNumber){
   const valorPago=parseMoney(r[9])||0;
   const saldo=Number(r[10])||Math.max(0,total-valorPago);
   return {row:rowNumber,data:dateValue(r[0]),cliente:String(r[1]||''),contatoEmpresa:String(r[2]||''),quantidade:Number(r[3])||0,valorUnitario:Number(r[4])||0,total:total,dataPagamento:dateValue(r[6]),pago:!!r[7],parcial:String(r[8]||'Não'),valorPago:valorPago,deve:saldo,status:saldo<=0?'Pago':valorPago>0?'Parcial':'Pendente',pedidoId:String(r[11]||'').trim()};
+}
+
+function readDashboardDataSupabase_() {
+  const vendas = supabaseSelectAll_(
+    'vendas',
+    'id,cliente_id,pedido_id,data,total,valor_pago'
+  ) || [];
+
+  const clientes = supabaseSelectAll_(
+    'clientes',
+    'id,nome'
+  ) || [];
+
+  const nomes = {};
+  clientes.forEach(function(c) {
+    nomes[String(c.id)] = String(c.nome || '');
+  });
+
+  const sales = vendas.map(function(v) {
+    const total = Number(v.total) || 0;
+    const valorPago = Number(v.valor_pago) || 0;
+    const saldo = Math.max(0, total - valorPago);
+
+    return {
+      row: '',
+      data: String(v.data || '').slice(0,10),
+      cliente: nomes[String(v.cliente_id)] || 'Cliente não identificado',
+      contatoEmpresa: '',
+      quantidade: 0,
+      valorUnitario: 0,
+      total: total,
+      dataPagamento: '',
+      pago: saldo <= 0 && total > 0,
+      parcial: valorPago > 0 && saldo > 0 ? 'Sim' : 'Não',
+      valorPago: valorPago,
+      deve: saldo,
+      status: saldo <= 0 && total > 0 ? 'Pago' : valorPago > 0 ? 'Parcial' : 'Pendente',
+      pedidoId: String(v.pedido_id || v.id || '')
+    };
+  });
+
+  const custosRows = supabaseSelectAll_(
+    'custos',
+    'id,descricao,valor,data'
+  ) || [];
+
+  const custoTotal = custosRows.reduce(function(total, c) {
+    return total + (Number(c.valor) || 0);
+  }, 0);
+
+  const totalVendido = sales.reduce(function(total, v) {
+    return total + (Number(v.total) || 0);
+  }, 0);
+
+  const totalRecebido = sales.reduce(function(total, v) {
+    return total + (Number(v.valorPago) || 0);
+  }, 0);
+
+  const totalAReceber = sales.reduce(function(total, v) {
+    return total + (Number(v.deve) || 0);
+  }, 0);
+
+  const qtdVendas = sales.length;
+  const ticketMedio = qtdVendas ? totalVendido / qtdVendas : 0;
+
+  const summary = {
+    totalVendido: totalVendido,
+    totalRecebido: totalRecebido,
+    totalAReceber: totalAReceber,
+    qtdPaes: 0,
+    qtdVendas: qtdVendas,
+    ticketMedio: ticketMedio,
+    custoTotal: custoTotal,
+    saldoDisponivel: 0,
+    lucro: totalVendido - custoTotal
+  };
+
+  const porCliente = {};
+  sales.forEach(function(v) {
+    const nome = String(v.cliente || '').trim();
+    if (!nome) return;
+    const chave = nome.toUpperCase();
+    if (!porCliente[chave]) {
+      porCliente[chave] = {
+        cliente: nome,
+        qtdPaes: 0,
+        qtdVendas: 0,
+        totalVendido: 0,
+        totalPago: 0,
+        saldoDevedor: 0
+      };
+    }
+    porCliente[chave].qtdVendas++;
+    porCliente[chave].totalVendido += Number(v.total) || 0;
+    porCliente[chave].totalPago += Number(v.valorPago) || 0;
+    porCliente[chave].saldoDevedor += Number(v.deve) || 0;
+  });
+
+  return {
+    sales: sales,
+    summary: summary,
+    clientSummary: Object.keys(porCliente).map(function(k) {
+      return porCliente[k];
+    })
+  };
 }
 
 function readDashboardData(ss) {
