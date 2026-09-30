@@ -503,11 +503,47 @@ async function loadOrders(){
 }
 async function confirmOrder(id){if(!confirm('Confirmar este pedido e gerar a venda?'))return;const r=await sb.rpc('v2_confirmar_pedido',{p_pedido_id:id});if(r.error)return alert(r.error.message);await Promise.all([loadOrders(),loadDashboard(),loadStock()])}
 async function cancelOrder(id){if(!confirm('Cancelar este pedido?'))return;const r=await sb.rpc('v2_cancelar_pedido',{p_pedido_id:id});if(r.error)return alert(r.error.message);await Promise.all([loadOrders(),loadDashboard(),loadStock()])}
+const LEGACY_API_URL='https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec';
+async function gerarAcessoCliente(clienteId,tipo){
+  if(!session?.access_token)return alert('Sessão administrativa inválida.');
+  const confirmar=tipo==='reset'
+    ? confirm('Gerar uma nova senha temporária para este cliente? A senha atual deixará de funcionar.')
+    : confirm('Gerar um acesso temporário para enviar ao cliente?');
+  if(!confirmar)return;
+
+  try{
+    const resp=await fetch(LEGACY_API_URL,{
+      method:'POST',
+      headers:{'content-type':'text/plain;charset=UTF-8'},
+      body:JSON.stringify({
+        action:'admin_client_access',
+        data:{clienteId,tipo,supabaseToken:session.access_token}
+      })
+    });
+    const j=await resp.json();
+    if(!j.ok)throw new Error(j.error||'Não foi possível gerar o acesso.');
+    const d=j.data||{};
+    const numero=whatsappNumber(d.telefone);
+    if(!numero)throw new Error('Cliente sem telefone válido.');
+
+    let texto='';
+    if(tipo==='reset'){
+      texto='Olá, '+(d.nome||'')+'! 🔑%0A%0ASua senha de acesso ao Pãozinhos foi redefinida.%0A%0A*Login:* '+d.login+'%0A*Senha temporária:* '+d.senhaTemporaria+'%0A%0AAo entrar, o sistema vai pedir para você criar uma nova senha.';
+    }else{
+      texto='Olá, '+(d.nome||'')+'! 🥖%0A%0ASeu acesso ao sistema Pãozinhos foi criado.%0A%0A*Login:* '+d.login+'%0A*Senha temporária:* '+d.senhaTemporaria+'%0A%0AAo entrar pela primeira vez, crie sua nova senha.';
+    }
+    window.open('https://wa.me/'+numero+'?text='+texto,'_blank','noopener,noreferrer');
+    await loadClients();
+  }catch(e){
+    alert(e?.message||'Não foi possível gerar o acesso.');
+  }
+}
+
 async function loadClients(){
   const r=await sb.from('v2_dashboard_clientes').select('*').order('nome');
   if(r.error)return msg(r.error.message,'error');
-  $('clientsTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Dívida</th></tr></thead><tbody>'+
-  (r.data||[]).map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td></tr>').join('')+'</tbody></table>';
+  $('clientsTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Dívida</th><th>Ações</th></tr></thead><tbody>'+
+  (r.data||[]).map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td><div class="action-group"><button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Enviar login</button><button class="secondary" onclick="gerarAcessoCliente(\''+x.id+'\',\'reset\')">🔑 Resetar senha</button></div></td></tr>').join('')+'</tbody></table>';
 }
 async function loadStock(){
   const r=await sb.from('v2_estoque_atual').select('*').order('nome');
