@@ -24,9 +24,14 @@ async function proxyToAppsScript(request) {
         // Se o Google responder com uma página HTML de erro/intersticial,
         // tente novamente antes de declarar o Apps Script indisponível.
         if(!/<html[\\s>]/i.test(text0) || attempt===2){
-          const text=text0;
-          // handled below through a synthetic response body
-          response=new Response(text,{status:response.status,headers:response.headers});
+          // O corpo já foi consumido por response.text(). Preserve-o como
+          // string para não tentar ler o mesmo body novamente.
+          response={
+            status:response.status,
+            statusText:response.statusText,
+            headers:response.headers,
+            text:text0
+          };
           break;
         }
       }
