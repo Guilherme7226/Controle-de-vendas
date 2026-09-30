@@ -511,6 +511,13 @@ async function gerarAcessoCliente(clienteId,tipo){
     : confirm('Gerar um acesso temporário para enviar ao cliente?');
   if(!confirmar)return;
 
+  const whatsappWindow=window.open('about:blank','_blank');
+  if(whatsappWindow){
+    try{
+      whatsappWindow.document.write('<title>Preparando WhatsApp...</title><p style="font-family:system-ui;padding:24px">Gerando acesso e preparando mensagem...</p>');
+    }catch(_){}
+  }
+
   try{
     const resp=await fetch(LEGACY_API_URL,{
       method:'POST',
@@ -532,9 +539,16 @@ async function gerarAcessoCliente(clienteId,tipo){
     }else{
       texto='Olá, '+(d.nome||'')+'! 🥖%0A%0ASeu acesso ao sistema Pãozinhos foi criado.%0A%0A*Login:* '+d.login+'%0A*Senha temporária:* '+d.senhaTemporaria+'%0A%0AAo entrar pela primeira vez, crie sua nova senha.';
     }
-    window.open('https://wa.me/'+numero+'?text='+texto,'_blank','noopener,noreferrer');
+
+    const url='https://wa.me/'+numero+'?text='+texto;
+    if(whatsappWindow){
+      whatsappWindow.location.href=url;
+    }else{
+      window.location.href=url;
+    }
     await loadClients();
   }catch(e){
+    if(whatsappWindow&&!whatsappWindow.closed)whatsappWindow.close();
     alert(e?.message||'Não foi possível gerar o acesso.');
   }
 }
