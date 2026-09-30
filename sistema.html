@@ -82,7 +82,28 @@ button,.tab,input,select{touch-action:manipulation;-webkit-tap-highlight-color:t
       if(view==='dashboard'&&typeof render==='function'){render();if(typeof renderRanking==='function')renderRanking();}
       else if(view==='clientes'&&typeof loadClients==='function'){setAdminLoading(true,'⏳ Carregando clientes...');loadClients(false).finally(function(){setAdminLoading(false);if(typeof renderClients==='function')renderClients()})}
       else if(view==='venda'&&typeof loadClients==='function'){setAdminLoading(true,'⏳ Carregando clientes e estoque...');Promise.all([loadClients(false),typeof refreshAdminStockRealtime==='function'?refreshAdminStockRealtime():Promise.resolve()]).then(function(){if(typeof renderSaleClients==='function')renderSaleClients();if(typeof renderSaleStock==='function')renderSaleStock()}).finally(function(){setAdminLoading(false)})}
-      else if(typeof load==='function'){setAdminLoading(true,'⏳ Carregando dados...');load().then(function(){if(typeof render==='function')render();if(view==='receber'&&typeof renderReceber==='function')renderReceber();if(view==='estoque'&&typeof renderStockAdmin==='function')renderStockAdmin();if(view==='pedidos'&&typeof renderOrdersAdmin==='function')renderOrdersAdmin();if(view==='custos'&&typeof loadRecentCosts==='function')loadRecentCosts()}).finally(function(){setAdminLoading(false)})}
+      else if(typeof load==='function'){
+        setAdminLoading(true,'⏳ Carregando dados...');
+        Promise.resolve()
+          .then(async function(){
+            if(view==='estoque'){
+              await refreshAdminStockRealtime();
+              return;
+            }
+            if(view==='pedidos'){
+              await Promise.all([loadClients(false),refreshAdminOrdersRealtime()]);
+              return;
+            }
+            if(view==='custos'){
+              await loadRecentCosts();
+              return;
+            }
+            await load();
+            if(view==='receber'&&typeof renderReceber==='function')renderReceber();
+            if(view==='vendas'&&typeof render==='function')render();
+          })
+          .finally(function(){setAdminLoading(false)});
+      }
     }catch(err){console.error('Falha ao trocar aba:',err);setAdminLoading(false)}
   },true);
 })();
@@ -969,44 +990,40 @@ $('backHome').onclick=(e)=>{e.preventDefault();try{sessionStorage.removeItem('ad
   try{
     if(!ADMIN_TOKEN) throw new Error('Sessão administrativa não encontrada.');
 
-    // A entrada do ADM continua instantânea. O Dashboard é carregado
-    // primeiro e o restante do sistema é carregado depois.
+    // Valida a sessão e carrega somente o Dashboard no primeiro momento.
+    // Nenhuma carga pesada pode bloquear a interface.
     fullDataLoaded=false;
     sales=[]; costs=[]; summary={}; clientSummary=[]; production=[]; stock=[]; orders=[]; clients=[];
     if(gate) gate.remove();
+    setAdminLoading(true,'⏳ Verificando sessão...');
 
     setTimeout(async()=>{
       try{
-        const boot=await api('admin_bootstrap',{}, {timeout:30000,silent:true});
-        if(boot&&boot.data){
-          sales=boot.data.sales||[];
-          summary=boot.data.summary||{};
-          clientSummary=boot.data.clientSummary||[];
-          render();
-          renderRanking();
-        }
-      }catch(err){
-        console.error('Falha no Dashboard:',err);
-      }
+        const auth=await api('admin_validar',{token:ADMIN_TOKEN},{timeout:8000,retries:0,silent:true});
+        if(!auth) throw new Error(lastApiError||'Sessão administrativa inválida ou expirada.');
+        if(gate) gate.remove();
 
-      // Depois do bootstrap, carrega a base completa do ADM.
-      // Assim todas as abas (vendas, clientes, pedidos, estoque e custos)
-      // recebem dados já na primeira abertura, sem depender de clicar em cada aba.
-      try{
-        await load();
-      }catch(err){
-        console.error('Falha ao carregar dados completos do ADM:',err);
-        const msg=err&&err.message?err.message:String(err||'Erro desconhecido');
-        const dashboardMsg=document.getElementById('dashboardMsg');
-        if(dashboardMsg) dashboardMsg.textContent='⚠️ Falha ao carregar os dados: '+msg;
-      }finally{
+        const boot=await api('admin_bootstrap',{}, {timeout:12000,retries:0,silent:true});
+        if(!boot) throw new Error(lastApiError||'Não foi possível carregar o Dashboard.');
+        const d=boot.data||{};
+        sales=d.sales||[];
+        summary=d.summary||{};
+        clientSummary=d.clientSummary||[];
+        fullDataLoaded=true;
+        render();
+        renderRanking();
         setAdminLoading(false);
-      }
 
-      try{
-        await loadClients(true);
+        // Clientes são independentes e carregam em paralelo.
+        loadClients(true).catch(err=>console.error('Falha ao carregar clientes:',err));
       }catch(err){
-        console.error('Falha ao carregar clientes:',err);
+        console.error('Falha ao abrir administração:',err);
+        setAdminLoading(false);
+        const msg=err&&err.message?err.message:String(err||'Erro desconhecido');
+        if(/sessão administrativa inválida|expirada|não encontrada/i.test(msg)){
+          try{sessionStorage.removeItem('admin_token')}catch(_){}
+        }
+        if(gate) fail(msg);
       }
     },0);
 
