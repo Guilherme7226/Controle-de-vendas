@@ -132,7 +132,7 @@ function doPost(e) {
         // Bootstrap leve: entrega somente Dashboard/resumo.
         // A tela já está liberada antes desta chamada; o restante
         // continua sendo carregado separadamente pelo frontend.
-        const dashboardBootstrap=readDashboardDataSupabase_();
+        const dashboardBootstrap=readDashboardData(getSS());
         return json({ok:true,data:{
           sales:dashboardBootstrap.sales||[],
           summary:dashboardBootstrap.summary||{},
@@ -149,7 +149,7 @@ function doPost(e) {
       case 'admin_full_data': {
         // Fonte principal do ADM: Supabase. Mantemos apenas os históricos
         // ainda não migrados (custos/produção) como fallback temporário.
-        const dash=readDashboardDataSupabase_();
+        const dash=readDashboardData(getSS());
         let custos=dashCostosFallback_();
         let clientes=adminListClientsSupabase_();
         let pedidos=readOrdersSupabase_();
