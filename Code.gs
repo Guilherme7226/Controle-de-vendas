@@ -104,7 +104,9 @@ function doPost(e) {
         return json({ok:true,data:resultClientePedido});
       }
       case 'estoque_atual':
-        return json({ok:true,data:readStockSupabase_()});
+        // Estoque do ADM e do cliente usam a mesma fonte oficial:
+        // produção + pedidos + ajustes registrados na planilha.
+        return json({ok:true,data:readStock(ss)});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
       case 'cliente_confirmar_pedido': {
