@@ -508,7 +508,7 @@ async function gerarAcessoCliente(clienteId,tipo){
   if(!session?.access_token)return alert('Sessão administrativa inválida.');
   const confirmar=tipo==='reset'
     ? confirm('Gerar uma nova senha temporária para este cliente? A senha atual deixará de funcionar.')
-    : confirm('Gerar um acesso temporário para enviar ao cliente?');
+    : confirm('Criar o acesso deste cliente e gerar uma senha temporária para envio?');
   if(!confirmar)return;
 
   const whatsappWindow=window.open('about:blank','_blank');
@@ -557,7 +557,7 @@ async function loadClients(){
   const r=await sb.from('v2_dashboard_clientes').select('*').order('nome');
   if(r.error)return msg(r.error.message,'error');
   $('clientsTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Dívida</th><th>Ações</th></tr></thead><tbody>'+
-  (r.data||[]).map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td><div class="action-group"><button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Enviar login</button><button class="secondary" onclick="gerarAcessoCliente(\''+x.id+'\',\'reset\')">🔑 Resetar senha</button></div></td></tr>').join('')+'</tbody></table>';
+  (r.data||[]).map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td><div class="action-group"><button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Criar/Enviar acesso</button><button class="secondary" onclick="gerarAcessoCliente(\''+x.id+'\',\'reset\')">🔑 Resetar senha</button></div></td></tr>').join('')+'</tbody></table>';
 }
 async function loadStock(){
   const r=await sb.from('v2_estoque_atual').select('*').order('nome');
