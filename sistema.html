@@ -16,10 +16,9 @@
 <body>
 <div id="loginView" class="login">
   <div class="card">
-    <h1>🥖 Pãozinhos</h1>
-    <div class="muted">Administração V2 · Supabase</div>
-    <div class="field" style="margin-top:16px"><label>Telefone ou e-mail</label><input id="loginUser" autocomplete="username" placeholder="13999999999"></div>
-    <div class="field" style="margin-top:10px"><label>Senha</label><input id="loginPass" type="password" autocomplete="current-password"></div>
+    <h1>🔐 Administração</h1>
+    <div class="muted">Acesso exclusivo do administrador</div>
+    <div class="field" style="margin-top:16px"><label>Senha administrativa</label><input id="loginPass" type="password" autocomplete="current-password" autofocus></div>
     <button id="loginBtn" class="primary" style="width:100%;margin-top:14px">Entrar</button>
     <div id="loginError" class="error"></div>
   </div>
@@ -121,7 +120,7 @@
 </div></div>
 
 <script>
-let sb=null,session=null,clients=[],products=[];
+let sb=null,session=null,clients=[],products=[],supabaseConfig=null;
 const $=id=>document.getElementById(id);
 const brl=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -131,6 +130,7 @@ async function init(){
   try{
     const cfg=await fetch('/supabase-config',{cache:'no-store'}).then(r=>r.json());
     if(!cfg.url||!cfg.key) throw new Error('Configuração do Supabase não encontrada no Worker.');
+    supabaseConfig=cfg;
     sb=supabase.createClient(cfg.url,cfg.key);
     const {data}=await sb.auth.getSession(); session=data.session;
     sb.auth.onAuthStateChange((_e,s)=>{session=s;if(!s)showLogin()});
@@ -146,14 +146,35 @@ async function enterApp(){
   subscribe();
 }
 $('loginBtn').onclick=async()=>{
-  $('loginError').textContent=''; const raw=$('loginUser').value.trim(); const pass=$('loginPass').value;
-  if(!raw||!pass)return $('loginError').textContent='Informe usuário e senha.';
-  const digits=raw.replace(/D/g,''); const email=raw.includes('@')?raw:(digits+'@clientes.paozinhos.local');
+  $('loginError').textContent='';
+  const pass=$('loginPass').value;
+  if(!pass)return $('loginError').textContent='Informe a senha administrativa.';
   $('loginBtn').disabled=true;
-  const r=await sb.auth.signInWithPassword({email,password:pass});
-  $('loginBtn').disabled=false;
-  if(r.error)$('loginError').textContent=r.error.message; else {session=r.data.session;await enterApp()}
+  $('loginBtn').textContent='Entrando...';
+  try{
+    const resp=await fetch(supabaseConfig.url+'/functions/v1/admin-login',{
+      method:'POST',
+      headers:{'content-type':'application/json','apikey':supabaseConfig.key},
+      body:JSON.stringify({senha:pass})
+    });
+    const j=await resp.json().catch(()=>({ok:false,error:'Resposta inválida do servidor.'}));
+    if(!resp.ok||!j.ok||!j.session)throw new Error(j.error||'Senha incorreta.');
+    const s=await sb.auth.setSession({
+      access_token:j.session.access_token,
+      refresh_token:j.session.refresh_token
+    });
+    if(s.error)throw s.error;
+    session=s.data.session;
+    $('loginPass').value='';
+    await enterApp();
+  }catch(e){
+    $('loginError').textContent=e?.message||'Não foi possível entrar.';
+  }finally{
+    $('loginBtn').disabled=false;
+    $('loginBtn').textContent='Entrar';
+  }
 };
+$('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
 $('logoutBtn').onclick=()=>sb.auth.signOut();
 $('backBtn').onclick=()=>location.href='/';
 $('themeBtn').onclick=()=>{const d=document.documentElement;const n=d.dataset.theme==='dark'?'light':'dark';d.dataset.theme=n;localStorage.setItem('pao_theme',n);$('themeBtn').textContent=n==='dark'?'☀️':'🌙'};
