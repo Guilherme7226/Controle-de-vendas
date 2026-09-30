@@ -165,9 +165,12 @@ function doPost(e) {
       case 'admin_confirmar_pedido':
         return json({ok:true,data:supabaseAdminConfirmOrder_(String(d.id||''))});
       case 'admin_confirmar_pedidos_lote': {
-        const resultAdminConfirmarLote=adminConfirmOrdersBatch(ss,d);
-        recalcularResumo(ss);
-        return json({ok:true,data:resultAdminConfirmarLote});
+        const ids=Array.isArray(d.ids)?[...new Set(d.ids.map(function(x){return String(x||'').trim();}).filter(Boolean))]:[];
+        if(!ids.length) throw new Error('Nenhum pedido selecionado.');
+        if(ids.length>100) throw new Error('Selecione no máximo 100 pedidos por vez.');
+        const resultados=[];
+        ids.forEach(function(id){ resultados.push(supabaseAdminConfirmOrder_(id)); });
+        return json({ok:true,data:{confirmados:resultados.length,vendasCriadas:resultados.map(function(x){return x.id;}),orders:resultados}});
       }
       case 'admin_pagar_cliente': {
         const resultAdminPagamento=adminRegistrarPagamentoCliente(ss,d);
