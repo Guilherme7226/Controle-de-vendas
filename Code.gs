@@ -27,6 +27,12 @@ function doGet(e) {
     if (API_KEY && (e && e.parameter && e.parameter.apiKey) !== API_KEY) {
       throw new Error('Chave inválida');
     }
+    if (e && e.parameter && e.parameter.setupSync === '1') {
+      return json({ok:true,data:instalarSyncPlanilhaEditavel_()});
+    }
+    if (e && e.parameter && e.parameter.syncNow === '1') {
+      return json({ok:true,data:syncSupabaseParaPlanilhaEditavel_()});
+    }
     return json({ok:true, service:'Controle de Vendas', version:APP_VERSION});
   } catch (err) {
     return json({ok:false, error:String(err.message || err)});
@@ -4869,3 +4875,398 @@ function criarAdminSupabase() {
   return resultado;
 }
 
+
+
+/* ===== PÃOZINHOS V2 — PLANILHA EDITÁVEL SINCRONIZADA ===== */
+const SYNC_EDITABLE_SPREADSHEET_ID = '1PzSa4lVThZp0hsVCtx7EI_yOuuuhsc62B6JktlyYceg';
+const SYNC_EDITABLE_START_DATE = '2026-09-30';
+
+function syncEditableSS_() {
+  return SpreadsheetApp.openById(SYNC_EDITABLE_SPREADSHEET_ID);
+}
+
+function syncDate_(v) {
+  if (v instanceof Date && !isNaN(v.getTime())) {
+    return Utilities.formatDate(v, 'America/Sao_Paulo', 'yyyy-MM-dd');
+  }
+  const s=String(v||'').trim();
+  if(!s)return '';
+  if(/^\d{4}-\d{2}-\d{2}/.test(s))return s.slice(0,10);
+  if(/^\d{2}\/\d{2}\/\d{4}$/.test(s)){
+    const p=s.split('/'); return p[2]+'-'+p[1]+'-'+p[0];
+  }
+  return s;
+}
+
+function syncBool_(v) {
+  if(v===true||v===false)return v;
+  const s=String(v||'').trim().toLowerCase();
+  return ['true','sim','1','ativo','yes'].indexOf(s)>=0;
+}
+
+function syncNum_(v) {
+  if(typeof v==='number')return isFinite(v)?v:0;
+  let s=String(v||'').trim().replace(/R\$\s?/gi,'').replace(/\s/g,'');
+  if(!s)return 0;
+  if(s.indexOf(',')>=0)s=s.replace(/\./g,'').replace(',','.');
+  const n=Number(s); return isFinite(n)?n:0;
+}
+
+function syncClientByName_(nome) {
+  const n=String(nome||'').trim();
+  if(!n)throw new Error('Cliente sem nome.');
+  const rows=supabaseRequest_(
+    '/rest/v1/v2_clientes?select=id,nome&nome=eq.'+encodeURIComponent(n)+'&limit=1',
+    'get'
+  )||[];
+  if(!rows.length)throw new Error('Cliente não encontrado no Supabase: '+n);
+  return rows[0];
+}
+
+function syncProductByName_(nome) {
+  const n=String(nome||'').trim();
+  if(!n)throw new Error('Produto sem nome.');
+  const rows=supabaseRequest_(
+    '/rest/v1/v2_produtos?select=id,nome,preco&nome=eq.'+encodeURIComponent(n)+'&limit=1',
+    'get'
+  )||[];
+  if(!rows.length)throw new Error('Produto não encontrado no Supabase: '+n);
+  return rows[0];
+}
+
+function syncPatchById_(table,id,body) {
+  if(!id)throw new Error('ID ausente em '+table);
+  return supabaseRequest_(
+    '/rest/v1/'+encodeURIComponent(table)+'?id=eq.'+encodeURIComponent(id),
+    'patch',
+    body,
+    'return=representation'
+  );
+}
+
+function syncDeleteById_(table,id) {
+  if(!id)return null;
+  return supabaseRequest_(
+    '/rest/v1/'+encodeURIComponent(table)+'?id=eq.'+encodeURIComponent(id),
+    'delete',
+    undefined,
+    'return=representation'
+  );
+}
+
+function syncVendaRowToSupabase_(sh,row) {
+  if(row<3)return;
+  SpreadsheetApp.flush();
+  const v=sh.getRange(row,1,1,11).getValues()[0];
+  const nome=String(v[1]||'').trim();
+  if(!nome || nome.toUpperCase().indexOf('TOTAL')===0)return;
+  const data=syncDate_(v[0]);
+  if(!data)return;
+  const cliente=syncClientByName_(nome);
+  const qtd=Math.max(0,Math.floor(syncNum_(v[2])));
+  const unit=Math.max(0,syncNum_(v[3]));
+  const total=Math.max(0,syncNum_(v[4]) || qtd*unit);
+  const dataPg=syncDate_(v[5])||null;
+  const pago=Math.min(total,Math.max(0,syncNum_(v[8])));
+  const payload={
+    cliente_id:cliente.id,
+    data:data,
+    quantidade:qtd,
+    valor_unitario:unit,
+    total:total,
+    valor_pago:pago,
+    data_pagamento:pago>0?dataPg:null,
+    observacao:'Sincronizado da planilha editável'
+  };
+  const found=supabaseRequest_(
+    '/rest/v1/v2_vendas?select=id,source_row&source_row=eq.'+row+'&limit=1',
+    'get'
+  )||[];
+  if(found.length){
+    syncPatchById_('v2_vendas',found[0].id,payload);
+    // Reconcilia o registro de pagamento simplificado.
+    supabaseRequest_('/rest/v1/v2_pagamentos?venda_id=eq.'+encodeURIComponent(found[0].id),'delete',undefined,'return=minimal');
+    if(pago>0){
+      supabaseRequest_('/rest/v1/v2_pagamentos','post',{
+        venda_id:found[0].id,
+        valor:pago,
+        data_pagamento:dataPg||data,
+        observacao:'Pagamento sincronizado da planilha editável'
+      },'return=minimal');
+    }
+  }
+}
+
+function syncClienteRowToSupabase_(sh,row) {
+  if(row<2)return;
+  const v=sh.getRange(row,1,1,10).getValues()[0];
+  const id=String(v[0]||'').trim();
+  const nome=String(v[1]||'').trim();
+  const telefone=String(v[2]||'').replace(/\D/g,'');
+  const ativo=syncBool_(v[3]);
+  const action=String(v[9]||'').trim().toUpperCase();
+  if(!nome && !id)return;
+  if(action==='EXCLUIR'){
+    if(id)syncPatchById_('v2_clientes',id,{ativo:false});
+    sh.getRange(row,10).clearContent(); return;
+  }
+  const payload={nome:nome,telefone:telefone||null,ativo:ativo,updated_at:new Date().toISOString()};
+  if(id){
+    syncPatchById_('v2_clientes',id,payload);
+  }else if(nome){
+    const ins=supabaseRequest_('/rest/v1/v2_clientes','post',payload,'return=representation')||[];
+    if(ins[0]&&ins[0].id)sh.getRange(row,1).setValue(ins[0].id);
+  }
+  sh.getRange(row,10).clearContent();
+}
+
+function syncCustoRowToSupabase_(sh,row) {
+  if(row<2)return;
+  const v=sh.getRange(row,1,1,7).getValues()[0];
+  const id=String(v[0]||'').trim();
+  const action=String(v[6]||'').trim().toUpperCase();
+  if(action==='EXCLUIR'){
+    if(id)syncDeleteById_('v2_custos',id);
+    sh.deleteRow(row); return;
+  }
+  const descricao=String(v[2]||'').trim();
+  if(!descricao && !id)return;
+  const payload={
+    data:syncDate_(v[1])||Utilities.formatDate(new Date(),'America/Sao_Paulo','yyyy-MM-dd'),
+    descricao:descricao,
+    categoria:String(v[3]||'').trim()||null,
+    valor:Math.max(0,syncNum_(v[4])),
+    observacao:String(v[5]||'').trim()||null
+  };
+  if(id){
+    syncPatchById_('v2_custos',id,payload);
+  }else if(descricao){
+    const ins=supabaseRequest_('/rest/v1/v2_custos','post',payload,'return=representation')||[];
+    if(ins[0]&&ins[0].id)sh.getRange(row,1).setValue(ins[0].id);
+  }
+  sh.getRange(row,7).clearContent();
+}
+
+function syncProducaoRowToSupabase_(sh,row) {
+  if(row<2)return;
+  const v=sh.getRange(row,1,1,7).getValues()[0];
+  const id=String(v[0]||'').trim();
+  const action=String(v[6]||'').trim().toUpperCase();
+  if(action==='EXCLUIR'){
+    if(id)syncDeleteById_('v2_producao',id);
+    sh.deleteRow(row); return;
+  }
+  const nome=String(v[2]||'').trim();
+  if(!nome && !id)return;
+  const produto=syncProductByName_(nome);
+  const payload={
+    data:syncDate_(v[1])||Utilities.formatDate(new Date(),'America/Sao_Paulo','yyyy-MM-dd'),
+    produto_id:produto.id,
+    quantidade:Math.max(1,Math.floor(syncNum_(v[3]))),
+    observacao:String(v[4]||'').trim()||'Sincronizado da planilha editável'
+  };
+  if(id){
+    syncPatchById_('v2_producao',id,payload);
+  }else{
+    const ins=supabaseRequest_('/rest/v1/v2_producao','post',payload,'return=representation')||[];
+    if(ins[0]&&ins[0].id)sh.getRange(row,1).setValue(ins[0].id);
+  }
+  sh.getRange(row,7).clearContent();
+}
+
+function syncPedidoRowToSupabase_(sh,row) {
+  if(row<2)return;
+  const v=sh.getRange(row,1,1,10).getValues()[0];
+  const id=String(v[0]||'').trim();
+  if(!id)return; // pedidos novos devem nascer pelo site para preservar itens/estoque
+  const action=String(v[9]||'').trim().toUpperCase();
+  const status=String(v[3]||'').trim().toLowerCase();
+  if(action==='EXCLUIR'){
+    syncPatchById_('v2_pedidos',id,{status:'cancelado',updated_at:new Date().toISOString()});
+  }else if(['reservado','confirmado','cancelado'].indexOf(status)>=0){
+    syncPatchById_('v2_pedidos',id,{status:status,updated_at:new Date().toISOString()});
+  }
+  sh.getRange(row,10).clearContent();
+}
+
+function syncEstoqueRowToSupabase_(sh,row) {
+  if(row<2)return;
+  const v=sh.getRange(row,1,1,9).getValues()[0];
+  const produtoId=String(v[0]||'').trim();
+  const action=String(v[8]||'').trim().toUpperCase();
+  if(!produtoId || action!=='ATUALIZAR')return;
+  const desired=Math.max(0,Math.floor(syncNum_(v[7])));
+  const currentRows=supabaseRequest_(
+    '/rest/v1/v2_estoque_atual?select=produto_id,nome,disponivel&produto_id=eq.'+encodeURIComponent(produtoId)+'&limit=1',
+    'get'
+  )||[];
+  if(!currentRows.length)throw new Error('Produto não encontrado no estoque V2.');
+  const current=Math.max(0,Math.floor(Number(currentRows[0].disponivel)||0));
+  const diff=desired-current;
+  const hoje=Utilities.formatDate(new Date(),'America/Sao_Paulo','yyyy-MM-dd');
+  if(diff>0){
+    supabaseRequest_('/rest/v1/v2_producao','post',{
+      data:hoje,produto_id:produtoId,quantidade:diff,
+      observacao:'Ajuste manual de estoque pela planilha editável'
+    },'return=minimal');
+  }else if(diff<0){
+    supabaseRequest_('/rest/v1/v2_movimentacoes_estoque','post',{
+      source_key:'sheet-ajuste-'+Utilities.getUuid(),
+      data:hoje,produto_id:produtoId,tipo:'descarte',quantidade:Math.abs(diff),
+      observacao:'Ajuste manual de estoque pela planilha editável'
+    },'return=minimal');
+  }
+  sh.getRange(row,9).clearContent();
+}
+
+function syncPlanilhaEditavelOnEdit_(e) {
+  if(!e || !e.range)return;
+  const ss=e.source;
+  if(!ss || ss.getId()!==SYNC_EDITABLE_SPREADSHEET_ID)return;
+  const sh=e.range.getSheet();
+  const row=e.range.getRow();
+  const col=e.range.getColumn();
+  const name=sh.getName();
+  const lock=LockService.getScriptLock();
+  lock.waitLock(20000);
+  try{
+    if(name==='Vendas' && row>=3 && col<=10)syncVendaRowToSupabase_(sh,row);
+    else if(name==='Clientes' && row>=2 && col<=10)syncClienteRowToSupabase_(sh,row);
+    else if(name==='Custos' && row>=2 && col<=7)syncCustoRowToSupabase_(sh,row);
+    else if(name==='Produção' && row>=2 && col<=7)syncProducaoRowToSupabase_(sh,row);
+    else if(name==='Pedidos Atuais' && row>=2 && col<=10)syncPedidoRowToSupabase_(sh,row);
+    else if(name==='Estoque' && row>=2 && col<=9)syncEstoqueRowToSupabase_(sh,row);
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function syncWriteRows_(sh,headers,rows,actionCol) {
+  const last=Math.max(sh.getLastRow(),1);
+  if(last>1)sh.getRange(2,1,last-1,headers.length).clearContent();
+  if(rows.length)sh.getRange(2,1,rows.length,headers.length).setValues(rows);
+  if(actionCol){
+    const rule=SpreadsheetApp.newDataValidation()
+      .requireValueInList(['ATUALIZAR','NOVO','EXCLUIR'],true)
+      .setAllowInvalid(true).build();
+    sh.getRange(2,actionCol,Math.max(1,sh.getMaxRows()-1),1).setDataValidation(rule);
+  }
+}
+
+function syncSupabaseParaPlanilhaEditavel_() {
+  const lock=LockService.getScriptLock();
+  lock.waitLock(30000);
+  try{
+    const ss=syncEditableSS_();
+
+    // Clientes
+    const clientes=supabaseSelectAll_('v2_dashboard_clientes','id,nome,telefone,ativo,vendas,paes,total_comprado,total_pago,divida');
+    clientes.sort(function(a,b){return String(a.nome||'').localeCompare(String(b.nome||''));});
+    syncWriteRows_(ss.getSheetByName('Clientes'),
+      ['ID Sistema','Nome','Telefone','Ativo','Vendas','Pães','Total Comprado','Total Pago','Dívida','Ação Sync'],
+      clientes.map(function(x){return [x.id,x.nome,x.telefone||'',!!x.ativo,Number(x.vendas)||0,Number(x.paes)||0,Number(x.total_comprado)||0,Number(x.total_pago)||0,Number(x.divida)||0,''];}),
+      10
+    );
+
+    // Custos
+    const custos=supabaseSelectAll_('v2_custos','id,data,descricao,categoria,valor,observacao,created_at');
+    custos.sort(function(a,b){return String(a.data||'').localeCompare(String(b.data||''));});
+    syncWriteRows_(ss.getSheetByName('Custos'),
+      ['ID Sistema','Data','Descrição','Categoria','Valor','Observação','Ação Sync'],
+      custos.map(function(x){return [x.id,x.data,x.descricao,x.categoria||'',Number(x.valor)||0,x.observacao||'',''];}),
+      7
+    );
+
+    // Pedidos
+    const pedidos=supabaseSelectAll_('v2_pedidos_completos','id,data,cliente,status,quantidade_total,total,origem,referencia,created_at');
+    pedidos.sort(function(a,b){return String(b.created_at||'').localeCompare(String(a.created_at||''));});
+    syncWriteRows_(ss.getSheetByName('Pedidos Atuais'),
+      ['ID Sistema','Data','Cliente','Status','Quantidade','Total','Origem','Referência','Criado em','Ação Sync'],
+      pedidos.map(function(x){return [x.id,x.data,x.cliente,x.status,Number(x.quantidade_total)||0,Number(x.total)||0,x.origem||'',x.referencia||'',x.created_at||'',''];}),
+      10
+    );
+
+    // Produção
+    const prod=supabaseSelectAll_('v2_producao','id,data,produto_id,quantidade,observacao,created_at');
+    const produtos=supabaseSelectAll_('v2_produtos','id,nome,preco');
+    const prodName={}; produtos.forEach(function(p){prodName[p.id]=p.nome;});
+    prod.sort(function(a,b){return String(b.created_at||'').localeCompare(String(a.created_at||''));});
+    syncWriteRows_(ss.getSheetByName('Produção'),
+      ['ID Sistema','Data','Produto','Quantidade','Observação','Criado em','Ação Sync'],
+      prod.map(function(x){return [x.id,x.data,prodName[x.produto_id]||x.produto_id,Number(x.quantidade)||0,x.observacao||'',x.created_at||'',''];}),
+      7
+    );
+
+    // Estoque
+    const estoque=supabaseSelectAll_('v2_estoque_atual','produto_id,nome,preco,produzido,vendido,reservado,descartado,disponivel');
+    estoque.sort(function(a,b){return String(a.nome||'').localeCompare(String(b.nome||''));});
+    syncWriteRows_(ss.getSheetByName('Estoque'),
+      ['ID Produto','Produto','Preço','Produzido','Vendido','Reservado','Descartado','Disponível','Ação Sync'],
+      estoque.map(function(x){return [x.produto_id,x.nome,Number(x.preco)||0,Number(x.produzido)||0,Number(x.vendido)||0,Number(x.reservado)||0,Number(x.descartado)||0,Number(x.disponivel)||0,''];}),
+      9
+    );
+
+    // Vendas: atualiza as linhas históricas por source_row e acrescenta novas vendas V2.
+    const vendas=supabaseSelectAll_('v2_vendas_detalhadas','id,source_row,pedido_id,data,cliente,quantidade,valor_unitario,total,valor_pago,saldo,data_pagamento,created_at');
+    const shV=ss.getSheetByName('Vendas');
+    const existingLast=Math.max(shV.getLastRow(),2);
+    const ids={};
+    if(existingLast>=3){
+      const vals=shV.getRange(3,1,existingLast-2,11).getValues();
+      vals.forEach(function(r,idx){
+        const k=String(r[10]||'').trim();
+        if(k)ids[k]=idx+3;
+      });
+    }
+    vendas.forEach(function(v){
+      let row=Number(v.source_row)||0;
+      if(row<3 && v.pedido_id && ids[String(v.pedido_id)])row=ids[String(v.pedido_id)];
+      if(row<3 && String(v.data||'')>=SYNC_EDITABLE_START_DATE){
+        row=shV.getLastRow()+1;
+      }
+      if(row<3)return;
+      const pago=Number(v.valor_pago)||0,total=Number(v.total)||0,saldo=Math.max(0,Number(v.saldo)||0);
+      const arr=[[v.data||'',v.cliente||'',Number(v.quantidade)||0,Number(v.valor_unitario)||0,total,v.data_pagamento||'',saldo<=0&&total>0,pago>0&&saldo>0?'Sim':'Não',pago,saldo,v.pedido_id||'']];
+      shV.getRange(row,1,1,11).setValues(arr);
+    });
+
+    SpreadsheetApp.flush();
+    const ctrl=ss.getSheetByName('Controle Sync');
+    if(ctrl){
+      ctrl.getRange('B9').setValue('ATIVA — edição manual → Supabase imediata; Supabase → planilha a cada 5 min');
+      ctrl.getRange('B12').setValue(Utilities.formatDate(new Date(),'America/Sao_Paulo','dd/MM/yyyy HH:mm:ss'));
+    }
+
+    return {
+      ok:true,
+      clientes:clientes.length,custos:custos.length,pedidos:pedidos.length,
+      producao:prod.length,estoque:estoque.length,vendas:vendas.length,
+      atualizadoEm:new Date().toISOString()
+    };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function instalarSyncPlanilhaEditavel_() {
+  const triggers=ScriptApp.getProjectTriggers();
+  let edit=false,clock=false;
+  triggers.forEach(function(t){
+    if(t.getHandlerFunction()==='syncPlanilhaEditavelOnEdit_')edit=true;
+    if(t.getHandlerFunction()==='syncSupabaseParaPlanilhaEditavel_')clock=true;
+  });
+  if(!edit){
+    ScriptApp.newTrigger('syncPlanilhaEditavelOnEdit_')
+      .forSpreadsheet(SYNC_EDITABLE_SPREADSHEET_ID)
+      .onEdit()
+      .create();
+  }
+  if(!clock){
+    ScriptApp.newTrigger('syncSupabaseParaPlanilhaEditavel_')
+      .timeBased()
+      .everyMinutes(5)
+      .create();
+  }
+  const result=syncSupabaseParaPlanilhaEditavel_();
+  return {ok:true,onEdit:true,cada5Min:true,primeiraSincronizacao:result};
+}
