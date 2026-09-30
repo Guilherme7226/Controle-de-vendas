@@ -1,4 +1,4 @@
-name = "paozinhos"
+name = "paozinhos-v2"
 main = "worker.js"
 compatibility_date = "2026-09-26"
 
