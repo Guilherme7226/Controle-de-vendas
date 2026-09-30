@@ -149,26 +149,94 @@ function doPost(e) {
       case 'admin_listar_pedidos':
         return json({ok:true,data:{orders:readOrdersSupabase_()}});
       case 'admin_full_data': {
-        // Fonte principal do ADM: Supabase. Mantemos apenas os históricos
-        // ainda não migrados (custos/produção) como fallback temporário.
-        const dash=readDashboardDataBootstrap_(ss);
-        let custos=dashCostosFallback_();
-        let clientes=adminListClientsSupabase_();
-        let pedidos=readOrdersSupabase_();
-        let estoque=readStock(ss);
-        let producao=[];
-        try { producao=readProductionHistory(ss) || []; } catch (_) {}
+        // ADM V2: Supabase é a fonte única de leitura.
+        // A planilha não participa mais do carregamento inicial do painel.
+        const dash=readDashboardDataSupabase_();
+        const clientes=adminListClientsSupabase_();
+        const pedidos=readOrdersSupabase_();
+
+        const custosRows=supabaseSelectAll_(
+          'custos',
+          'id,descricao,valor,data'
+        ) || [];
+        const custos=custosRows.map(function(c){
+          return {
+            id:String(c.id||''),
+            descricao:String(c.descricao||''),
+            valor:Number(c.valor)||0,
+            data:String(c.data||'').slice(0,10)
+          };
+        });
+
+        const producaoRows=supabaseSelectAll_(
+          'producao',
+          'id,produto_id,quantidade,data,observacao,produtos(nome)'
+        ) || [];
+        const producao=producaoRows.map(function(p){
+          return {
+            id:String(p.id||''),
+            data:String(p.data||'').slice(0,10),
+            recheio:p.produtos&&p.produtos.nome?String(p.produtos.nome):'',
+            quantidade:Number(p.quantidade)||0,
+            observacao:String(p.observacao||'')
+          };
+        }).filter(function(p){ return p.recheio && p.quantidade>0; });
+
+        const estoqueRows=supabaseSelectAll_(
+          'estoque',
+          'produto_id,quantidade,estoque_minimo,produtos(nome)'
+        ) || [];
+        const movimentoRows=supabaseSelectAll_(
+          'movimentacoes_estoque',
+          'produto_id,tipo,quantidade,produtos(nome)'
+        ) || [];
+
+        const reservadoPorProduto={}, vendidoPorProduto={}, produzidoPorProduto={}, descartadoPorProduto={};
+        producaoRows.forEach(function(p){
+          const id=String(p.produto_id||'');
+          if(id) produzidoPorProduto[id]=(produzidoPorProduto[id]||0)+(Number(p.quantidade)||0);
+        });
+        (pedidos||[]).forEach(function(p){
+          const status=String(p.status||'').toLowerCase();
+          (p.itens||[]).forEach(function(item){
+            const prod=(estoqueRows.find(function(e){
+              return e.produtos&&String(e.produtos.nome||'').toLowerCase()===String(item.recheio||'').toLowerCase();
+            })||{});
+            const pid=String(prod.produto_id||'');
+            if(!pid)return;
+            const q=Number(item.quantidade)||0;
+            if(status==='reservado'||status==='pendente') reservadoPorProduto[pid]=(reservadoPorProduto[pid]||0)+q;
+            if(status==='confirmado'||status==='entregue') vendidoPorProduto[pid]=(vendidoPorProduto[pid]||0)+q;
+          });
+        });
+        movimentoRows.forEach(function(m){
+          if(String(m.tipo||'').toLowerCase()!=='descarte')return;
+          const pid=String(m.produto_id||'');
+          if(pid) descartadoPorProduto[pid]=(descartadoPorProduto[pid]||0)+Math.abs(Number(m.quantidade)||0);
+        });
+
+        const estoque=estoqueRows.map(function(e){
+          const pid=String(e.produto_id||'');
+          return {
+            produtoId:pid,
+            recheio:e.produtos&&e.produtos.nome?String(e.produtos.nome):'',
+            produzido:produzidoPorProduto[pid]||0,
+            reservado:reservadoPorProduto[pid]||0,
+            vendido:vendidoPorProduto[pid]||0,
+            descartado:descartadoPorProduto[pid]||0,
+            disponivel:Math.max(0,Number(e.quantidade)||0),
+            estoqueMinimo:Math.max(0,Number(e.estoque_minimo)||0)
+          };
+        }).filter(function(e){ return e.recheio; });
 
         return json({ok:true,data:{
           sales:dash.sales||[],
           summary:dash.summary||{},
           clientSummary:dash.clientSummary||[],
           clients:clientes||[],
-          costs:custos||[],
-          production:producao||[],
-          stock:(estoque||[]).map(function(x){
-            return Object.assign({produzido:0,reservado:0,vendido:0,descartado:0},x);
-          }),
+          costs:custos,
+          production:producao,
+          stock:estoque,
           orders:pedidos||[]
         }});
       }
