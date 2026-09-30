@@ -31,7 +31,7 @@ function doGet(e) {
       return json({ok:true,data:instalarSyncPlanilhaEditavel_()});
     }
     if (e && e.parameter && e.parameter.syncNow === '1') {
-      return json({ok:true,data:syncSupabaseParaPlanilhaEditavel_()});
+      return json({ok:true,data:syncBidirecionalPlanilhaEditavel_()});
     }
     return json({ok:true, service:'Controle de Vendas', version:APP_VERSION});
   } catch (err) {
@@ -5246,6 +5246,62 @@ function syncSupabaseParaPlanilhaEditavel_() {
   } finally {
     lock.releaseLock();
   }
+}
+
+
+function syncPlanilhaEditavelParaSupabase_() {
+  const ss=syncEditableSS_();
+  const resumo={vendas:0,clientes:0,custos:0,pedidos:0,producao:0,estoque:0,erros:[]};
+
+  function safe(label,fn){
+    try{ fn(); resumo[label]++; }
+    catch(err){ resumo.erros.push(label+': '+String(err && err.message || err)); }
+  }
+
+  // Vendas: só linhas explicitamente marcadas na coluna L.
+  const shV=ss.getSheetByName('Vendas');
+  if(shV && shV.getLastRow()>=3){
+    const last=shV.getLastRow();
+    const actions=shV.getRange(3,12,last-2,1).getDisplayValues();
+    actions.forEach(function(r,idx){
+      const action=String(r[0]||'').trim().toUpperCase();
+      if(!action)return;
+      const row=idx+3;
+      if(action==='ATUALIZAR'){
+        safe('vendas',function(){syncVendaRowToSupabase_(shV,row);});
+      }
+      shV.getRange(row,12).clearContent();
+    });
+  }
+
+  const configs=[
+    {sheet:'Clientes',actionCol:10,label:'clientes',fn:syncClienteRowToSupabase_},
+    {sheet:'Custos',actionCol:7,label:'custos',fn:syncCustoRowToSupabase_},
+    {sheet:'Pedidos Atuais',actionCol:10,label:'pedidos',fn:syncPedidoRowToSupabase_},
+    {sheet:'Produção',actionCol:7,label:'producao',fn:syncProducaoRowToSupabase_},
+    {sheet:'Estoque',actionCol:9,label:'estoque',fn:syncEstoqueRowToSupabase_}
+  ];
+
+  configs.forEach(function(cfg){
+    const sh=ss.getSheetByName(cfg.sheet);
+    if(!sh || sh.getLastRow()<2)return;
+    const n=sh.getLastRow()-1;
+    const acts=sh.getRange(2,cfg.actionCol,n,1).getDisplayValues();
+    for(let i=acts.length-1;i>=0;i--){
+      const action=String(acts[i][0]||'').trim().toUpperCase();
+      if(!action)continue;
+      const row=i+2;
+      safe(cfg.label,function(){cfg.fn(sh,row);});
+    }
+  });
+
+  return resumo;
+}
+
+function syncBidirecionalPlanilhaEditavel_() {
+  const enviados=syncPlanilhaEditavelParaSupabase_();
+  const recebidos=syncSupabaseParaPlanilhaEditavel_();
+  return {ok:true,enviados:enviados,recebidos:recebidos};
 }
 
 function instalarSyncPlanilhaEditavel_() {
