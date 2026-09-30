@@ -64,6 +64,6 @@ jobs:
       - name: Verificar V2 no endereço oficial
         run: |
           sleep 3
-          curl -fsSL -H 'Cache-Control: no-cache' 'https://paozinhos.mgpz.workers.dev/?verify=v2' -o /tmp/home.html
+          curl -fsSL -H 'Cache-Control: no-cache' "https://paozinhos.mgpz.workers.dev/?verify=${{ github.sha }}" -o /tmp/home.html
           head -n 40 /tmp/home.html
           grep -F 'Bem-vindo ao Pãozinhos' /tmp/home.html
