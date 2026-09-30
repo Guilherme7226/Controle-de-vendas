@@ -99,8 +99,8 @@ async function api(action,data,opts={}){
       if(pedidosError) throw pedidosError;
       const {data:vendas,error:vendasError}=await supabaseClient.from('vendas').select('id,data,total,valor_pago,observacao,pedido_id,created_at').eq('cliente_id',cliente.id).order('data',{ascending:false});
       if(vendasError) throw vendasError;
-      const normalizedPedidos=(pedidos||[]).map(p=>({id:p.id,data:(p.created_at||'').slice(0,10),status:p.status,total:Number(p.total)||0,valorPago:0,saldo:Number(p.total)||0,itens:(p.pedido_itens||[]).map(i=>({quantidade:Number(i.quantidade)||0,recheio:i.produtos?.nome||''}))}));
-      const normalizedVendas=(vendas||[]).map(v=>({row:v.id,data:v.data,total:Number(v.total)||0,valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),pedidoId:v.pedido_id||'',status:'Confirmado'}));
+      const normalizedPedidos=(pedidos||[]).map(p=>({id:p.id,data:(p.created_at||'').slice(0,10),createdAt:p.created_at||p.updated_at||'',status:p.status,total:Number(p.total)||0,valorPago:0,saldo:Number(p.total)||0,itens:(p.pedido_itens||[]).map(i=>({quantidade:Number(i.quantidade)||0,recheio:i.produtos?.nome||''}))}));
+      const normalizedVendas=(vendas||[]).map(v=>({row:v.id,data:v.data,createdAt:v.created_at||'',total:Number(v.total)||0,valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),pedidoId:v.pedido_id||'',status:'Confirmado'}));
       const byPedido={}; normalizedVendas.forEach(v=>{if(v.pedidoId)byPedido[v.pedidoId]=v;});
       normalizedPedidos.forEach(p=>{const v=byPedido[p.id];if(v){p.valorPago=v.valorPago;p.saldo=v.deve;}});
       return {ok:true,data:{mustChangePassword:!!cliente.primeira_senha,cliente,pedidos:normalizedPedidos,vendas:normalizedVendas}};
@@ -160,34 +160,44 @@ function renderOrders(list, vendas=[]){
   const pedidosIds=new Set(pedidosVisiveis.map(o=>String(o.id||'').trim()).filter(Boolean));
   const registros=[
     ...pedidosVisiveis.map(o=>({
-      type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
+      type:'pedido',data:o.data,createdAt:o.createdAt||'',id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
       total:Number(o.total)||0,valorPago:Number(o.valorPago)||0,
       saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,
       dataPagamento:o.dataPagamento||'',status:o.status,origem:o.origem||''
     })),
     // Só mostra uma venda separadamente quando ela NÃO pertence a um pedido.
     ...vendas.filter(v=>!v.pedidoId || !pedidosIds.has(String(v.pedidoId).trim())).map(v=>({
-      type:'venda',data:v.data,id:'VENDA #'+v.row,cliente:v.cliente,itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],
+      type:'venda',data:v.data,createdAt:v.createdAt||'',id:'VENDA #'+v.row,cliente:v.cliente,itens:[{quantidade:v.quantidade,recheio:'Venda registrada'}],
       quantidadeTotal:Number(v.quantidade)||0,total:Number(v.total)||0,valorPago:Number(v.valorPago)||0,
       saldo:Number(v.deve)||0,dataPagamento:v.dataPagamento||'',status:v.status,origem:'VENDA'
     }))
   ];
 
-  const atuais=registros.filter(x=>Number(x.saldo)>0);
-  const totalAtual=atuais.reduce((a,x)=>a+(Number(x.total)||0),0);
-  const pagoAtual=atuais.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
-  const abertoAtual=atuais.reduce((a,x)=>a+(Number(x.saldo)||0),0);
-  const paesAtuais=atuais.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);
+  const agora=Date.now();
+  const limite24h=24*60*60*1000;
+  const dentroDe24h=o=>{
+    if(o.type!=='pedido') return false;
+    const base=o.createdAt || (o.data ? o.data+'T00:00:00' : '');
+    const t=base ? new Date(base).getTime() : 0;
+    return t>0 && (agora-t)<limite24h;
+  };
+  const pendencias=registros.filter(x=>Number(x.saldo)>0);
+  const atuais=registros.filter(dentroDe24h);
+  const historico=registros.filter(x=>!dentroDe24h(x));
 
-  $('accountOrders').textContent=atuais.length;
+  const totalAtual=pendencias.reduce((a,x)=>a+(Number(x.total)||0),0);
+  const pagoAtual=pendencias.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
+  const abertoAtual=pendencias.reduce((a,x)=>a+(Number(x.saldo)||0),0);
+
+  $('accountOrders').textContent=pendencias.length;
   $('accountTotal').textContent=brl(totalAtual);
   $('accountPaid').textContent=brl(pagoAtual);
   $('accountOpen').textContent=brl(abertoAtual);
 
   if(!atuais.length){
-    $('orders').innerHTML='<div class="notice success">✅ Nenhuma pendência no momento. Sua conta está zerada.</div>';
+    $('orders').innerHTML='<div class="notice">Nenhum pedido feito nas últimas 24 horas.</div>';
   }else{
-    $('orders').innerHTML=[...atuais].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
+    $('orders').innerHTML=[...atuais].sort((a,b)=>String(b.createdAt||b.data||'').localeCompare(String(a.createdAt||a.data||''))).map(o=>{
       const actions=o.type==='pedido' && o.origem!=='VENDA_HISTORICA' && (o.status==='Reservado')
         ? '<div style="display:flex;gap:8px;margin-top:12px;flex-wrap:wrap"><button type="button" class="secondary order-edit" data-id="'+o.id+'">✏️ Editar</button><button type="button" class="danger order-delete" data-id="'+o.id+'">🗑️ Excluir</button></div>'
         : '';
@@ -199,18 +209,18 @@ function renderOrders(list, vendas=[]){
     }).join('');
   }
 
-  const totalHistorico=registros.reduce((a,x)=>a+(Number(x.total)||0),0);
-  const pagoHistorico=registros.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
-  const paesHistorico=registros.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);
-  $('historyOrders').textContent=registros.length;
+  const totalHistorico=historico.reduce((a,x)=>a+(Number(x.total)||0),0);
+  const pagoHistorico=historico.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
+  const paesHistorico=historico.reduce((a,x)=>a+(Number(x.quantidadeTotal)||0),0);
+  $('historyOrders').textContent=historico.length;
   $('historyBreads').textContent=paesHistorico;
   $('historyBought').textContent=brl(totalHistorico);
   $('historyPaid').textContent=brl(pagoHistorico);
 
-  if(!registros.length){
+  if(!historico.length){
     $('historyList').innerHTML='<div class="notice">Nenhum histórico disponível.</div>';
   }else{
-    $('historyList').innerHTML=[...registros].sort((a,b)=>String(b.data||'').localeCompare(String(a.data||''))).map(o=>{
+    $('historyList').innerHTML=[...historico].sort((a,b)=>String(b.createdAt||b.data||'').localeCompare(String(a.createdAt||a.data||''))).map(o=>{
       const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Aguardando':o.status);
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';
