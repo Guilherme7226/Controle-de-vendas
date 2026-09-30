@@ -35,7 +35,7 @@ async function proxyToAppsScript(request) {
     await new Promise(r=>setTimeout(r,300*(attempt+1)));
   }
   if(!response) throw new Error(lastError||'Falha ao comunicar com o Apps Script.');
-  const text = await response.text();
+  const text = typeof response.text === "string" ? response.text : "";
 
   // Nunca deixar uma página HTML do Google chegar ao frontend como resposta da API.
   if (!text.trim()) {
