@@ -1,12 +1,14 @@
+const CONFIG_URL = "https://lsevhjjklsnqegrpkiku.supabase.co/functions/v1/public-config";
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
 
     if (url.pathname === "/supabase-config") {
-      return new Response(JSON.stringify({
-        url: env.SUPABASE_URL || "https://lsevhjjklsnqegrpkiku.supabase.co",
-        key: env.SUPABASE_PUBLISHABLE_KEY || ""
-      }), {
+      const cfg = await fetch(CONFIG_URL, { headers: { accept: "application/json" } });
+      const body = await cfg.text();
+      return new Response(body, {
+        status: cfg.status,
         headers: {
           "content-type": "application/json; charset=UTF-8",
           "cache-control": "no-store"
