@@ -1,0 +1,48 @@
+name: Patch visual cliente V2
+
+on:
+  push:
+    branches:
+      - v2-supabase
+    paths:
+      - ".github/workflows/patch-client-v2.yml"
+
+permissions:
+  contents: write
+
+jobs:
+  patch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: v2-supabase
+      - name: Aplicar padrão visual V2
+        run: |
+          python - <<'PY'
+          from pathlib import Path
+          p=Path("cliente.html")
+          c=p.read_text(encoding="utf-8")
+          c=c.replace(
+            'body{margin:0;background:linear-gradient(135deg,#fff7ed,#fef3c7);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Roboto,Arial;min-height:100vh;transition:background .2s,color .2s} [data-theme="dark"] body{background:linear-gradient(135deg,#0b1120,#111827)}',
+            'body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Roboto,Arial;min-height:100vh;transition:background .2s,color .2s}'
+          )
+          c=c.replace(
+            'header{padding:16px 0 8px}header .top{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{margin:0;font-size:24px}header small{color:var(--muted)}',
+            'header{background:#111827;color:#fff;padding:14px 16px;margin:-18px -16px 10px;position:sticky;top:0;z-index:20}header .top{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{margin:0;font-size:22px}header small{color:#cbd5e1}'
+          )
+          c=c.replace(
+            '.panel{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px;box-shadow:var(--shadow);margin-top:14px}',
+            '.panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;box-shadow:var(--shadow);margin-top:14px}#auth .panel{max-width:620px;margin:34px auto}'
+          )
+          c=c.replace('<h2>Entrar</h2>','<h2>👤 Área do cliente</h2><div style="color:var(--muted);margin-bottom:12px">Entre com seu telefone e senha.</div>')
+          p.write_text(c,encoding="utf-8")
+          PY
+      - name: Commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add cliente.html
+          git diff --cached --quiet && exit 0
+          git commit -m "style: alinhar cliente ao padrão V2"
+          git push origin v2-supabase
