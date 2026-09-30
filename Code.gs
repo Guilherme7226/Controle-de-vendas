@@ -145,7 +145,7 @@ function doPost(e) {
         }});
 
       case 'admin_listar_pedidos':
-        return json({ok:true,data:{orders:readOrders(ss)}});
+        return json({ok:true,data:{orders:readOrdersSupabase_()}});
       case 'admin_full_data':
         // Dados completos somente depois que a tela do ADM já abriu.
         // Mantém o bootstrap de autenticação leve sem sacrificar o painel.
@@ -2500,6 +2500,74 @@ function getClientData(ss,d){
 function isPedidoAguardando(status){
   const s=normalize(status);
   return s==='RESERVADO' || s==='AGUARDANDO';
+}
+
+function readOrdersSupabase_() {
+  const pedidos = supabaseSelectAll_(
+    'pedidos',
+    'id,cliente_id,status,total,observacao,created_at,updated_at'
+  ) || [];
+  const clientes = supabaseSelectAll_(
+    'clientes',
+    'id,nome'
+  ) || [];
+  const produtos = supabaseSelectAll_(
+    'produtos',
+    'id,nome'
+  ) || [];
+  const itens = supabaseSelectAll_(
+    'pedido_itens',
+    'id,pedido_id,produto_id,quantidade,preco_unitario'
+  ) || [];
+
+  const nomesClientes = {};
+  clientes.forEach(function(c) {
+    nomesClientes[String(c.id)] = String(c.nome || '');
+  });
+
+  const nomesProdutos = {};
+  produtos.forEach(function(p) {
+    nomesProdutos[String(p.id)] = String(p.nome || '');
+  });
+
+  const itensPorPedido = {};
+  itens.forEach(function(item) {
+    const pedidoId = String(item.pedido_id || '');
+    if (!pedidoId) return;
+    if (!itensPorPedido[pedidoId]) itensPorPedido[pedidoId] = [];
+
+    itensPorPedido[pedidoId].push({
+      recheio: nomesProdutos[String(item.produto_id)] || 'Produto',
+      quantidade: Number(item.quantidade) || 0,
+      valorUnitario: Number(item.preco_unitario) || 0
+    });
+  });
+
+  return pedidos.map(function(p) {
+    const id = String(p.id || '');
+    const lista = itensPorPedido[id] || [];
+    const total = Number(p.total) || 0;
+    const quantidadeTotal = lista.reduce(function(s, item) {
+      return s + (Number(item.quantidade) || 0);
+    }, 0);
+
+    return {
+      id: id,
+      clienteId: String(p.cliente_id || ''),
+      cliente: nomesClientes[String(p.cliente_id)] || 'Cliente não identificado',
+      data: String(p.created_at || p.updated_at || '').slice(0,10),
+      itens: lista,
+      quantidadeTotal: quantidadeTotal,
+      total: total,
+      status: String(p.status || 'reservado').trim().toLowerCase(),
+      criadoEm: String(p.created_at || ''),
+      valorPago: 0,
+      dataPagamento: '',
+      saldo: total,
+      origem: 'SUPABASE',
+      referencia: ''
+    };
+  });
 }
 
 function readOrders(ss) {
