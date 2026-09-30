@@ -3,30 +3,54 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
-<meta name="theme-color" content="#ea580c">
-<title>Paozinhos</title>
+<meta name="theme-color" content="#111827">
+<title>Pãozinhos</title>
 <style>
-*{box-sizing:border-box}html,body{width:100%;min-height:100%;margin:0}
-body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#fff7ed,#fef3c7);color:#292524;transition:background .2s,color .2s}.theme-toggle{position:fixed;top:16px;right:16px;width:auto;min-height:auto;padding:9px 12px;background:rgba(255,255,255,.8);color:#292524;border:1px solid #e7e5e4;border-radius:10px;font-size:13px}.dark body{background:linear-gradient(135deg,#0b1120,#111827);color:#f3f4f6}.dark .card{background:#111827;border-color:#263244}.dark p{color:#9ca3af}.dark small{color:#6b7280}.dark .theme-toggle{background:#172033;color:#f3f4f6;border-color:#334155}.dark .admin{background:#334155}
-.card{width:100%;max-width:460px;background:#fff;border:1px solid #e7e5e4;border-radius:24px;padding:42px 32px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.10)}
-.logo{font-size:58px;line-height:1;margin-bottom:14px}h1{margin:0;font-size:34px;line-height:1.15}p{color:#78716c;line-height:1.5;margin:12px 0 28px}.actions{display:grid;gap:12px}
-button{width:100%;min-height:54px;border:0;border-radius:12px;padding:15px 20px;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}
-.client{background:#ea580c;color:white;box-shadow:0 6px 16px rgba(234,88,12,.22)}.admin{background:#292524;color:white;box-shadow:0 6px 16px rgba(41,37,36,.18)}
-button:hover{filter:brightness(.95)}button:active{transform:scale(.99)}small{display:block;margin-top:22px;color:#a8a29e;font-size:12px}
-@media(max-width:480px){body{padding:16px}.card{padding:34px 22px;border-radius:20px}.logo{font-size:52px}h1{font-size:30px}p{font-size:15px;margin-bottom:24px}button{min-height:54px;font-size:16px}}
-@media(max-height:600px) and (orientation:landscape){body{align-items:flex-start}.card{margin:16px 0}}
+:root{--bg:#f4f6f8;--card:#fff;--text:#172033;--muted:#6b7280;--line:#e5e7eb;--header:#111827;--orange:#ea580c;--blue:#2563eb;--shadow:0 12px 32px rgba(15,23,42,.08)}
+[data-theme=dark]{--bg:#0b1120;--card:#111827;--text:#f3f4f6;--muted:#9ca3af;--line:#263244;--header:#050914;--shadow:0 12px 32px rgba(0,0,0,.28)}
+*{box-sizing:border-box}html,body{margin:0;min-height:100%}body{min-height:100vh;background:var(--bg);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Arial}
+.top{height:64px;background:var(--header);color:white;display:flex;align-items:center;justify-content:space-between;padding:0 18px;position:sticky;top:0}
+.brand strong{font-size:18px}.brand small{display:block;color:#cbd5e1;margin-top:2px}.theme{background:rgba(255,255,255,.08);color:#fff;border:1px solid rgba(255,255,255,.16);border-radius:10px;padding:9px 12px;cursor:pointer}
+main{min-height:calc(100vh - 64px);display:grid;place-items:center;padding:28px 16px}.hero{width:min(920px,100%)}.intro{text-align:center;margin-bottom:22px}.logo{font-size:58px}.intro h1{font-size:34px;margin:8px 0 6px}.intro p{color:var(--muted);margin:0}
+.choices{display:grid;grid-template-columns:1fr 1fr;gap:16px}.choice{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:230px}.choice-icon{font-size:36px}.choice h2{margin:14px 0 8px;font-size:22px}.choice p{color:var(--muted);line-height:1.5;margin:0 0 20px}.choice button{margin-top:auto;width:100%;border:0;border-radius:11px;padding:13px 15px;color:#fff;font-weight:750;font-size:16px;cursor:pointer}.client button{background:var(--orange)}.admin button{background:var(--blue)}.choice button:hover{filter:brightness(.96)}
+.status{margin-top:18px;text-align:center;color:var(--muted);font-size:12px}
+@media(max-width:680px){.choices{grid-template-columns:1fr}.choice{min-height:190px}.intro h1{font-size:29px}.top{padding:0 12px}.brand small{display:none}main{padding:20px 12px}}
 </style>
 </head>
-<body><button id="themeToggle" class="theme-toggle" type="button">🌙 Modo escuro</button>
-<main class="card">
-<div class="logo">🥖</div>
-<h1>Paozinhos</h1>
-<p>Escolha uma área para continuar.</p>
-<div class="actions">
-<button type="button" class="client" onclick="location.href='/cliente'">👤 Entrar como cliente</button>
-<button type="button" class="admin" onclick="location.href='/sistema'">🔐 Entrar como administrador</button>
-</div>
-<small>👤 Área do cliente • 🔐 Administração</small>
+<body>
+<header class="top">
+  <div class="brand"><strong>🥖 Pãozinhos</strong><small>Pedidos e controle de vendas</small></div>
+  <button id="themeBtn" class="theme" type="button">🌙 Modo escuro</button>
+</header>
+<main>
+  <div class="hero">
+    <div class="intro">
+      <div class="logo">🥖</div>
+      <h1>Bem-vindo ao Pãozinhos</h1>
+      <p>Escolha como deseja acessar o sistema.</p>
+    </div>
+    <div class="choices">
+      <section class="choice client">
+        <div class="choice-icon">👤</div>
+        <h2>Área do cliente</h2>
+        <p>Faça pedidos, consulte seu histórico e acompanhe valores em aberto.</p>
+        <button type="button" onclick="location.href='/cliente'">Entrar como cliente</button>
+      </section>
+      <section class="choice admin">
+        <div class="choice-icon">🔐</div>
+        <h2>Administração</h2>
+        <p>Acesse dashboard, contas a receber, vendas, pedidos, estoque, produção e custos.</p>
+        <button type="button" onclick="location.href='/sistema'">Entrar como administrador</button>
+      </section>
+    </div>
+    <div class="status">Sistema V2 · Dados no Supabase</div>
+  </div>
 </main>
-<script>const theme=localStorage.getItem('vendas_theme')||'light';document.documentElement.classList.toggle('dark',theme==='dark');const b=document.getElementById('themeToggle');function updateTheme(){const d=document.documentElement.classList.contains('dark');b.textContent=d?'☀️ Modo claro':'🌙 Modo escuro'}b.onclick=()=>{const d=!document.documentElement.classList.contains('dark');document.documentElement.classList.toggle('dark',d);localStorage.setItem('vendas_theme',d?'dark':'light');updateTheme()};updateTheme();</script></body>
+<script>
+const root=document.documentElement,btn=document.getElementById('themeBtn');
+function renderTheme(){const dark=root.dataset.theme==='dark';btn.textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}
+const saved=localStorage.getItem('pao_theme');if(saved)root.dataset.theme=saved;renderTheme();
+btn.onclick=()=>{root.dataset.theme=root.dataset.theme==='dark'?'light':'dark';localStorage.setItem('pao_theme',root.dataset.theme);renderTheme()};
+</script>
+</body>
 </html>
