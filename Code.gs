@@ -14,7 +14,7 @@ const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frang
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-30-supabase-migracao-v1';
 const FORMATACAO_PLANILHA_VERSAO = '2026-09-28-1';
-const SUPPORTED_ACTIONS = ['venda','custo','editar_custo','excluir_custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_verificar_migracao_supabase','admin_migrar_tudo','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes'];
+const SUPPORTED_ACTIONS = ['venda','custo','editar_custo','excluir_custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_verificar_migracao_supabase','admin_migrar_tudo','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes','admin_client_access'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -51,7 +51,7 @@ function doPost(e) {
     const d = body.data || body || {};
 
     // Somente ações de cliente podem ser chamadas sem sessão administrativa.
-    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar'];
+    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar','admin_client_access'];
     if (body.action === 'estoque_atual') {
       // O estoque é consultado tanto pela área do cliente quanto pela administração.
       // Cliente envia d.token; administração envia body.adminToken.
@@ -100,6 +100,8 @@ function doPost(e) {
         return json({ok:true,data:adminLogin(d)});
       case 'admin_validar':
         return json({ok:true,data:adminValidate(d)});
+      case 'admin_client_access':
+        return json({ok:true,data:adminClientAccessSupabase_(d)});
       case 'cliente_cadastro':
         return json({ok:true,data:registerClient(ss,d)});
       case 'cliente_login':
@@ -4520,6 +4522,104 @@ function supabaseAuthRequest_(path, method, body) {
   }
 
   return text ? JSON.parse(text) : null;
+}
+
+
+function validarAdminSupabaseToken_(token) {
+  const cfg=supabaseAuthConfig_();
+  const t=String(token||'').trim();
+  if(!t)throw new Error('Sessão administrativa ausente.');
+
+  const userRes=UrlFetchApp.fetch(cfg.url+'/auth/v1/user',{
+    method:'get',
+    muteHttpExceptions:true,
+    headers:{
+      Authorization:'Bearer '+t,
+      apikey:cfg.key,
+      'Content-Type':'application/json'
+    }
+  });
+  if(userRes.getResponseCode()<200||userRes.getResponseCode()>=300){
+    throw new Error('Sessão administrativa inválida.');
+  }
+
+  const rpcRes=UrlFetchApp.fetch(cfg.url+'/rest/v1/rpc/is_admin',{
+    method:'post',
+    muteHttpExceptions:true,
+    headers:{
+      Authorization:'Bearer '+t,
+      apikey:cfg.key,
+      'Content-Type':'application/json'
+    },
+    payload:'{}'
+  });
+  if(rpcRes.getResponseCode()<200||rpcRes.getResponseCode()>=300){
+    throw new Error('Não foi possível validar o administrador.');
+  }
+  let isAdmin=false;
+  try{isAdmin=JSON.parse(rpcRes.getContentText())===true;}catch(_){}
+  if(!isAdmin)throw new Error('Acesso administrativo negado.');
+  return true;
+}
+
+function adminClientAccessSupabase_(d) {
+  validarAdminSupabaseToken_(d.supabaseToken);
+
+  const clienteId=String(d.clienteId||'').trim();
+  const tipo=String(d.tipo||'reset').trim();
+  if(!clienteId)throw new Error('Cliente inválido.');
+
+  const rows=supabaseRequest_(
+    '/rest/v1/v2_clientes?select=id,nome,telefone,usuario_id,ativo&id=eq.'+encodeURIComponent(clienteId)+'&limit=1',
+    'get'
+  )||[];
+  if(!rows.length)throw new Error('Cliente não encontrado.');
+  const cliente=rows[0];
+  if(cliente.ativo===false)throw new Error('Cliente inativo.');
+
+  let telefone=String(cliente.telefone||'').replace(/\D/g,'');
+  if(telefone.indexOf('55')===0&&(telefone.length===12||telefone.length===13))telefone=telefone.slice(2);
+  if(telefone.length<10)throw new Error('Cliente sem telefone válido.');
+
+  const email=telefone+'@clientes.paozinhos.local';
+  const senha=gerarSenhaTemporaria_();
+  let uid=String(cliente.usuario_id||'').trim();
+
+  if(uid){
+    supabaseAuthRequest_('/auth/v1/admin/users/'+encodeURIComponent(uid),'put',{
+      email:email,
+      password:senha,
+      email_confirm:true,
+      user_metadata:{nome:cliente.nome,telefone:telefone},
+      app_metadata:{role:'cliente'}
+    });
+  }else{
+    const criado=supabaseAuthRequest_('/auth/v1/admin/users','post',{
+      email:email,
+      password:senha,
+      email_confirm:true,
+      user_metadata:{nome:cliente.nome,telefone:telefone},
+      app_metadata:{role:'cliente'}
+    });
+    uid=String(criado&&criado.id||'');
+    if(!uid)throw new Error('Não foi possível criar o acesso do cliente.');
+  }
+
+  supabaseRequest_(
+    '/rest/v1/v2_clientes?id=eq.'+encodeURIComponent(clienteId),
+    'patch',
+    {usuario_id:uid,primeira_senha:true,updated_at:new Date().toISOString()},
+    'return=minimal'
+  );
+
+  return {
+    clienteId:clienteId,
+    nome:String(cliente.nome||''),
+    telefone:telefone,
+    login:telefone,
+    senhaTemporaria:senha,
+    tipo:tipo
+  };
 }
 
 function supabaseAuthListUsers_() {
