@@ -265,7 +265,7 @@ async function api(action,data,opts={}){
     if(action==='cliente_dados'){
       const cliente=await getClient();
       const {data:pedidos,error:pedidosError}=await supabaseClient.from('v2_pedidos')
-        .select('id,data,status,quantidade_total,total,origem,referencia,observacao,created_at,updated_at')
+        .select('id,numero_pedido,data,status,quantidade_total,total,origem,referencia,observacao,created_at,updated_at')
         .eq('cliente_id',cliente.id).order('created_at',{ascending:false});
       if(pedidosError)throw pedidosError;
 
@@ -300,7 +300,7 @@ async function api(action,data,opts={}){
         const venda=byPedido[p.id];
         const st=String(p.status||'').toLowerCase();
         return {
-          id:p.id,data:p.data,createdAt:p.created_at||p.updated_at||'',status:st==='reservado'?'Reservado':st==='confirmado'?'Confirmado':st==='cancelado'?'Cancelado':p.status,
+          id:p.id,numeroPedido:p.numero_pedido||null,data:p.data,createdAt:p.created_at||p.updated_at||'',status:st==='reservado'?'Reservado':st==='confirmado'?'Confirmado':st==='cancelado'?'Cancelado':p.status,
           total:Number(p.total)||0,valorPago:venda?Number(venda.valorPago)||0:0,
           saldo:venda?Number(venda.deve)||0:Number(p.total)||0,
           quantidadeTotal:Number(p.quantidade_total)||0,itens:itensByPedido[p.id]||[],
@@ -622,7 +622,7 @@ $('orderBtn').onclick=async()=>{
        (atualizado.itens||[]).forEach(i=>newMap[i.recheio]=(newMap[i.recheio]||0)+(Number(i.quantidade)||0));
        stock=(stock||[]).map(x=>{const delta=(Number(oldMap[x.recheio]||0)-Number(newMap[x.recheio]||0));return Object.assign({},x,{reservado:Math.max(0,(Number(x.reservado)||0)-delta),disponivel:(Number(x.disponivel)||0)+delta})});
      }
-     showMsg('Pedido '+j.data.id+' atualizado com sucesso.','success');
+     showMsg('Pedido #'+(j.data.numeroPedido||j.data.numero_pedido||'')+' atualizado com sucesso.','success');
    }else{
      // A mesma chave é reutilizada se a primeira requisição demorar ou expirar
      // no navegador. Assim um novo clique/reenvio não cria outro pedido.
@@ -633,7 +633,7 @@ $('orderBtn').onclick=async()=>{
      btn.textContent='Enviando...';
      j=await api('cliente_pedido',{token:s.token,data:today(),itens,requestId:pendingOrderRequestId});
      if(!j)return;
-     showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');
+     showMsg('Pedido #'+(j.data.numeroPedido||j.data.numero_pedido||'')+' reservado com sucesso!','success');
      showReserveAnimation();
    }
 
