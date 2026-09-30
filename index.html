@@ -7,7 +7,7 @@
 <title>Paozinhos</title>
 <style>
 *{box-sizing:border-box}html,body{width:100%;min-height:100%;margin:0}
-body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#fff7ed,#fef3c7);color:#292524;transition:background .2s,color .2s}.theme-toggle{position:fixed;top:16px;right:16px;width:auto;min-height:auto;padding:9px 12px;background:rgba(255,255,255,.8);color:#292524;border:1px solid #e7e5e4;border-radius:10px;font-size:13px}.dark body{background:linear-gradient(135deg,#0b1120,#111827);color:#f3f4f6}.dark .card{background:#111827;border-color:#263244}.dark p{color:#9ca3af}.dark small{color:#6b7280}.dark .theme-toggle{background:#172033;color:#f3f4f6;border-color:#334155}.dark .admin{background:#334155}.dark #adminModal .card{background:#111827;border-color:#334155}.dark #adminModal input{background:#172033;color:#f3f4f6;border-color:#475569}.dark #adminModal p{color:#9ca3af}.dark #adminModal button[onclick="closeAdminLogin()"]{background:#1f2937!important;color:#f3f4f6!important;border-color:#475569}.dark #adminModal button[onclick="checkAdminPassword()"]{background:#ea580c!important;color:#fff!important}
+body{min-height:100vh;min-height:100dvh;display:flex;align-items:center;justify-content:center;padding:20px;padding-top:max(20px,env(safe-area-inset-top));padding-bottom:max(20px,env(safe-area-inset-bottom));font-family:Arial,Helvetica,sans-serif;background:linear-gradient(135deg,#fff7ed,#fef3c7);color:#292524;transition:background .2s,color .2s}.theme-toggle{position:fixed;top:16px;right:16px;width:auto;min-height:auto;padding:9px 12px;background:rgba(255,255,255,.8);color:#292524;border:1px solid #e7e5e4;border-radius:10px;font-size:13px}.dark body{background:linear-gradient(135deg,#0b1120,#111827);color:#f3f4f6}.dark .card{background:#111827;border-color:#263244}.dark p{color:#9ca3af}.dark small{color:#6b7280}.dark .theme-toggle{background:#172033;color:#f3f4f6;border-color:#334155}.dark .admin{background:#334155}
 .card{width:100%;max-width:460px;background:#fff;border:1px solid #e7e5e4;border-radius:24px;padding:42px 32px;text-align:center;box-shadow:0 18px 50px rgba(0,0,0,.10)}
 .logo{font-size:58px;line-height:1;margin-bottom:14px}h1{margin:0;font-size:34px;line-height:1.15}p{color:#78716c;line-height:1.5;margin:12px 0 28px}.actions{display:grid;gap:12px}
 button{width:100%;min-height:54px;border:0;border-radius:12px;padding:15px 20px;font-size:17px;font-weight:700;cursor:pointer;touch-action:manipulation}
@@ -16,7 +16,6 @@ button:hover{filter:brightness(.95)}button:active{transform:scale(.99)}small{dis
 @media(max-width:480px){body{padding:16px}.card{padding:34px 22px;border-radius:20px}.logo{font-size:52px}h1{font-size:30px}p{font-size:15px;margin-bottom:24px}button{min-height:54px;font-size:16px}}
 @media(max-height:600px) and (orientation:landscape){body{align-items:flex-start}.card{margin:16px 0}}
 </style>
-<style>#adminModal[hidden]{display:none!important}</style>
 </head>
 <body><button id="themeToggle" class="theme-toggle" type="button">🌙 Modo escuro</button>
 <main class="card">
@@ -24,29 +23,10 @@ button:hover{filter:brightness(.95)}button:active{transform:scale(.99)}small{dis
 <h1>Paozinhos</h1>
 <p>Escolha uma área para continuar.</p>
 <div class="actions">
-<button type="button" class="client" onclick="location.href='/cliente.html'">👤 Área do cliente</button>
-<button type="button" class="admin" onclick="openAdminLogin()">🔐 Administração</button>
+<button type="button" class="client" onclick="location.href='/cliente'">👤 Entrar como cliente</button>
+<button type="button" class="admin" onclick="location.href='/sistema'">🔐 Entrar como administrador</button>
 </div>
 <small>👤 Área do cliente • 🔐 Administração</small>
-<div id="adminModal" hidden style="position:fixed;inset:0;background:rgba(0,0,0,.58);z-index:20;display:flex;align-items:center;justify-content:center;padding:20px"><div class="card" style="max-width:390px;text-align:left"><h2 style="margin:0 0 8px">🔐 Administração</h2><p style="margin:0 0 16px">Digite sua senha para continuar.</p><input id="adminPassword" type="password" inputmode="numeric" autocomplete="off" placeholder="Senha" style="width:100%;box-sizing:border-box;padding:12px;border:1px solid #d6d3d1;border-radius:10px;font-size:16px"><div id="adminError" style="min-height:20px;color:#dc2626;font-size:13px;margin-top:8px"></div><div style="display:flex;gap:8px;margin-top:14px"><button type="button" onclick="closeAdminLogin()" style="background:#f5f5f4;color:#292524">Cancelar</button><button type="button" onclick="checkAdminPassword()" style="background:#292524;color:#fff">Entrar</button></div></div></div></main>
-<script>const theme=localStorage.getItem('vendas_theme')||'light';document.documentElement.classList.toggle('dark',theme==='dark');const b=document.getElementById('themeToggle');function updateTheme(){const d=document.documentElement.classList.contains('dark');b.textContent=d?'☀️ Modo claro':'🌙 Modo escuro'}b.onclick=()=>{const d=!document.documentElement.classList.contains('dark');document.documentElement.classList.toggle('dark',d);localStorage.setItem('vendas_theme',d?'dark':'light');updateTheme()};updateTheme();</script><script>
-const ADMIN_API_URL='/api';
-function openAdminLogin(){document.getElementById('adminModal').hidden=false;document.getElementById('adminPassword').value='';document.getElementById('adminError').textContent='';setTimeout(()=>document.getElementById('adminPassword').focus(),50)}
-function closeAdminLogin(){document.getElementById('adminModal').hidden=true}
-async function checkAdminPassword(){
-  const err=document.getElementById('adminError'), senha=document.getElementById('adminPassword').value;
-  err.textContent='Verificando...';
-  try{
-    const r=await fetch(ADMIN_API_URL,{method:'POST',mode:'same-origin',redirect:'follow',cache:'no-store',headers:{'Content-Type':'text/plain;charset=UTF-8'},body:JSON.stringify({action:'admin_login',data:{senha}})});
-    const text=await r.text();
-    if(!text.trim()) throw new Error('O servidor respondeu vazio. Verifique o deploy do /api.');
-    let j; try{j=JSON.parse(text)}catch(_){throw new Error('O servidor não retornou JSON válido. Atualize a página e tente novamente.')}
-    if(!j.ok) throw new Error(j.error||'Senha incorreta.');
-    if(!j.data || !j.data.token) throw new Error('O servidor não retornou o token de administrador. Recarregue a página e tente novamente.');
-    sessionStorage.setItem('admin_token',j.data.token);
-    location.href='/sistema.html';
-  }catch(e){    console.error('Falha no login administrativo:',e);    err.textContent=(e&&e.message==='Failed to fetch')      ? 'Não foi possível conectar ao Apps Script. Confira se a implantação está como “Qualquer pessoa” e se esta é a URL /exec.'      : (e.message||'Não foi possível validar a senha.');  }
-}
-document.getElementById('adminPassword').addEventListener('keydown',e=>{if(e.key==='Enter')checkAdminPassword()});
-</script></body>
+</main>
+<script>const theme=localStorage.getItem('vendas_theme')||'light';document.documentElement.classList.toggle('dark',theme==='dark');const b=document.getElementById('themeToggle');function updateTheme(){const d=document.documentElement.classList.contains('dark');b.textContent=d?'☀️ Modo claro':'🌙 Modo escuro'}b.onclick=()=>{const d=!document.documentElement.classList.contains('dark');document.documentElement.classList.toggle('dark',d);localStorage.setItem('vendas_theme',d?'dark':'light');updateTheme()};updateTheme();</script></body>
 </html>
