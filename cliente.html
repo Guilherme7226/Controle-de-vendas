@@ -236,6 +236,15 @@ function showReserveAnimation(){
 }
 
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
+async function boundedRequest(query,timeout=15000){
+  const controller=new AbortController();let timer;
+  try{
+    return await Promise.race([
+      query.abortSignal(controller.signal),
+      new Promise((_,reject)=>{timer=setTimeout(()=>{controller.abort();reject(Error('O envio demorou mais que o esperado. Tente novamente; o mesmo pedido não será duplicado.'));},timeout);})
+    ]);
+  }finally{clearTimeout(timer);}
+}
 async function api(action,data,opts={}){
   try{
     const getClient=async()=>{
@@ -327,35 +336,29 @@ async function api(action,data,opts={}){
     if(action==='cliente_cadastro')throw Error('Novos cadastros estão desativados nesta versão. O acesso é criado pelo administrador.');
 
     if(action==='estoque_atual'){
-      const controller=new AbortController();
-      const timer=setTimeout(()=>controller.abort(),opts.timeout||15000);
-      let result;
-      try{result=await supabaseClient.rpc('v2_estoque_cliente').abortSignal(controller.signal);}
-      finally{clearTimeout(timer);}
+      const result=await boundedRequest(supabaseClient.rpc('v2_estoque_cliente'),opts.timeout||15000);
       const {data,error}=result;
       if(error)throw error;
       return {ok:true,data:{stock:(data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0}))}};
     }
 
     if(action==='cliente_pedido'){
-      const estoque=await supabaseClient.rpc('v2_estoque_cliente');
-      if(estoque.error)throw estoque.error;
       const itensInput=(data?.itens||[]).filter(i=>Number(i.quantidade)>0);
       if(!itensInput.length)throw Error('Escolha pelo menos um recheio.');
       const rpcItens=itensInput.map(i=>{
-        const st=(estoque.data||[]).find(x=>x.nome===i.recheio);
+        const st=stock.find(x=>x.recheio===i.recheio);
         if(!st)throw Error('Produto inválido: '+i.recheio);
-        if(Number(st.disponivel)<Number(i.quantidade))throw Error('Estoque insuficiente para '+i.recheio+'.');
-        return {produto_id:st.produto_id,quantidade:Number(i.quantidade)};
+        return {produto_id:st.produtoId,quantidade:Number(i.quantidade)};
       });
-      const r=await supabaseClient.rpc('v2_criar_pedido_cliente',{p_itens:rpcItens,p_observacao:data?.requestId?('requestId:'+data.requestId):null});
+      const r=await boundedRequest(supabaseClient.rpc('v2_criar_pedido_cliente',{p_itens:rpcItens,p_observacao:data?.requestId?('requestId:'+data.requestId):null}),opts.timeout||15000);
       if(r.error)throw r.error;
       const pedidoId=r.data;
-      const dados=await api('cliente_dados',{}, {silent:true});
-      const pedido=(dados?.data?.pedidos||[]).find(x=>String(x.id)===String(pedidoId));
-      const stk=await api('estoque_atual',{}, {silent:true});
-      if(!pedido)throw Error('Pedido criado, mas não foi possível recarregar os dados.');
-      return {ok:true,data:{...pedido,stock:stk?.data?.stock||[]}};
+      if(!pedidoId)throw Error('Não foi possível confirmar a reserva. Tente novamente.');
+      const pedido={id:pedidoId,data:data?.data||today(),status:'Reservado',itens:itensInput,
+        quantidadeTotal:itensInput.reduce((s,i)=>s+Number(i.quantidade),0),
+        total:itensInput.reduce((s,i)=>s+Number(i.quantidade)*(Number(stock.find(x=>x.recheio===i.recheio)?.preco)||PRECO),0),valorPago:0};
+      const atualizado=stock.map(x=>({...x,disponivel:Math.max(0,Number(x.disponivel)-(Number(itensInput.find(i=>i.recheio===x.recheio)?.quantidade)||0))}));
+      return {ok:true,data:{...pedido,saldo:pedido.total,stock:atualizado}};
     }
 
     if(action==='cliente_editar_pedido'){
@@ -653,7 +656,7 @@ $('orderBtn').onclick=async()=>{
      btn.textContent='Enviando...';
      j=await api('cliente_pedido',{token:s.token,data:today(),itens,requestId:pendingOrderRequestId});
      if(!j)return;
-     showMsg('Pedido #'+(j.data.numeroPedido||j.data.numero_pedido||'')+' reservado com sucesso!','success');
+     showMsg('Pedido reservado com sucesso!','success');
      showReserveAnimation();
    }
 
@@ -671,6 +674,7 @@ $('orderBtn').onclick=async()=>{
    $('cancelEdit').classList.add('hidden');
    if(j.data&&j.data.stock)renderStock(j.data.stock);
    renderOrders(currentPedidos,currentVendas);
+   if(j?.ok)loadClient().catch(()=>{});
  }finally{
    btn.disabled=false;
    if(editingOrderId)btn.textContent='Salvar alterações';
