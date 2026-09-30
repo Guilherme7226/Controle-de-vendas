@@ -158,7 +158,6 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 <header class="top">
   <div class="brand"><strong>🥖 Pãozinhos V2</strong><br><small>Banco Supabase</small></div>
   <div class="top-actions">
-    <button id="backBtn" class="secondary">← Voltar</button>
     <button id="themeBtn" class="secondary">🌙</button>
     <button id="logoutBtn" class="secondary">Sair</button>
   </div>
@@ -329,7 +328,6 @@ $('loginBtn').onclick=async()=>{
 };
 $('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
 $('logoutBtn').onclick=()=>sb.auth.signOut();
-$('backBtn').onclick=()=>location.href='/';
 $('themeBtn').onclick=()=>{const d=document.documentElement;const n=d.dataset.theme==='dark'?'light':'dark';d.dataset.theme=n;localStorage.setItem('pao_theme',n);$('themeBtn').textContent=n==='dark'?'☀️':'🌙'};
 (function(){const t=localStorage.getItem('pao_theme');if(t)document.documentElement.dataset.theme=t})();
 function setDates(){['saleDate','prodDate','discardDate','costDate'].forEach(id=>{if($(id))$(id).value=today()})}
