@@ -179,56 +179,172 @@ const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getF
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
 async function api(action,data,opts={}){
   try{
+    const getClient=async()=>{
+      const {data:sessionData}=await supabaseClient.auth.getSession();
+      const user=sessionData.session?.user;
+      if(!user)throw Error('Sessão expirada.');
+      const {data:cliente,error}=await supabaseClient.from('v2_clientes')
+        .select('id,nome,telefone,email,primeira_senha,ativo,usuario_id')
+        .eq('usuario_id',user.id).maybeSingle();
+      if(error)throw error;
+      if(!cliente)throw Error('Cadastro do cliente não encontrado.');
+      if(cliente.ativo===false)throw Error('Este cadastro está inativo.');
+      return cliente;
+    };
+
     if(action==='cliente_login'){
       const login=String(data?.login||'').replace(/\D/g,'');
       const senha=String(data?.senha||'');
-      if(!login||!senha) throw Error('Informe telefone e senha.');
+      if(!login||!senha)throw Error('Informe telefone e senha.');
       const email=login+'@clientes.paozinhos.local';
       const {data:authData,error}=await supabaseClient.auth.signInWithPassword({email,password:senha});
-      if(error) throw error;
-      const user=authData.user;
-      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').eq('usuario_id',user.id).maybeSingle();
-      if(clienteError) throw clienteError;
-      if(!cliente) throw Error('Cadastro do cliente não encontrado.');
-      if(cliente.ativo===false) throw Error('Este cadastro está inativo.');
+      if(error)throw error;
+      const cliente=await getClient();
       return {ok:true,data:{token:authData.session?.access_token||'',mustChangePassword:!!cliente.primeira_senha,cliente}};
     }
+
     if(action==='cliente_dados'){
-      const {data:sessionData}=await supabaseClient.auth.getSession();
-      const user=sessionData.session?.user;
-      if(!user) throw Error('Sessão expirada.');
-      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').eq('usuario_id',user.id).maybeSingle();
-      if(clienteError) throw clienteError;
-      if(!cliente) throw Error('Cadastro do cliente não encontrado.');
-      const {data:pedidos,error:pedidosError}=await supabaseClient.from('pedidos').select('id,status,total,observacao,created_at,updated_at,pedido_itens(id,quantidade,preco_unitario,subtotal,produtos(id,nome))').eq('cliente_id',cliente.id).order('created_at',{ascending:false});
-      if(pedidosError) throw pedidosError;
-      const {data:vendas,error:vendasError}=await supabaseClient.from('vendas').select('id,data,total,valor_pago,observacao,pedido_id,created_at').eq('cliente_id',cliente.id).order('data',{ascending:false});
-      if(vendasError) throw vendasError;
-      const normalizedPedidos=(pedidos||[]).map(p=>({id:p.id,data:(p.created_at||'').slice(0,10),createdAt:p.created_at||p.updated_at||'',status:p.status,total:Number(p.total)||0,valorPago:0,saldo:Number(p.total)||0,itens:(p.pedido_itens||[]).map(i=>({quantidade:Number(i.quantidade)||0,recheio:i.produtos?.nome||''}))}));
-      const normalizedVendas=(vendas||[]).map(v=>({row:v.id,data:v.data,createdAt:v.created_at||'',total:Number(v.total)||0,valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),pedidoId:v.pedido_id||'',status:'Confirmado'}));
-      const byPedido={}; normalizedVendas.forEach(v=>{if(v.pedidoId)byPedido[v.pedidoId]=v;});
-      normalizedPedidos.forEach(p=>{const v=byPedido[p.id];if(v){p.valorPago=v.valorPago;p.saldo=v.deve;}});
+      const cliente=await getClient();
+      const {data:pedidos,error:pedidosError}=await supabaseClient.from('v2_pedidos')
+        .select('id,data,status,quantidade_total,total,origem,referencia,observacao,created_at,updated_at')
+        .eq('cliente_id',cliente.id).order('created_at',{ascending:false});
+      if(pedidosError)throw pedidosError;
+
+      const ids=(pedidos||[]).map(p=>p.id);
+      let itens=[];
+      if(ids.length){
+        const ir=await supabaseClient.from('v2_pedido_itens')
+          .select('id,pedido_id,produto_id,descricao,quantidade,valor_unitario,subtotal')
+          .in('pedido_id',ids);
+        if(ir.error)throw ir.error;
+        itens=ir.data||[];
+      }
+      const itensByPedido={};
+      itens.forEach(i=>{
+        if(!itensByPedido[i.pedido_id])itensByPedido[i.pedido_id]=[];
+        itensByPedido[i.pedido_id].push({quantidade:Number(i.quantidade)||0,recheio:i.descricao||''});
+      });
+
+      const {data:vendas,error:vendasError}=await supabaseClient.from('v2_vendas')
+        .select('id,data,total,valor_pago,data_pagamento,pedido_id,quantidade,created_at')
+        .eq('cliente_id',cliente.id).order('data',{ascending:false});
+      if(vendasError)throw vendasError;
+
+      const normalizedVendas=(vendas||[]).map(v=>({
+        row:v.id,data:v.data,createdAt:v.created_at||'',total:Number(v.total)||0,
+        valorPago:Number(v.valor_pago)||0,deve:Math.max(0,(Number(v.total)||0)-(Number(v.valor_pago)||0)),
+        pedidoId:v.pedido_id||'',status:'Confirmado',quantidade:Number(v.quantidade)||0,
+        dataPagamento:v.data_pagamento||''
+      }));
+      const byPedido={};normalizedVendas.forEach(v=>{if(v.pedidoId)byPedido[v.pedidoId]=v;});
+      const normalizedPedidos=(pedidos||[]).map(p=>{
+        const venda=byPedido[p.id];
+        const st=String(p.status||'').toLowerCase();
+        return {
+          id:p.id,data:p.data,createdAt:p.created_at||p.updated_at||'',status:st==='reservado'?'Reservado':st==='confirmado'?'Confirmado':st==='cancelado'?'Cancelado':p.status,
+          total:Number(p.total)||0,valorPago:venda?Number(venda.valorPago)||0:0,
+          saldo:venda?Number(venda.deve)||0:Number(p.total)||0,
+          quantidadeTotal:Number(p.quantidade_total)||0,itens:itensByPedido[p.id]||[],
+          origem:p.origem||'',dataPagamento:venda?.dataPagamento||''
+        };
+      });
       return {ok:true,data:{mustChangePassword:!!cliente.primeira_senha,cliente,pedidos:normalizedPedidos,vendas:normalizedVendas}};
     }
+
     if(action==='cliente_alterar_senha'){
       const novaSenha=String(data?.novaSenha||'');
-      if(novaSenha.length<6) throw Error('A nova senha deve ter pelo menos 6 caracteres.');
+      if(novaSenha.length<6)throw Error('A nova senha deve ter pelo menos 6 caracteres.');
       const {data:authData,error}=await supabaseClient.auth.updateUser({password:novaSenha});
-      if(error) throw error;
+      if(error)throw error;
       const user=authData.user;
-      const {data:cliente,error:clienteError}=await supabaseClient.from('clientes').update({primeira_senha:false,updated_at:new Date().toISOString()}).eq('usuario_id',user.id).select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').single();
-      if(clienteError) throw clienteError;
+      const {data:cliente,error:clienteError}=await supabaseClient.from('v2_clientes')
+        .update({primeira_senha:false,updated_at:new Date().toISOString()})
+        .eq('usuario_id',user.id)
+        .select('id,nome,telefone,email,primeira_senha,ativo,usuario_id').single();
+      if(clienteError)throw clienteError;
       return {ok:true,data:{token:authData.session?.access_token||'',mustChangePassword:false,cliente}};
     }
-    if(action==='cliente_cadastro') throw Error('Novos cadastros estão desativados nesta versão. O acesso é criado pelo administrador.');
+
+    if(action==='cliente_cadastro')throw Error('Novos cadastros estão desativados nesta versão. O acesso é criado pelo administrador.');
+
     if(action==='estoque_atual'){
-      const {data,error}=await supabaseClient.from('v2_estoque_publico').select('nome,disponivel').order('nome');
-      if(error) throw error;
-      return {ok:true,data:{stock:(data||[]).map(x=>({recheio:x.nome||'',disponivel:Number(x.disponivel)||0}))}};
+      const {data,error}=await supabaseClient.from('v2_estoque_publico').select('produto_id,nome,preco,disponivel').order('nome');
+      if(error)throw error;
+      return {ok:true,data:{stock:(data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0}))}};
     }
-    throw Error('Ação ainda não migrada para o Supabase: '+action);
+
+    if(action==='cliente_pedido'){
+      const estoque=await supabaseClient.from('v2_estoque_publico').select('produto_id,nome,preco,disponivel');
+      if(estoque.error)throw estoque.error;
+      const itensInput=(data?.itens||[]).filter(i=>Number(i.quantidade)>0);
+      if(!itensInput.length)throw Error('Escolha pelo menos um recheio.');
+      const rpcItens=itensInput.map(i=>{
+        const st=(estoque.data||[]).find(x=>x.nome===i.recheio);
+        if(!st)throw Error('Produto inválido: '+i.recheio);
+        if(Number(st.disponivel)<Number(i.quantidade))throw Error('Estoque insuficiente para '+i.recheio+'.');
+        return {produto_id:st.produto_id,quantidade:Number(i.quantidade)};
+      });
+      const r=await supabaseClient.rpc('v2_criar_pedido_cliente',{p_itens:rpcItens,p_observacao:data?.requestId?('requestId:'+data.requestId):null});
+      if(r.error)throw r.error;
+      const pedidoId=r.data;
+      const dados=await api('cliente_dados',{}, {silent:true});
+      const pedido=(dados?.data?.pedidos||[]).find(x=>String(x.id)===String(pedidoId));
+      const stk=await api('estoque_atual',{}, {silent:true});
+      if(!pedido)throw Error('Pedido criado, mas não foi possível recarregar os dados.');
+      return {ok:true,data:{...pedido,stock:stk?.data?.stock||[]}};
+    }
+
+    if(action==='cliente_editar_pedido'){
+      const cliente=await getClient();
+      const pedidoId=String(data?.id||'');
+      if(!pedidoId)throw Error('Pedido inválido.');
+      const {data:pedido,error:pedidoError}=await supabaseClient.from('v2_pedidos')
+        .select('id,status').eq('id',pedidoId).eq('cliente_id',cliente.id).maybeSingle();
+      if(pedidoError)throw pedidoError;
+      if(!pedido||pedido.status!=='reservado')throw Error('Este pedido não pode mais ser editado.');
+
+      const estoque=await supabaseClient.from('v2_estoque_publico').select('produto_id,nome,preco,disponivel');
+      if(estoque.error)throw estoque.error;
+      const antigos=await supabaseClient.from('v2_pedido_itens').select('descricao,quantidade').eq('pedido_id',pedidoId);
+      if(antigos.error)throw antigos.error;
+      const oldMap={};(antigos.data||[]).forEach(i=>oldMap[i.descricao]=(oldMap[i.descricao]||0)+Number(i.quantidade||0));
+
+      const itensInput=(data?.itens||[]).filter(i=>Number(i.quantidade)>0);
+      if(!itensInput.length)throw Error('Escolha pelo menos um recheio.');
+      let total=0,qtdTotal=0;
+      const rows=[];
+      itensInput.forEach(i=>{
+        const st=(estoque.data||[]).find(x=>x.nome===i.recheio);
+        if(!st)throw Error('Produto inválido: '+i.recheio);
+        const permitido=Number(st.disponivel||0)+Number(oldMap[i.recheio]||0);
+        const qtd=Number(i.quantidade)||0;
+        if(qtd>permitido)throw Error('Estoque insuficiente para '+i.recheio+'.');
+        total+=qtd*Number(st.preco||PRECO);qtdTotal+=qtd;
+        rows.push({pedido_id:pedidoId,produto_id:st.produto_id,descricao:st.nome,quantidade:qtd,valor_unitario:Number(st.preco||PRECO)});
+      });
+      const del=await supabaseClient.from('v2_pedido_itens').delete().eq('pedido_id',pedidoId);
+      if(del.error)throw del.error;
+      const ins=await supabaseClient.from('v2_pedido_itens').insert(rows);
+      if(ins.error)throw ins.error;
+      const up=await supabaseClient.from('v2_pedidos').update({quantidade_total:qtdTotal,total,updated_at:new Date().toISOString()}).eq('id',pedidoId);
+      if(up.error)throw up.error;
+      const dados=await api('cliente_dados',{}, {silent:true});
+      const pedidoAtual=(dados?.data?.pedidos||[]).find(x=>String(x.id)===pedidoId);
+      const stk=await api('estoque_atual',{}, {silent:true});
+      return {ok:true,data:{...pedidoAtual,stock:stk?.data?.stock||[]}};
+    }
+
+    if(action==='cliente_excluir_pedido'){
+      const cliente=await getClient();
+      const pedidoId=String(data?.id||'');
+      const del=await supabaseClient.from('v2_pedidos').delete().eq('id',pedidoId).eq('cliente_id',cliente.id).eq('status','reservado');
+      if(del.error)throw del.error;
+      return {ok:true,data:{id:pedidoId}};
+    }
+
+    throw Error('Ação não suportada: '+action);
   }catch(e){
-    if(!opts.silent) showMsg(e.message||'Erro de comunicação com o Supabase.','error');
+    if(!opts.silent)showMsg(e.message||'Erro de comunicação com o Supabase.','error');
     return null;
   }
 }
