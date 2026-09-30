@@ -467,7 +467,7 @@ function renderOrdersFiltered(){
     const matchesName=!name || normalizeFilterText(x.cliente).includes(name);
     return matchesName && matchesExactDate(x.data,date);
   });
-  $('ordersTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+
+  $('ordersTable').innerHTML='<table class="table"><thead><tr><th>Pedido</th><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+
     (rows.length?rows.map(x=>{
       const itens=(x.itens||[]).map(i=>i.quantidade+'× '+esc(i.produto)).join(', ');
       const pago=Number(x.valor_pago||0)>0;
@@ -479,8 +479,8 @@ function renderOrdersFiltered(){
       }else if(x.status==='confirmado'&&pago){
         actions='<span class="pill ok">🔒 Pago · bloqueado</span>';
       }
-      return '<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+itens+'</td><td>'+brl(x.total)+'</td><td><span class="pill '+(x.status==='confirmado'?'ok':x.status==='reservado'?'warn':'bad')+'">'+x.status+'</span></td><td>'+actions+'</td></tr>';
-    }).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum pedido encontrado com esses filtros.</td></tr>')+
+      return '<tr><td><strong>#'+(x.numero_pedido||'—')+'</strong></td><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+itens+'</td><td>'+brl(x.total)+'</td><td><span class="pill '+(x.status==='confirmado'?'ok':x.status==='reservado'?'warn':'bad')+'">'+x.status+'</span></td><td>'+actions+'</td></tr>';
+    }).join(''):'<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Nenhum pedido encontrado com esses filtros.</td></tr>')+
     '</tbody></table>';
 }
 function clearOrderFilters(){
