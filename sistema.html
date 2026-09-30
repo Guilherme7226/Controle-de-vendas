@@ -995,9 +995,19 @@ $('backHome').onclick=(e)=>{e.preventDefault();try{sessionStorage.removeItem('ad
         console.error('Falha no Dashboard:',err);
       }
 
-      // NÃO inicia a carga completa junto com o Dashboard.
-      // Isso evitava duas leituras pesadas da planilha ao mesmo tempo.
-      setAdminLoading(false);
+      // Depois do bootstrap, carrega a base completa do ADM.
+      // Assim todas as abas (vendas, clientes, pedidos, estoque e custos)
+      // recebem dados já na primeira abertura, sem depender de clicar em cada aba.
+      try{
+        await load();
+      }catch(err){
+        console.error('Falha ao carregar dados completos do ADM:',err);
+        const msg=err&&err.message?err.message:String(err||'Erro desconhecido');
+        const dashboardMsg=document.getElementById('dashboardMsg');
+        if(dashboardMsg) dashboardMsg.textContent='⚠️ Falha ao carregar os dados: '+msg;
+      }finally{
+        setAdminLoading(false);
+      }
 
       try{
         await loadClients(true);
