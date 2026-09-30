@@ -133,6 +133,14 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   .filter-search{grid-column:auto}
 }
 
+
+.whatsapp-btn{
+  background:#16a34a;color:#fff;border:0;display:inline-flex;align-items:center;gap:6px;
+  white-space:nowrap;box-shadow:0 8px 18px rgba(22,163,74,.16)
+}
+.whatsapp-btn:hover:not(:disabled){background:#15803d}
+.action-group{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
+
 </style>
 </head>
 <body>
@@ -357,6 +365,21 @@ async function loadDashboard(){
   $('ranking').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Dívida</th></tr></thead><tbody>'+
     (c.data||[]).map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join('')+'</tbody></table>';
 }
+function whatsappNumber(value){
+  let digits=String(value||'').replace(/\D/g,'');
+  if(!digits)return '';
+  if(digits.startsWith('55')&&(digits.length===12||digits.length===13))return digits;
+  if(digits.length===10||digits.length===11)return '55'+digits;
+  return digits;
+}
+function cobrançaWhatsApp(nome,telefone,total){
+  const numero=whatsappNumber(telefone);
+  if(!numero)return alert('Esse cliente não possui telefone cadastrado.');
+  const valor=brl(total);
+  const primeiroNome=String(nome||'').trim().split(/\s+/)[0]||'';
+  const texto='Olá'+(primeiroNome?', '+primeiroNome:'')+'! Tudo bem? 🥖%0A%0APassando para lembrar que ficou um valor em aberto de *'+valor+'* referente aos Pãozinhos.%0A%0AQuando realizar o pagamento, por favor me avise. Obrigado! 😊';
+  window.open('https://wa.me/'+numero+'?text='+texto,'_blank','noopener,noreferrer');
+}
 async function loadReceivables(){
   const r=await sb.from('v2_vendas_detalhadas').select('*').gt('saldo',0).order('cliente').order('data',{ascending:true});
   if(r.error)return msg(r.error.message,'error');
@@ -377,8 +400,8 @@ async function loadReceivables(){
     grouped[x.cliente_id].vendas.push(x);
   });
   const grupos=Object.values(grouped).sort((a,b)=>b.total-a.total);
-  $('receivablesTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Vendas abertas</th><th>Total devido</th><th>Ação</th></tr></thead><tbody>'+
-    grupos.map(g=>'<tr><td>'+esc(g.cliente)+'</td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><button class="primary" onclick="payClientDebt(\''+g.vendas[0].cliente_id+'\')">Receber</button></td></tr>').join('')+
+  $('receivablesTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Vendas abertas</th><th>Total devido</th><th>Ações</th></tr></thead><tbody>'+
+    grupos.map(g=>'<tr><td>'+esc(g.cliente)+'</td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(g.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(g.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(g.total)+')">💬 Cobrar</button><button class="primary" onclick="payClientDebt(\''+g.vendas[0].cliente_id+'\')">Receber</button></div></td></tr>').join('')+
     '</tbody></table>';
 }
 async function payClientDebt(clienteId){
@@ -416,7 +439,7 @@ function renderSalesFiltered(){
     return matchesName && matchesExactDate(x.data,date);
   });
   $('salesTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
-    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button>':'—')+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
+    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(x.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(x.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(x.saldo)+')">💬 Cobrar</button><button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button></div>':'—')+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
     '</tbody></table>';
 }
 function clearSalesFilters(){
