@@ -147,7 +147,7 @@ function doPost(e) {
       }
 
       case 'admin_listar_pedidos':
-        return json({ok:true,data:{orders:readOrdersSupabase_()}});
+        return json({ok:true,data:{orders:readOrders(ss)}});
       case 'admin_full_data': {
         // Fonte operacional oficial do ADM: a planilha histórica que já contém
         // os dados corretos. O Supabase continua sendo usado pelas operações
