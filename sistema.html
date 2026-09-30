@@ -152,6 +152,9 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 .stock-filter-grid .field{margin:0}
 @media(max-width:900px){.stock-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.stock-filter-grid{grid-template-columns:1fr}}
+
+.link-btn{border:0;background:none;padding:0;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
+.link-btn:hover{opacity:.8}
 </style>
 </head>
 <body>
@@ -195,10 +198,10 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 <section id="dashboard" class="section active">
   <div class="row"><div><h2>Dashboard</h2><div class="muted">Dados lidos diretamente do banco V2</div></div><button class="secondary" onclick="loadDashboard()">Atualizar</button></div>
   <div class="tabs" style="margin:12px 0 14px">
-    <button class="secondary dashboard-period active" data-period="day">Dia</button>
+    <button class="secondary dashboard-period" data-period="day">Dia</button>
     <button class="secondary dashboard-period" data-period="week">Semana</button>
     <button class="secondary dashboard-period" data-period="month">Mês</button>
-    <button class="secondary dashboard-period" data-period="all">Geral</button>
+    <button class="secondary dashboard-period active" data-period="all">Geral</button>
   </div>
   <div id="metrics" class="grid"></div>
   <div class="card" style="margin-top:14px"><h3>Ranking / situação por cliente</h3><div id="ranking" class="table-wrap"></div></div>
@@ -208,6 +211,10 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <div class="row"><div><h2>Contas a receber</h2><div class="muted">Vendas com saldo em aberto, agrupadas por cliente</div></div><button class="secondary" onclick="loadReceivables()">Atualizar</button></div>
   <div id="receivableMetrics" class="grid"></div>
   <div class="card" style="margin-top:14px"><div id="receivablesTable" class="table-wrap"></div></div>
+  <div id="clientReceivableHistory" class="card hidden" style="margin-top:14px">
+    <div class="row"><div><h3 id="clientReceivableHistoryTitle" style="margin:0">Histórico do cliente</h3><div class="muted">Vendas pagas e pendentes</div></div><button class="secondary" type="button" onclick="closeClientReceivableHistory()">Fechar histórico</button></div>
+    <div id="clientReceivableHistoryTable" class="table-wrap" style="margin-top:12px"></div>
+  </div>
 </section>
 
 <section id="pedidos" class="section">
@@ -393,7 +400,7 @@ async function loadBase(){
   const popt=products.map(x=>'<option value="'+x.id+'">'+esc(x.nome)+' — '+brl(x.preco)+'</option>').join('');
   $('saleClient').innerHTML=copt;$('saleProduct').innerHTML=popt;$('prodProduct').innerHTML=popt;$('discardProduct').innerHTML=popt;
 }
-let dashboardPeriod='day';
+let dashboardPeriod='all';
 function dashboardRange(period){
   const now=new Date();
   const end=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999);
@@ -449,7 +456,7 @@ async function loadDashboard(){
   });
   const ranking=Object.values(grouped).sort((a,b)=>b.total_comprado-a.total_comprado).slice(0,12);
   $('ranking').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Dívida</th></tr></thead><tbody>'+
-    (ranking.length?ranking.map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum dado nesse período.</td></tr>')+
+    (ranking.length?ranking.map(x=>'<tr><td><button class="link-btn" type="button" onclick="openClientReceivables(\''+String(x.nome).replace(/'/g,"\\'")+'\')">'+esc(x.nome)+'</button></td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum dado nesse período.</td></tr>')+
     '</tbody></table>';
   addColumnFilters('ranking');
 }
@@ -492,6 +499,35 @@ async function loadReceivables(){
     grupos.map(g=>'<tr><td>'+esc(g.cliente)+'</td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(g.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(g.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(g.total)+')">💬 Cobrar</button><button class="primary" onclick="payClientDebt(\''+g.vendas[0].cliente_id+'\')">Receber</button></div></td></tr>').join('')+
     '</tbody></table>';
   addColumnFilters('receivablesTable');
+}
+async function openClientReceivables(nome){
+  document.querySelectorAll('.nav').forEach(n=>n.classList.toggle('active',n.dataset.view==='receber'));
+  document.querySelectorAll('.section').forEach(s=>s.classList.toggle('active',s.id==='receber'));
+
+  await loadReceivables();
+
+  const r=await sb.from('v2_vendas_detalhadas').select('*').eq('cliente',nome).order('data',{ascending:false}).order('created_at',{ascending:false});
+  if(r.error)return msg(r.error.message,'error');
+  const rows=r.data||[];
+
+  $('clientReceivableHistoryTitle').textContent='Histórico · '+nome;
+  $('clientReceivableHistory').classList.remove('hidden');
+  $('clientReceivableHistoryTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th></tr></thead><tbody>'+
+    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+Number(x.quantidade||0)+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(Number(x.saldo||0)<=0?'ok':Number(x.valor_pago||0)>0?'warn':'bad')+'">'+(Number(x.saldo||0)<=0?'pago':Number(x.valor_pago||0)>0?'parcial':'em aberto')+'</span></td></tr>').join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada para este cliente.</td></tr>')+
+    '</tbody></table>';
+  addColumnFilters('clientReceivableHistoryTable');
+
+  const cards=[...$('receivablesTable').querySelectorAll('tbody tr')];
+  cards.forEach(row=>{
+    const first=row.children[0];
+    row.style.display=normalizeFilterText(first?.textContent||'')===normalizeFilterText(nome)?'':'none';
+  });
+  $('clientReceivableHistory').scrollIntoView({behavior:'smooth',block:'start'});
+}
+function closeClientReceivableHistory(){
+  $('clientReceivableHistory').classList.add('hidden');
+  $('clientReceivableHistoryTable').innerHTML='';
+  [...$('receivablesTable').querySelectorAll('tbody tr')].forEach(row=>row.style.display='');
 }
 async function payClientDebt(clienteId){
   const r=await sb.from('v2_vendas_detalhadas').select('*').eq('cliente_id',clienteId).gt('saldo',0).order('data',{ascending:true});
