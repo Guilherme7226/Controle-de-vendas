@@ -153,11 +153,13 @@ function renderStock(data){
 }
 function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
 function renderOrders(list, vendas=[]){
+  // Pedidos cancelados permanecem no banco para auditoria, mas não são exibidos ao cliente.
+  const pedidosVisiveis=(list||[]).filter(o=>String(o.status||'').toLowerCase()!=='cancelado');
   // Cada pedido confirmado já possui uma venda vinculada pelo pedidoId.
   // A venda vinculada não pode aparecer como um segundo registro no cliente.
-  const pedidosIds=new Set(list.map(o=>String(o.id||'').trim()).filter(Boolean));
+  const pedidosIds=new Set(pedidosVisiveis.map(o=>String(o.id||'').trim()).filter(Boolean));
   const registros=[
-    ...list.map(o=>({
+    ...pedidosVisiveis.map(o=>({
       type:'pedido',data:o.data,id:o.id,cliente:o.cliente,itens:o.itens||[],quantidadeTotal:Number(o.quantidadeTotal)||0,
       total:Number(o.total)||0,valorPago:Number(o.valorPago)||0,
       saldo:Number(o.saldo ?? Math.max(0,Number(o.total||0)-Number(o.valorPago||0)))||0,
