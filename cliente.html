@@ -541,13 +541,13 @@ document.addEventListener('click',async e=>{
  if(!s||clientOrderActionBusy)return;
  const pedido=currentPedidos.find(o=>String(o.id)===String(id));
  if(!pedido)return;
- if(!confirm('Cancelar este pedido?\n\nO pedido ficará registrado como cancelado e não poderá mais ser editado.'))return;
+ if(!confirm('Cancelar este pedido?\n\nO pedido será excluído e sairá do histórico.'))return;
  const btn=e.target;
  clientOrderActionBusy=true;btn.disabled=true;btn.textContent='⏳ Cancelando...';
  try{
    const j=await api('cliente_excluir_pedido',{token:s.token,id});
-   if(!j)return;
-   currentPedidos=currentPedidos.map(o=>String(o.id)===String(id)?Object.assign({},o,{status:'Cancelado',saldo:0,valorPago:0}):o);
+   if(!j?.ok)return;
+   currentPedidos=currentPedidos.filter(o=>String(o.id)!==String(id));
    editingOrderId=null;quantities={};renderStock(stock);renderOrders(currentPedidos,currentVendas);showMsg('Pedido cancelado com sucesso.','success');
  }finally{clientOrderActionBusy=false;btn.disabled=false;btn.textContent='❌ Cancelar'}
 });
