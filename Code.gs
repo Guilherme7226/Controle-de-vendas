@@ -2547,6 +2547,222 @@ function isPedidoAguardando(status){
   return s==='RESERVADO' || s==='AGUARDANDO';
 }
 
+function supabaseAdminOrderData_(pedidoId) {
+  const pedidos = supabaseRequest_(
+    '/rest/v1/pedidos?select=id,cliente_id,status,total,observacao,created_at,updated_at&id=eq.' +
+      encodeURIComponent(pedidoId),
+    'get'
+  ) || [];
+  if (!pedidos.length) throw new Error('Pedido não encontrado.');
+
+  const p = pedidos[0];
+  const clientes = supabaseRequest_(
+    '/rest/v1/clientes?select=id,nome&id=eq.' + encodeURIComponent(String(p.cliente_id || '')),
+    'get'
+  ) || [];
+  const produtos = supabaseSelectAll_('produtos','id,nome') || [];
+  const nomes = {};
+  produtos.forEach(function(x){ nomes[String(x.id)] = String(x.nome || ''); });
+
+  const itens = supabaseRequest_(
+    '/rest/v1/pedido_itens?select=produto_id,quantidade,preco_unitario&pedido_id=eq.' +
+      encodeURIComponent(pedidoId),
+    'get'
+  ) || [];
+
+  const lista = itens.map(function(x){
+    return {
+      recheio: nomes[String(x.produto_id)] || 'Produto',
+      quantidade: Number(x.quantidade) || 0,
+      valorUnitario: Number(x.preco_unitario) || 0
+    };
+  });
+
+  const total = Number(p.total) || 0;
+  const quantidadeTotal = lista.reduce(function(s,x){return s+(Number(x.quantidade)||0);},0);
+
+  return {
+    id:String(p.id),
+    clienteId:String(p.cliente_id || ''),
+    cliente:clientes.length ? String(clientes[0].nome || '') : 'Cliente não identificado',
+    data:String(p.created_at || p.updated_at || '').slice(0,10),
+    itens:lista,
+    quantidadeTotal:quantidadeTotal,
+    total:total,
+    status:String(p.status || 'reservado').trim().toLowerCase(),
+    criadoEm:String(p.created_at || ''),
+    valorPago:0,
+    dataPagamento:'',
+    saldo:total,
+    origem:'SUPABASE',
+    referencia:''
+  };
+}
+
+function supabaseAdminConfirmOrder_(id) {
+  const pedido = supabaseAdminOrderData_(id);
+  if (pedido.status === 'confirmado') return pedido;
+  if (pedido.status !== 'reservado') {
+    throw new Error('Este pedido não está aguardando confirmação.');
+  }
+
+  const existentes = supabaseRequest_(
+    '/rest/v1/vendas?select=id&pedido_id=eq.' + encodeURIComponent(id) + '&limit=1',
+    'get'
+  ) || [];
+
+  if (!existentes.length) {
+    supabaseRequest_('/rest/v1/vendas','post',{
+      id:Utilities.getUuid(),
+      cliente_id:pedido.clienteId || null,
+      pedido_id:pedido.id,
+      data:pedido.data || formatToday(),
+      total:pedido.total,
+      valor_pago:0,
+      observacao:'Venda gerada pela confirmação do pedido'
+    },'return=minimal');
+  }
+
+  supabaseRequest_(
+    '/rest/v1/pedidos?id=eq.' + encodeURIComponent(id),
+    'patch',
+    {status:'confirmado'},
+    'return=minimal'
+  );
+
+  pedido.status='confirmado';
+  return pedido;
+}
+
+function supabaseAdminDeleteOrder_(id) {
+  const pedido = supabaseAdminOrderData_(id);
+  if (pedido.status === 'reservado') {
+    const produtos = supabaseSelectAll_('produtos','id,nome') || [];
+    const ids = {};
+    produtos.forEach(function(x){ ids[String(x.nome).trim().toUpperCase()] = String(x.id); });
+
+    const itens = supabaseRequest_(
+      '/rest/v1/pedido_itens?select=produto_id,quantidade&pedido_id=eq.' +
+        encodeURIComponent(id),
+      'get'
+    ) || [];
+
+    itens.forEach(function(item){
+      const pid = String(item.produto_id || '');
+      const qtd = Number(item.quantidade) || 0;
+      if (!pid || qtd <= 0) return;
+      const estoque = supabaseRequest_(
+        '/rest/v1/estoque?select=quantidade&produto_id=eq.' + encodeURIComponent(pid) + '&limit=1',
+        'get'
+      ) || [];
+      if (!estoque.length) return;
+      supabaseRequest_(
+        '/rest/v1/estoque?produto_id=eq.' + encodeURIComponent(pid),
+        'patch',
+        {quantidade:(Number(estoque[0].quantidade)||0)+qtd},
+        'return=minimal'
+      );
+    });
+  }
+
+  supabaseRequest_(
+    '/rest/v1/pedido_itens?pedido_id=eq.' + encodeURIComponent(id),
+    'delete',
+    undefined,
+    'return=minimal'
+  );
+  supabaseRequest_(
+    '/rest/v1/pedidos?id=eq.' + encodeURIComponent(id),
+    'delete',
+    undefined,
+    'return=minimal'
+  );
+  supabaseRequest_(
+    '/rest/v1/vendas?pedido_id=eq.' + encodeURIComponent(id),
+    'delete',
+    undefined,
+    'return=minimal'
+  );
+
+  return {id:id};
+}
+
+function supabaseAdminEditOrder_(d) {
+  const id=String(d.id||'').trim();
+  if(!id) throw new Error('Pedido não informado.');
+
+  const pedido=supabaseAdminOrderData_(id);
+  if(pedido.status!=='reservado') throw new Error('Somente pedidos reservados podem ser editados.');
+
+  const produtos=supabaseSelectAll_('produtos','id,nome') || [];
+  const produtoPorNome={};
+  produtos.forEach(function(p){produtoPorNome[String(p.nome||'').trim().toUpperCase()]=String(p.id);});
+
+  const itens=Array.isArray(d.itens)?d.itens:[];
+  if(!itens.length) throw new Error('Informe os itens do pedido.');
+
+  const solicitado={};
+  itens.forEach(function(item){
+    const nome=String(item.recheio||'').trim();
+    const q=Math.max(0,Math.floor(Number(item.quantidade)||0));
+    if(!q)return;
+    const pid=produtoPorNome[nome.toUpperCase()];
+    if(!pid)throw new Error('Produto inválido: '+nome);
+    solicitado[pid]=(solicitado[pid]||0)+q;
+  });
+
+  const atuais=supabaseRequest_(
+    '/rest/v1/pedido_itens?select=produto_id,quantidade&pedido_id=eq.'+encodeURIComponent(id),
+    'get'
+  ) || [];
+  const atualPorProduto={};
+  atuais.forEach(function(x){atualPorProduto[String(x.produto_id)]=(atualPorProduto[String(x.produto_id)]||0)+(Number(x.quantidade)||0);});
+
+  const estoque=supabaseSelectAll_('estoque','produto_id,quantidade') || [];
+  const disponivel={};
+  estoque.forEach(function(x){disponivel[String(x.produto_id)]=Number(x.quantidade)||0;});
+
+  Object.keys(atualPorProduto).forEach(function(pid){
+    disponivel[pid]=(disponivel[pid]||0)+atualPorProduto[pid];
+  });
+
+  Object.keys(solicitado).forEach(function(pid){
+    if((disponivel[pid]||0)<solicitado[pid]){
+      const nome=(produtos.find(function(p){return String(p.id)===pid;})||{}).nome||'produto';
+      throw new Error('Estoque insuficiente de '+nome+'. Disponível: '+(disponivel[pid]||0)+'.');
+    }
+  });
+
+  Object.keys(atualPorProduto).forEach(function(pid){
+    const q=atualPorProduto[pid]||0;
+    if(!q)return;
+    supabaseRequest_('/rest/v1/estoque?produto_id=eq.'+encodeURIComponent(pid),'patch',{quantidade:(Number(disponivel[pid])||0)-q},'return=minimal');
+  });
+  Object.keys(solicitado).forEach(function(pid){
+    const base=(Number(disponivel[pid])||0)- (atualPorProduto[pid]||0);
+    supabaseRequest_('/rest/v1/estoque?produto_id=eq.'+encodeURIComponent(pid),'patch',{quantidade:base-solicitado[pid]+(atualPorProduto[pid]||0)},'return=minimal');
+  });
+
+  supabaseRequest_('/rest/v1/pedido_itens?pedido_id=eq.'+encodeURIComponent(id),'delete',undefined,'return=minimal');
+
+  const rows=Object.keys(solicitado).map(function(pid){
+    return {
+      id:Utilities.getUuid(),
+      pedido_id:id,
+      produto_id:pid,
+      quantidade:solicitado[pid],
+      preco_unitario:8
+    };
+  });
+  if(rows.length)supabaseRequest_('/rest/v1/pedido_itens','post',rows,'return=minimal');
+
+  const totalQtd=rows.reduce(function(s,x){return s+x.quantidade;},0);
+  const total=totalQtd*8;
+  supabaseRequest_('/rest/v1/pedidos?id=eq.'+encodeURIComponent(id),'patch',{total:total},'return=minimal');
+
+  return supabaseAdminOrderData_(id);
+}
+
 function readOrdersSupabase_() {
   const pedidos = supabaseSelectAll_(
     'pedidos',
