@@ -194,6 +194,12 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 
 <section id="dashboard" class="section active">
   <div class="row"><div><h2>Dashboard</h2><div class="muted">Dados lidos diretamente do banco V2</div></div><button class="secondary" onclick="loadDashboard()">Atualizar</button></div>
+  <div class="tabs" style="margin:12px 0 14px">
+    <button class="secondary dashboard-period active" data-period="day">Dia</button>
+    <button class="secondary dashboard-period" data-period="week">Semana</button>
+    <button class="secondary dashboard-period" data-period="month">Mês</button>
+    <button class="secondary dashboard-period" data-period="all">Geral</button>
+  </div>
   <div id="metrics" class="grid"></div>
   <div class="card" style="margin-top:14px"><h3>Ranking / situação por cliente</h3><div id="ranking" class="table-wrap"></div></div>
 </section>
@@ -387,19 +393,64 @@ async function loadBase(){
   const popt=products.map(x=>'<option value="'+x.id+'">'+esc(x.nome)+' — '+brl(x.preco)+'</option>').join('');
   $('saleClient').innerHTML=copt;$('saleProduct').innerHTML=popt;$('prodProduct').innerHTML=popt;$('discardProduct').innerHTML=popt;
 }
+let dashboardPeriod='day';
+function dashboardRange(period){
+  const now=new Date();
+  const end=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999);
+  let start=new Date(2000,0,1);
+  if(period==='day')start=new Date(now.getFullYear(),now.getMonth(),now.getDate(),0,0,0,0);
+  if(period==='week'){
+    const day=(now.getDay()+6)%7;
+    start=new Date(now.getFullYear(),now.getMonth(),now.getDate()-day,0,0,0,0);
+  }
+  if(period==='month')start=new Date(now.getFullYear(),now.getMonth(),1,0,0,0,0);
+  return {start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10)};
+}
 async function loadDashboard(){
   msg('');
-  const [r,c]=await Promise.all([
-    sb.from('v2_dashboard_resumo').select('*').single(),
-    sb.from('v2_dashboard_clientes').select('*').order('total_comprado',{ascending:false}).limit(12)
+  const range=dashboardRange(dashboardPeriod);
+  const [sales,costs,clients]=await Promise.all([
+    sb.from('v2_vendas_detalhadas').select('*').gte('data',range.start).lte('data',range.end),
+    sb.from('v2_custos').select('*').gte('data',range.start).lte('data',range.end),
+    sb.from('v2_clientes').select('id,nome').eq('ativo',true)
   ]);
-  if(r.error)return msg(r.error.message,'error');
-  const d=r.data;
-  const cards=[['Faturamento',brl(d.faturamento)],['Custos',brl(d.custos)],['Lucro',brl(d.lucro)],['A receber',brl(d.a_receber)],['Pães vendidos',d.paes_vendidos],['Vendas',d.vendas],['Clientes',d.clientes_ativos],['Recebido',brl(d.recebido)]];
+  if(sales.error)return msg(sales.error.message,'error');
+  if(costs.error)return msg(costs.error.message,'error');
+  if(clients.error)return msg(clients.error.message,'error');
+
+  const vendas=sales.data||[];
+  const custosRows=costs.data||[];
+  const faturamento=vendas.reduce((s,x)=>s+Number(x.total||0),0);
+  const recebido=vendas.reduce((s,x)=>s+Number(x.valor_pago||0),0);
+  const aReceber=vendas.reduce((s,x)=>s+Number(x.saldo||0),0);
+  const custosTotal=custosRows.reduce((s,x)=>s+Number(x.valor||0),0);
+  const paes=vendas.reduce((s,x)=>s+Number(x.quantidade||0),0);
+  const cards=[
+    ['Faturamento',brl(faturamento)],
+    ['Custos',brl(custosTotal)],
+    ['Lucro',brl(faturamento-custosTotal)],
+    ['A receber',brl(aReceber)],
+    ['Pães vendidos',paes],
+    ['Vendas',vendas.length],
+    ['Clientes',new Set(vendas.map(x=>x.cliente_id)).size],
+    ['Recebido',brl(recebido)]
+  ];
   $('metrics').innerHTML=cards.map(x=>'<div class="card metric"><span class="muted">'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
-  if(c.error)return;
+
+  const grouped={};
+  vendas.forEach(x=>{
+    if(!grouped[x.cliente_id])grouped[x.cliente_id]={nome:x.cliente,paes:0,vendas:0,total_comprado:0,total_pago:0,divida:0};
+    const g=grouped[x.cliente_id];
+    g.paes+=Number(x.quantidade||0);
+    g.vendas+=1;
+    g.total_comprado+=Number(x.total||0);
+    g.total_pago+=Number(x.valor_pago||0);
+    g.divida+=Number(x.saldo||0);
+  });
+  const ranking=Object.values(grouped).sort((a,b)=>b.total_comprado-a.total_comprado).slice(0,12);
   $('ranking').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Dívida</th></tr></thead><tbody>'+
-    (c.data||[]).map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join('')+'</tbody></table>';
+    (ranking.length?ranking.map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum dado nesse período.</td></tr>')+
+    '</tbody></table>';
   addColumnFilters('ranking');
 }
 function whatsappNumber(value){
@@ -794,6 +845,13 @@ function subscribe(){
     if(id==='salesNameFilter')renderSalesFiltered();
     if(id==='ordersNameFilter')renderOrdersFiltered();
     if(id==='costsNameFilter')renderCostsFiltered();
+  });
+});
+document.querySelectorAll('.dashboard-period').forEach(btn=>{
+  btn.addEventListener('click',()=>{
+    dashboardPeriod=btn.dataset.period||'day';
+    document.querySelectorAll('.dashboard-period').forEach(x=>x.classList.toggle('active',x===btn));
+    loadDashboard();
   });
 });
 ['stockFilterName','stockFilterAvailable','stockFilterProduced','stockFilterSold','stockFilterReserved','stockFilterDiscarded'].forEach(id=>{
