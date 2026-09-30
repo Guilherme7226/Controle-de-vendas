@@ -5322,16 +5322,41 @@ function syncSupabaseParaPlanilhaEditavel_() {
         if(k)ids[k]=idx+3;
       });
     }
+    function totalRowVendas_(){
+      const last=Math.max(shV.getLastRow(),3);
+      const nomes=shV.getRange(1,2,last,1).getDisplayValues();
+      for(let i=0;i<nomes.length;i++){
+        if(String(nomes[i][0]||'').trim().toUpperCase()==='TOTAL GERAL')return i+1;
+      }
+      return 0;
+    }
+
     vendas.forEach(function(v){
       let row=Number(v.source_row)||0;
       if(row<3 && v.pedido_id && ids[String(v.pedido_id)])row=ids[String(v.pedido_id)];
+
       if(row<3 && String(v.data||'')>=SYNC_EDITABLE_START_DATE){
-        row=shV.getLastRow()+1;
+        const totalRow=totalRowVendas_();
+        if(totalRow>=3){
+          shV.insertRowBefore(totalRow);
+          row=totalRow;
+
+          const templateRow=Math.max(3,row-1);
+          const src=shV.getRange(templateRow,1,1,12);
+          const dst=shV.getRange(row,1,1,12);
+          src.copyTo(dst,SpreadsheetApp.CopyPasteType.PASTE_FORMAT,false);
+          src.copyTo(dst,SpreadsheetApp.CopyPasteType.PASTE_DATA_VALIDATION,false);
+        }else{
+          row=shV.getLastRow()+1;
+        }
       }
+
       if(row<3)return;
       const pago=Number(v.valor_pago)||0,total=Number(v.total)||0,saldo=Math.max(0,Number(v.saldo)||0);
       const arr=[[v.data||'',v.cliente||'',Number(v.quantidade)||0,Number(v.valor_unitario)||0,total,v.data_pagamento||'',saldo<=0&&total>0,pago>0&&saldo>0?'Sim':'Não',pago,saldo,v.pedido_id||'']];
       shV.getRange(row,1,1,11).setValues(arr);
+
+      if(v.pedido_id)ids[String(v.pedido_id)]=row;
     });
 
     SpreadsheetApp.flush();
