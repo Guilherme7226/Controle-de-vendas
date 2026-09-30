@@ -872,10 +872,29 @@ function readDashboardDataSupabase_() {
     };
   });
 
-  const custosRows = supabaseSelectAll_(
-    'custos',
-    'id,descricao,valor,data'
-  ) || [];
+  // Custos ainda estão em migração. Se a tabela do Supabase não existir
+  // ou estiver indisponível, o Dashboard continua usando o histórico da planilha.
+  let custosRows = [];
+  try {
+    custosRows = supabaseSelectAll_(
+      'custos',
+      'id,descricao,valor,data'
+    ) || [];
+  } catch (err) {
+    console.warn('Custos Supabase indisponíveis no Dashboard; usando planilha.', err);
+    try {
+      custosRows = (readCostHistory(getSS()) || []).map(function(c, i) {
+        return {
+          id: c.id || ('sheet-' + i),
+          descricao: c.descricao || c.descrição || '',
+          valor: Number(c.valor) || 0,
+          data: c.data || ''
+        };
+      });
+    } catch (_) {
+      custosRows = [];
+    }
+  }
 
   const custoTotal = custosRows.reduce(function(total, c) {
     return total + (Number(c.valor) || 0);
