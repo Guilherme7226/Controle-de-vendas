@@ -150,6 +150,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
     <div class="muted">Acesso exclusivo do administrador</div>
     <div class="field" style="margin-top:16px"><label>Senha administrativa</label><input id="loginPass" type="password" autocomplete="current-password" autofocus></div>
     <button id="loginBtn" class="primary" style="width:100%;margin-top:14px">Entrar</button>
+    <button id="loginClientBtn" class="secondary" style="width:100%;margin-top:10px">👤 Área do cliente</button>
     <button id="loginBackBtn" class="secondary" style="width:100%;margin-top:10px">← Página inicial</button>
     <div id="loginError" class="error"></div>
   </div>
@@ -338,6 +339,7 @@ $('loginBtn').onclick=async()=>{
   }
 };
 $('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
+$('loginClientBtn').onclick=()=>{window.location.href='https://paozinhos.mgpz.workers.dev/cliente'};
 $('loginBackBtn').onclick=()=>{window.location.href='https://paozinhos.mgpz.workers.dev/'};
 $('logoutBtn').onclick=()=>sb.auth.signOut();
 $('adminHomeBtn').onclick=()=>{window.location.href='https://paozinhos.mgpz.workers.dev/'};
