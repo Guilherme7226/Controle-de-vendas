@@ -1,25 +1,31 @@
-name: Ativar sincronização da planilha
+name: Sincronizar planilha editável
 
 on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch:
   push:
     branches:
       - main
     paths:
       - ".github/workflows/setup-sheet-sync.yml"
-  workflow_dispatch:
 
 permissions:
   contents: read
 
+concurrency:
+  group: sync-planilha-editavel
+  cancel-in-progress: true
+
 jobs:
-  setup:
+  sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Instalar gatilhos e sincronizar agora
+      - name: Sincronizar planilha e Supabase
         shell: bash
         run: |
           set -euo pipefail
-          URL="https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec?setupSync=1"
+          URL="https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec?syncNow=1"
           BODY="$(curl -L --fail --silent --show-error "$URL")"
           echo "$BODY"
           echo "$BODY" | grep -q '"ok":true'
