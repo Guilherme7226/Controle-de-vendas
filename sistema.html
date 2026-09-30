@@ -141,6 +141,17 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 .whatsapp-btn:hover:not(:disabled){background:#15803d}
 .action-group{display:flex;gap:7px;align-items:center;flex-wrap:wrap}
 
+
+.column-filter-row th{padding:6px}
+.column-filter-row input{
+  width:100%;min-width:72px;padding:8px 9px;border:1px solid var(--line);
+  border-radius:8px;background:var(--card);color:var(--text);font-size:12px;font-weight:400
+}
+.column-filter-row input::placeholder{color:var(--muted)}
+.stock-filter-grid{display:grid;grid-template-columns:repeat(6,minmax(110px,1fr));gap:10px;margin:12px 0 14px}
+.stock-filter-grid .field{margin:0}
+@media(max-width:900px){.stock-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:540px){.stock-filter-grid{grid-template-columns:1fr}}
 </style>
 </head>
 <body>
@@ -234,6 +245,14 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 
 <section id="estoque" class="section">
   <div class="row"><div><h2>Estoque e produção</h2><div class="muted">Produzido − vendido − reservado − descartado</div></div><button class="secondary" onclick="loadStock()">Atualizar</button></div>
+  <div class="stock-filter-grid">
+    <div class="field"><label>Produto</label><input id="stockFilterName" type="search" placeholder="Filtrar produto"></div>
+    <div class="field"><label>Disponível</label><input id="stockFilterAvailable" type="search" placeholder="Ex.: 2"></div>
+    <div class="field"><label>Produzido</label><input id="stockFilterProduced" type="search" placeholder="Ex.: 10"></div>
+    <div class="field"><label>Vendido</label><input id="stockFilterSold" type="search" placeholder="Ex.: 8"></div>
+    <div class="field"><label>Reservado</label><input id="stockFilterReserved" type="search" placeholder="Ex.: 1"></div>
+    <div class="field"><label>Descartado</label><input id="stockFilterDiscarded" type="search" placeholder="Ex.: 0"></div>
+  </div>
   <div id="stockCards" class="grid"></div>
   <div class="grid" style="margin-top:14px">
     <div class="card">
@@ -381,6 +400,7 @@ async function loadDashboard(){
   if(c.error)return;
   $('ranking').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Dívida</th></tr></thead><tbody>'+
     (c.data||[]).map(x=>'<tr><td>'+esc(x.nome)+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join('')+'</tbody></table>';
+  addColumnFilters('ranking');
 }
 function whatsappNumber(value){
   let digits=String(value||'').replace(/\D/g,'');
@@ -420,6 +440,7 @@ async function loadReceivables(){
   $('receivablesTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Vendas abertas</th><th>Total devido</th><th>Ações</th></tr></thead><tbody>'+
     grupos.map(g=>'<tr><td>'+esc(g.cliente)+'</td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(g.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(g.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(g.total)+')">💬 Cobrar</button><button class="primary" onclick="payClientDebt(\''+g.vendas[0].cliente_id+'\')">Receber</button></div></td></tr>').join('')+
     '</tbody></table>';
+  addColumnFilters('receivablesTable');
 }
 async function payClientDebt(clienteId){
   const r=await sb.from('v2_vendas_detalhadas').select('*').eq('cliente_id',clienteId).gt('saldo',0).order('data',{ascending:true});
@@ -448,6 +469,50 @@ function normalizeFilterText(value){
 function matchesExactDate(value,filter){
   return !filter || String(value||'').slice(0,10)===filter;
 }
+function addColumnFilters(containerId){
+  const container=$(containerId);
+  if(!container)return;
+  const table=container.querySelector('table');
+  if(!table)return;
+  const thead=table.querySelector('thead');
+  const headRow=thead?.querySelector('tr');
+  const tbody=table.querySelector('tbody');
+  if(!thead||!headRow||!tbody)return;
+
+  thead.querySelector('.column-filter-row')?.remove();
+  const headers=[...headRow.children];
+  const filterRow=document.createElement('tr');
+  filterRow.className='column-filter-row';
+
+  headers.forEach((th,index)=>{
+    const cell=document.createElement('th');
+    const title=normalizeFilterText(th.textContent);
+    const noFilter=/acao|acoes/.test(title);
+    if(!noFilter){
+      const input=document.createElement('input');
+      input.type='search';
+      input.placeholder='Filtrar';
+      input.setAttribute('aria-label','Filtrar '+th.textContent.trim());
+      input.addEventListener('input',()=>{
+        const filters=[...filterRow.querySelectorAll('th')].map(x=>x.querySelector('input')?.value||'');
+        [...tbody.querySelectorAll('tr')].forEach(row=>{
+          if(row.querySelector('td[colspan]'))return;
+          const cells=[...row.children];
+          const ok=filters.every((value,i)=>{
+            if(!value)return true;
+            const cellText=normalizeFilterText(cells[i]?.textContent||'');
+            return cellText.includes(normalizeFilterText(value));
+          });
+          row.style.display=ok?'':'none';
+        });
+      });
+      cell.appendChild(input);
+    }
+    filterRow.appendChild(cell);
+  });
+  thead.appendChild(filterRow);
+}
+
 function renderSalesFiltered(){
   const name=normalizeFilterText($('salesNameFilter')?.value);
   const date=$('salesDateFilter')?.value||'';
@@ -458,6 +523,7 @@ function renderSalesFiltered(){
   $('salesTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
     (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button>':'—')+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
     '</tbody></table>';
+  addColumnFilters('salesTable');
 }
 function clearSalesFilters(){
   if($('salesNameFilter'))$('salesNameFilter').value='';
@@ -486,6 +552,7 @@ function renderOrdersFiltered(){
       return '<tr><td><strong>#'+(x.numero_pedido||'—')+'</strong></td><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+itens+'</td><td>'+brl(x.total)+'</td><td><span class="pill '+(x.status==='confirmado'?'ok':x.status==='reservado'?'warn':'bad')+'">'+x.status+'</span></td><td>'+actions+'</td></tr>';
     }).join(''):'<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Nenhum pedido encontrado com esses filtros.</td></tr>')+
     '</tbody></table>';
+  addColumnFilters('ordersTable');
 }
 function clearOrderFilters(){
   if($('ordersNameFilter'))$('ordersNameFilter').value='';
@@ -503,6 +570,7 @@ function renderCostsFiltered(){
   $('costsTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead><tbody>'+
     (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.descricao)+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+brl(x.valor)+'</td></tr>').join(''):'<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">Nenhum custo encontrado com esses filtros.</td></tr>')+
     '</tbody></table>';
+  addColumnFilters('costsTable');
 }
 function clearCostFilters(){
   if($('costsNameFilter'))$('costsNameFilter').value='';
@@ -651,11 +719,35 @@ async function loadClients(){
       : '<button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Criar/Enviar acesso</button>';
     return '<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td>'+action+'</td></tr>';
   }).join('')+'</tbody></table>';
+  addColumnFilters('clientsTable');
+}
+let stockCache=[];
+function renderStockFiltered(){
+  const f={
+    nome:normalizeFilterText($('stockFilterName')?.value),
+    disponivel:normalizeFilterText($('stockFilterAvailable')?.value),
+    produzido:normalizeFilterText($('stockFilterProduced')?.value),
+    vendido:normalizeFilterText($('stockFilterSold')?.value),
+    reservado:normalizeFilterText($('stockFilterReserved')?.value),
+    descartado:normalizeFilterText($('stockFilterDiscarded')?.value)
+  };
+  const rows=(stockCache||[]).filter(x=>
+    (!f.nome||normalizeFilterText(x.nome).includes(f.nome)) &&
+    (!f.disponivel||normalizeFilterText(x.disponivel).includes(f.disponivel)) &&
+    (!f.produzido||normalizeFilterText(x.produzido).includes(f.produzido)) &&
+    (!f.vendido||normalizeFilterText(x.vendido).includes(f.vendido)) &&
+    (!f.reservado||normalizeFilterText(x.reservado).includes(f.reservado)) &&
+    (!f.descartado||normalizeFilterText(x.descartado).includes(f.descartado))
+  );
+  $('stockCards').innerHTML=rows.length
+    ? rows.map(x=>'<div class="card metric"><span class="muted">'+esc(x.nome)+'</span><strong>'+x.disponivel+'</strong><div class="muted">Produzido '+x.produzido+' · Vendido '+x.vendido+' · Reservado '+x.reservado+' · Descartado '+x.descartado+'</div></div>').join('')
+    : '<div class="notice">Nenhum item de estoque encontrado com esses filtros.</div>';
 }
 async function loadStock(){
   const r=await sb.from('v2_estoque_atual').select('*').order('nome');
   if(r.error)return msg(r.error.message,'error');
-  $('stockCards').innerHTML=(r.data||[]).map(x=>'<div class="card metric"><span class="muted">'+esc(x.nome)+'</span><strong>'+x.disponivel+'</strong><div class="muted">Produzido '+x.produzido+' · Vendido '+x.vendido+' · Reservado '+x.reservado+' · Descartado '+x.descartado+'</div></div>').join('');
+  stockCache=r.data||[];
+  renderStockFiltered();
 }
 async function saveProduction(){
   const produto_id=$('prodProduct').value,quantidade=Number($('prodQty').value),data=$('prodDate').value;
@@ -703,6 +795,9 @@ function subscribe(){
     if(id==='ordersNameFilter')renderOrdersFiltered();
     if(id==='costsNameFilter')renderCostsFiltered();
   });
+});
+['stockFilterName','stockFilterAvailable','stockFilterProduced','stockFilterSold','stockFilterReserved','stockFilterDiscarded'].forEach(id=>{
+  const el=$(id);if(el)el.addEventListener('input',renderStockFiltered);
 });
 ['salesDateFilter','ordersDateFilter','costsDateFilter'].forEach(id=>{
   const el=$(id);if(el)el.addEventListener('change',()=>{
