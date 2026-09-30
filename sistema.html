@@ -826,9 +826,10 @@ document.querySelectorAll('.tab').forEach(b=>b.onclick=()=>{
 $('fecharHistorico').onclick=()=>{$('clienteHistoricoPanel').hidden=true};$('loadCostHistory')?.remove();
 $('loadProductionHistory').onclick=loadProductionHistory;
 $('closeProductionHistory').onclick=()=>{$('productionHistoryPanel').hidden=true};
-let rankMes=new Date();rankMes.setDate(1);function rankMesPeriodo(){const y=rankMes.getFullYear(),m=rankMes.getMonth();const p=n=>String(n).padStart(2,'0');$('rankMesTitulo').textContent=['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m]+' de '+y;const ini=y+'-'+p(m+1)+'-01',fim=y+'-'+p(m+1)+'-'+p(new Date(y,m+1,0).getDate());$('rankMesInicio')?.remove();$('rankMesFim')?.remove();const a=document.createElement('input');a.type='hidden';a.id='rankMesInicio';a.value=ini;const b=document.createElement('input');b.type='hidden';b.id='rankMesFim';b.value=fim;document.body.append(a,b);renderRanking()}$('rankMesAnterior').onclick=()=>{rankMes.setMonth(rankMes.getMonth()-1);rankMesPeriodo()};$('rankMesProximo').onclick=()=>{rankMes.setMonth(rankMes.getMonth()+1);rankMesPeriodo()};rankMesPeriodo();
-$('rankMesBtn').onclick=()=>{const p=$('rankMesPicker');p.value=rankMes.getFullYear()+'-'+String(rankMes.getMonth()+1).padStart(2,'0')+'-01';if(p.showPicker)p.showPicker();else p.click()};
-$('rankMesPicker').onchange=()=>{if(!$('rankMesPicker').value)return;const d=new Date($('rankMesPicker').value+'T00:00:00');rankMes.setFullYear(d.getFullYear(),d.getMonth(),1);rankMesPeriodo()};
+// O antigo seletor mensal do ranking foi removido da interface atual.
+ // Não inicializar elementos inexistentes aqui: um erro neste ponto impedia
+ // o restante dos handlers do ADM (incluindo Voltar e Modo claro/escuro).
+
 $('receberFiltrar').onclick=renderReceber;$('receberLimpar').onclick=()=>{$('receberFiltro').value='';renderReceber()};$('receberFiltro').oninput=renderReceber;$('receberFiltro').onkeydown=e=>{if(e.key==='Enter')renderReceber()};
 
 $('clienteSelect').onchange=()=>{
@@ -962,7 +963,7 @@ document.addEventListener('click',e=>{
   const del=e.target.closest?.('.delete-cost');
   if(del){deleteCost(Number(del.dataset.row),del.dataset.date||'',del.dataset.desc||'',Number(del.dataset.value)||0);return}
   const target=e.target.closest?e.target.closest('button,a,[data-client-receber],[data-client-history]'):e.target;if(!target)return;if(target.matches('[data-client-receber]'))goToReceber(target.dataset.clientReceber);if(target.matches('.whatsapp-client'))openWhatsApp(target.dataset.client,target.dataset.phone);if(target.matches('[data-client-history]'))showClientHistory(target.dataset.clientHistory);if(target.matches('.pay'))pay(target.dataset.row);if(target.matches('.undo-payment'))undoPayment(target.dataset.row);if(target.matches('.pay-client'))payClient(target.dataset.client,target.dataset.clientId);if(target.matches('.edit-sale'))editSale(target.dataset.row);if(target.matches('.delete-sale'))deleteSale(target.dataset.row);if(target.matches('.admin-order-confirm'))adminConfirmOrder(target.dataset.id,target)});
-$('backHome').onclick=(e)=>{e.preventDefault();try{sessionStorage.removeItem('admin_token')}catch(_){}location.replace('/index.html')};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();
+$('backHome').onclick=(e)=>{e.preventDefault();try{sessionStorage.removeItem('admin_token')}catch(_){}location.replace('/')};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();setDates();
 </script><script>(async()=>{
   const gate=document.getElementById('adminGate');
   const fail=(msg)=>{
