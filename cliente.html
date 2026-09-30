@@ -4,13 +4,118 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <meta name="theme-color" content="#ea580c">
-<title>Paozinhos • Fazer pedido</title>
+<title>Pãozinhos — Área do cliente</title>
 <style>
 :root{--bg:#f7f8fb;--card:#fff;--text:#172033;--muted:#687386;--line:#e2e6ee;--primary:#ea580c;--primary2:#c2410c;--ok:#16a34a;--danger:#dc2626;--input:#fff;--theme-bg:#fff;--theme-text:#172033;--shadow:0 10px 30px rgba(15,23,42,.07)}[data-theme="dark"]{--bg:#0b1120;--card:#111827;--text:#f3f4f6;--muted:#9ca3af;--line:#263244;--input:#172033;--theme-bg:#172033;--theme-text:#f3f4f6;--shadow:0 10px 30px rgba(0,0,0,.24)}
 *{box-sizing:border-box;min-width:0}body{margin:0;background:var(--bg);color:var(--text);font:15px system-ui,-apple-system,Segoe UI,Roboto,Arial;min-height:100vh;transition:background .2s,color .2s}
 .wrap{max-width:900px;margin:auto;padding:18px 16px 40px}header{background:#111827;color:#fff;padding:14px 16px;margin:-18px -16px 10px;position:sticky;top:0;z-index:20}header .top{display:flex;justify-content:space-between;align-items:center;gap:10px}h1{margin:0;font-size:22px}header small{color:#cbd5e1}
 .panel{background:var(--card);border:1px solid var(--line);border-radius:15px;padding:16px;box-shadow:var(--shadow);margin-top:14px}#auth .panel{max-width:620px;margin:34px auto}.hidden{display:none!important}.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.field{display:flex;flex-direction:column;gap:6px;min-width:0}.field>div{min-width:0}.field label{font-size:13px;color:var(--muted)}input{width:100%;padding:12px;border:1px solid var(--line);border-radius:11px;background:var(--input);color:var(--text);font:inherit;outline:none}button{border:0;border-radius:11px;padding:11px 15px;cursor:pointer;font:inherit;font-weight:700}.primary{background:var(--primary);color:#fff}.secondary{background:var(--card);color:var(--text);border:1px solid var(--line)}[data-theme="dark"] .secondary{background:#172033;color:#f3f4f6;border-color:#334155}.danger{background:#fee2e2;color:#991b1b}[data-theme="dark"] .danger{background:#451a1a;color:#fecaca}.tabs{display:flex;gap:8px;margin-top:16px}.tabs button.active{background:var(--primary);color:#fff}.notice{padding:11px 13px;border-radius:11px;background:#eff6ff;color:#1e40af;margin:10px 0;font-size:13px}.success{background:#f0fdf4;color:#166534}.error{background:#fef2f2;color:#991b1b}[data-theme="dark"] .notice{background:#172554;color:#bfdbfe}[data-theme="dark"] .success{background:#052e16;color:#86efac}[data-theme="dark"] .error{background:#450a0a;color:#fecaca}.stock-grid{display:grid;grid-template-columns:repeat(2,1fr);gap:12px}.stock-card{border:1px solid var(--line);border-radius:15px;padding:14px}.stock-head{display:flex;justify-content:space-between;gap:8px;align-items:center}.stock-name{font-weight:800;font-size:17px}.available{color:var(--ok);font-weight:700;font-size:13px}.soldout{color:var(--danger)}.qty{display:flex;align-items:center;gap:8px;margin-top:12px}.qty button{width:42px;height:42px;padding:0;font-size:21px}.qty input{width:80px;text-align:center;font-weight:800}.summary{display:flex;justify-content:space-between;align-items:center;gap:12px;padding:15px;border-radius:14px;background:#fff7ed;border:1px solid #fed7aa;margin-top:14px}[data-theme="dark"] .summary{background:#291b0e;border-color:#7c3d12}.total{font-size:24px;font-weight:850;color:var(--primary)}.order{border:1px solid var(--line);border-radius:14px;padding:14px;margin-top:10px}.order-top{display:flex;justify-content:space-between;gap:10px}.badge{border-radius:999px;padding:4px 9px;background:#fef3c7;color:#92400e;font-size:12px;font-weight:700}.badge.confirmed{background:#dcfce7;color:#166534}[data-theme="dark"] .badge.confirmed{background:#12351f;color:#86efac}[data-theme="dark"] .badge{background:#422f0c;color:#fcd34d}.order-items{color:var(--muted);margin-top:7px;line-height:1.6}.logout{font-size:13px}.account-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px;margin-top:14px}.account-card{border:1px solid var(--line);border-radius:14px;padding:14px;background:var(--card)}.account-label{font-size:12px;color:var(--muted);margin-bottom:5px}.account-value{font-size:21px;font-weight:850}.account-card.open{border-color:#fed7aa;background:#fff7ed}.account-card.open .account-value{color:var(--primary)}.account-note{margin-top:12px;color:var(--muted);font-size:12px}.order-cta{margin-top:14px;position:sticky;top:10px;z-index:10;padding:17px 18px;border-radius:15px;background:var(--primary);color:#fff;display:flex;align-items:center;justify-content:space-between;gap:12px;box-shadow:0 8px 20px rgba(234,88,12,.22);cursor:pointer}.order-cta strong{font-size:18px}.order-cta span{font-size:13px;opacity:.92}.theme-btn{background:var(--theme-bg);color:var(--theme-text);border:1px solid var(--line);font-size:13px;padding:9px 12px;box-shadow:0 1px 2px rgba(15,23,42,.08)}[data-theme="dark"] .theme-btn{border-color:#475569;box-shadow:0 1px 3px rgba(0,0,0,.35)}
 @media(max-width:600px){.grid,.stock-grid,.account-grid{grid-template-columns:1fr 1fr}.account-value{font-size:19px}.summary{align-items:flex-start;flex-direction:column}.wrap{padding:12px}.panel{padding:15px;overflow:hidden}.field{min-width:0}.field input,.field select{max-width:100%}.order{min-width:0;overflow:hidden}.order *{max-width:100%}.order-top{min-width:0}.order-top>*{min-width:0}.date-picker-row{min-width:0}.date-picker-row input{min-width:0;width:0;flex:1}.top{min-width:0}.top>div{min-width:0}.top h2,.top small{overflow-wrap:anywhere}.tabs{overflow-x:auto;padding-bottom:2px}.tabs button{flex:0 0 auto;min-height:44px}.field,.field>*{min-width:0;max-width:100%}.actions{display:flex;flex-wrap:wrap;gap:8px}.actions button{min-height:44px}.order-top{align-items:flex-start;flex-wrap:wrap}.order-top strong{min-width:0;overflow-wrap:anywhere}.order{overflow:hidden}.order button{min-height:44px}.qty{min-width:0}.qty input{min-width:0}.order-cta{position:static}.header-actions{flex-wrap:wrap;justify-content:flex-end}.header-actions button{max-width:100%}}
+
+/* ===== Design System V2 ===== */
+:root{
+  --bg:#f6f7fb;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;
+  --primary:#f97316;--primary2:#ea580c;--primary-soft:#fff7ed;
+  --ok:#15803d;--danger:#b91c1c;--input:#fff;--theme-bg:#fff;--theme-text:#0f172a;
+  --surface:#f8fafc;--shadow:0 10px 28px rgba(15,23,42,.07);--shadow-lg:0 18px 44px rgba(15,23,42,.12)
+}
+[data-theme="dark"]{
+  --bg:#08111f;--card:#101827;--text:#f8fafc;--muted:#94a3b8;--line:#243044;
+  --primary:#fb923c;--primary2:#f97316;--primary-soft:#2b170b;--ok:#86efac;--danger:#fca5a5;
+  --input:#0d1625;--theme-bg:#172033;--theme-text:#f8fafc;--surface:#0d1625;
+  --shadow:0 10px 28px rgba(0,0,0,.28);--shadow-lg:0 18px 44px rgba(0,0,0,.40)
+}
+body{background:var(--bg);letter-spacing:-.01em}
+.wrap{max-width:1180px;padding:0 18px 46px}
+header{
+  min-height:72px;margin:0 -18px 18px;padding:0 22px;background:rgba(15,23,42,.97);
+  border-bottom:1px solid rgba(255,255,255,.08);backdrop-filter:blur(14px);
+  display:flex;align-items:center
+}
+header .top{width:100%}h1{font-size:19px;font-weight:850;letter-spacing:-.02em}header small{font-size:12px;color:#94a3b8}
+.header-actions,.top>div:last-child{display:flex;gap:8px;align-items:center}
+.theme-btn,header .secondary{
+  background:rgba(255,255,255,.07)!important;color:#fff!important;
+  border:1px solid rgba(255,255,255,.13)!important;box-shadow:none!important
+}
+button{border-radius:12px;transition:.18s ease;font-weight:700}
+button:hover:not(:disabled){transform:translateY(-1px)}
+.primary{
+  background:linear-gradient(135deg,var(--primary),var(--primary2));
+  box-shadow:0 8px 18px rgba(249,115,22,.17)
+}
+.secondary{border-radius:12px;box-shadow:0 1px 2px rgba(15,23,42,.04)}
+.panel{
+  border-radius:18px;padding:18px;border:1px solid var(--line);
+  box-shadow:var(--shadow);background:var(--card)
+}
+#auth .panel{
+  max-width:460px;margin:48px auto;padding:26px;border-radius:22px;box-shadow:var(--shadow-lg)
+}
+#auth .panel::before{
+  content:"🥖";display:grid;place-items:center;width:58px;height:58px;border-radius:17px;
+  background:linear-gradient(135deg,var(--primary),var(--primary2));font-size:28px;margin-bottom:16px;
+  box-shadow:0 12px 24px rgba(249,115,22,.20)
+}
+#auth h2{font-size:26px;letter-spacing:-.03em;margin:0 0 4px}
+.field{gap:7px}.field label{font-size:12px;font-weight:650;color:var(--muted)}
+input{
+  padding:12px 13px;border-radius:12px;background:var(--input);border:1px solid var(--line);outline:none
+}
+input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,22,.10)}
+.tabs{
+  width:max-content;max-width:100%;padding:4px;background:var(--surface);
+  border:1px solid var(--line);border-radius:14px;gap:4px
+}
+.tabs button{border-radius:10px;box-shadow:none}
+.tabs button.primary,.tabs button.active{background:linear-gradient(135deg,var(--primary),var(--primary2));color:#fff}
+#app>.panel:first-child{padding:20px}
+#app>.panel:first-child>.top h2{font-size:25px;letter-spacing:-.03em}
+.account-grid{gap:12px}
+.account-card{
+  border-radius:16px;padding:16px;box-shadow:none;background:var(--card);position:relative;overflow:hidden
+}
+.account-card::after{
+  content:"";position:absolute;width:70px;height:70px;border-radius:999px;
+  right:-26px;top:-26px;background:rgba(249,115,22,.07)
+}
+.account-label{font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.045em}
+.account-value{font-size:24px;letter-spacing:-.03em}
+.account-card.open{border-color:rgba(249,115,22,.28);background:var(--primary-soft)}
+.account-note{font-size:12.5px;line-height:1.55;padding:11px 12px;background:var(--surface);border-radius:11px;border:1px solid var(--line)}
+#orderArea h2,#currentPanel h2,#historyPanel h2{font-size:22px;letter-spacing:-.025em;margin-top:0}
+.stock-grid{gap:14px}
+.stock-card{
+  border-radius:16px;padding:16px;background:var(--card);box-shadow:0 2px 8px rgba(15,23,42,.025);
+  transition:.18s ease
+}
+.stock-card:hover{border-color:rgba(249,115,22,.26);transform:translateY(-1px)}
+.stock-name{font-size:16px}.available{font-size:12px}
+.qty button{border-radius:11px}.qty input{border-radius:11px}
+.summary{
+  background:var(--primary-soft);border-color:rgba(249,115,22,.25);border-radius:16px;padding:16px
+}
+.order{
+  border-radius:16px;padding:15px;background:var(--card);transition:.15s ease
+}
+.order:hover{background:var(--surface)}
+.order-top strong{font-size:13px;overflow-wrap:anywhere}
+.badge{padding:5px 9px}.badge.confirmed{background:#ecfdf3;color:#15803d}
+[data-theme="dark"] .badge.confirmed{background:#0f2b1c;color:#86efac}
+.notice{border:1px solid rgba(37,99,235,.14)}
+@media(max-width:600px){
+  .wrap{padding:0 10px 30px}
+  header{min-height:64px;margin:0 -10px 12px;padding:8px 10px}
+  header .top{align-items:flex-start}.top>div:last-child{flex-wrap:wrap;justify-content:flex-end}
+  #auth .panel{margin:26px auto;padding:20px}
+  .panel{padding:14px;border-radius:15px}
+  .account-grid,.stock-grid{grid-template-columns:1fr 1fr}
+  .tabs{width:100%;overflow-x:auto}.tabs button{flex:1}
+}
+@media(max-width:430px){
+  .account-grid,.stock-grid{grid-template-columns:1fr}
+}
+
 </style>
 </head>
 <body>
@@ -43,7 +148,7 @@
     <div class="account-card"><div class="account-label">Pago</div><div id="accountPaid" class="account-value">R$ 0,00</div></div>
     <div class="account-card open"><div class="account-label">Em aberto</div><div id="accountOpen" class="account-value">R$ 0,00</div></div>
   </div>
-  <div class="account-note">O painel Atual mostra somente o que ainda está em aberto. Quando a pendência chegar a R$ 0,00, esses registros passam automaticamente para o Histórico.</div>
+  <div class="account-note">Pedidos ficam em “Atual” por 24 horas após a criação. Depois disso, passam automaticamente para o Histórico.</div>
 </div>
 <div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> pães</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
 <div id="currentPanel"><div class="panel"><h2>📋 Pedidos atuais</h2><div id="orders"></div></div></div>
