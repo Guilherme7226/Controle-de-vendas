@@ -159,14 +159,11 @@ function doPost(e) {
       case 'admin_excluir_cliente':
         return json({ok:true,data:adminDeleteClient(ss,d)});
       case 'admin_editar_pedido':
-        return json({ok:true,data:adminEditOrder(ss,d)});
+        return json({ok:true,data:supabaseAdminEditOrder_(d)});
       case 'admin_excluir_pedido':
-        return json({ok:true,data:adminDeleteOrder(ss,d)});
-      case 'admin_confirmar_pedido': {
-        const resultAdminConfirmarPedido=adminConfirmOrder(ss,d);
-        recalcularResumo(ss);
-        return json({ok:true,data:resultAdminConfirmarPedido});
-      }
+        return json({ok:true,data:supabaseAdminDeleteOrder_(String(d.id||''))});
+      case 'admin_confirmar_pedido':
+        return json({ok:true,data:supabaseAdminConfirmOrder_(String(d.id||''))});
       case 'admin_confirmar_pedidos_lote': {
         const resultAdminConfirmarLote=adminConfirmOrdersBatch(ss,d);
         recalcularResumo(ss);
