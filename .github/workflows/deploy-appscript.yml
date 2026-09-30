@@ -3,6 +3,14 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "Code.gs"
+      - "index.html"
+      - "sistema.html"
+      - "cliente.html"
+      - "entrada.html"
+      - "appsscript.json"
+      - "migration/**"
   workflow_dispatch:
 
 permissions:
