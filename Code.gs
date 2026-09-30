@@ -14,7 +14,7 @@ const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frang
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-29-acesso-v20';
 const FORMATACAO_PLANILHA_VERSAO = '2026-09-28-1';
-const SUPPORTED_ACTIONS = ['venda','custo','editar_custo','excluir_custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes'];
+const SUPPORTED_ACTIONS = ['venda','custo','editar_custo','excluir_custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_verificar_migracao_supabase','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -201,6 +201,8 @@ function doPost(e) {
         return json({ok:true,data:adminEditStock(ss,d)});
       case 'admin_verificar_integridade':
         return json({ok:true,data:adminVerificarIntegridade(ss)});
+      case 'admin_verificar_migracao_supabase':
+        return json({ok:true,data:verificarSupabaseMigracao()});
       case 'admin_recalcular_resumo':
         return json({ok:true,data:recalcularResumo(ss)});
       case 'producao':
@@ -4197,6 +4199,7 @@ function gerarResumoOrigemSupabase_() {
   });
 
   return {
+    vendasRows: vendasValidas,
     clientes: clientesRows.filter(function(r) {
       return migNormalize_(r[0]) && migNormalize_(r[1]);
     }).length,
@@ -4267,6 +4270,24 @@ function verificarSupabaseMigracao() {
     'id,quantidade'
   );
 
+  const pedidoItensBanco = supabaseSelectAll_(
+    'pedido_itens',
+    'id,pedido_id,quantidade'
+  );
+
+  const quantidadeVendidaBanco = pedidoItensBanco.reduce(function(a, r) {
+    return a + Math.max(0, Math.floor(migNumber_(r.quantidade)));
+  }, 0);
+
+  const estoqueBanco = supabaseSelectAll_(
+    'estoque',
+    'produto_id,quantidade'
+  );
+
+  const quantidadeEstoqueBanco = estoqueBanco.reduce(function(a, r) {
+    return a + Math.max(0, Math.floor(migNumber_(r.quantidade)));
+  }, 0);
+
   const comparacao = {
     faturamentoBanco: vendasBanco.reduce(function(a, r) {
       return a + migNumber_(r.total);
@@ -4274,37 +4295,48 @@ function verificarSupabaseMigracao() {
     recebidoBanco: vendasBanco.reduce(function(a, r) {
       return a + migNumber_(r.valor_pago);
     }, 0),
+    aReceberBanco: vendasBanco.reduce(function(a, r) {
+      return a + Math.max(0, migNumber_(r.total) - migNumber_(r.valor_pago));
+    }, 0),
     totalCustosBanco: custosBanco.reduce(function(a, r) {
       return a + migNumber_(r.valor);
     }, 0),
     quantidadeProduzidaBanco: producaoBanco.reduce(function(a, r) {
-      return a + Math.max(
-        0,
-        Math.floor(migNumber_(r.quantidade))
-      );
-    }, 0)
+      return a + Math.max(0, Math.floor(migNumber_(r.quantidade)));
+    }, 0),
+    quantidadeVendidaBanco: quantidadeVendidaBanco,
+    quantidadeEstoqueBanco: quantidadeEstoqueBanco
   };
 
+  const quantidadeVendidaOrigem = origem.vendasRows.reduce(function(a, r) {
+    return a + Math.max(0, Math.floor(migNumber_(r[3])));
+  }, 0);
+
   const diferencas = {
-    vendas:
-      contagens.vendas - origem.vendas,
-    faturamento:
-      comparacao.faturamentoBanco - origem.faturamento,
-    recebido:
-      comparacao.recebidoBanco - origem.recebido,
-    custos:
-      comparacao.totalCustosBanco - origem.totalCustos,
-    producao:
-      comparacao.quantidadeProduzidaBanco -
-      origem.quantidadeProduzida
+    clientes: contagens.clientes - origem.clientes,
+    pedidos: contagens.pedidos - origem.pedidos,
+    vendas: contagens.vendas - origem.vendas,
+    pãesVendidos: quantidadeVendidaBanco - quantidadeVendidaOrigem,
+    faturamento: comparacao.faturamentoBanco - origem.faturamento,
+    recebido: comparacao.recebidoBanco - origem.recebido,
+    aReceber: comparacao.aReceberBanco - origem.aReceber,
+    custos: comparacao.totalCustosBanco - origem.totalCustos,
+    producao: comparacao.quantidadeProduzidaBanco - origem.quantidadeProduzida,
+    estoque: comparacao.quantidadeEstoqueBanco -
+      Math.max(0, origem.quantidadeProduzida - quantidadeVendidaOrigem)
   };
 
   const ok =
+    diferencas.clientes === 0 &&
+    diferencas.pedidos === 0 &&
     diferencas.vendas === 0 &&
+    diferencas.pãesVendidos === 0 &&
     Math.abs(diferencas.faturamento) < 0.01 &&
     Math.abs(diferencas.recebido) < 0.01 &&
+    Math.abs(diferencas.aReceber) < 0.01 &&
     Math.abs(diferencas.custos) < 0.01 &&
-    diferencas.producao === 0;
+    diferencas.producao === 0 &&
+    diferencas.estoque === 0;
 
   const resultado = {
     ok: ok,
