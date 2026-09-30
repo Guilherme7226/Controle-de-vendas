@@ -372,9 +372,14 @@ $('loginBtn').onclick=async()=>{
  btn.textContent='Entrando...';
  try{
    const j=await api('cliente_login',{login:$('login').value,senha:$('senha').value},{timeout:20000,retries:0});
-   if(!j)return;
+   if(!j?.ok || !j?.data){
+     const erro=j?.error||j?.details||j?.hint||'Não foi possível fazer o login.';
+     console.error('cliente_login:',j);
+     showMsg(erro,'error');
+     return;
+   }
    saveSession(j.data);
-   if(j.data.mustChangePassword){
+   if(!!j.data.mustChangePassword){
      showApp(j.data);
      showMsg('Primeiro acesso: defina sua nova senha.','success');
      return;
