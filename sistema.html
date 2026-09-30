@@ -150,6 +150,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
     <div class="muted">Acesso exclusivo do administrador</div>
     <div class="field" style="margin-top:16px"><label>Senha administrativa</label><input id="loginPass" type="password" autocomplete="current-password" autofocus></div>
     <button id="loginBtn" class="primary" style="width:100%;margin-top:14px">Entrar</button>
+    <button id="loginBackBtn" class="secondary" style="width:100%;margin-top:10px">← Voltar</button>
     <div id="loginError" class="error"></div>
   </div>
 </div>
@@ -327,6 +328,7 @@ $('loginBtn').onclick=async()=>{
   }
 };
 $('loginPass').addEventListener('keydown',e=>{if(e.key==='Enter')$('loginBtn').click()});
+$('loginBackBtn').onclick=()=>location.href='/';
 $('logoutBtn').onclick=()=>sb.auth.signOut();
 $('themeBtn').onclick=()=>{const d=document.documentElement;const n=d.dataset.theme==='dark'?'light':'dark';d.dataset.theme=n;localStorage.setItem('pao_theme',n);$('themeBtn').textContent=n==='dark'?'☀️':'🌙'};
 (function(){const t=localStorage.getItem('pao_theme');if(t)document.documentElement.dataset.theme=t})();
