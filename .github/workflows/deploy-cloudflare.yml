@@ -60,3 +60,10 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
         run: |
           wrangler deploy --config wrangler.toml
+
+      - name: Verificar V2 no endereço oficial
+        run: |
+          sleep 3
+          curl -fsSL -H 'Cache-Control: no-cache' 'https://paozinhos.mgpz.workers.dev/?verify=v2' -o /tmp/home.html
+          head -n 40 /tmp/home.html
+          grep -F 'Bem-vindo ao Pãozinhos' /tmp/home.html
