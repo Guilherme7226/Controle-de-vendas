@@ -127,7 +127,7 @@ function doPost(e) {
       case 'admin_listar_clientes':
         return json({ok:true,data:adminListClients(ss)});
       case 'admin_listar_clientes_rapido':
-        return json({ok:true,data:adminListClientsFast(ss)});
+        return json({ok:true,data:adminListClientsSupabase_()});
       case 'admin_bootstrap':
         // Bootstrap leve: entrega somente Dashboard/resumo.
         // A tela já está liberada antes desta chamada; o restante
@@ -1502,6 +1502,51 @@ function changeClientPassword(ss,d) {
     return {token:token,mustChangePassword:false,cliente:{id:String(rows[i][0]),nome:String(rows[i][1]),telefone:String(rows[i][2]),email:String(rows[i][3])}};
   }
   throw new Error('Cliente não encontrado.');
+}
+
+function adminListClientsSupabase_() {
+  const clientes = supabaseSelectAll_(
+    'clientes',
+    'id,nome,telefone,email,primeira_senha,ativo'
+  ) || [];
+  const pedidos = supabaseSelectAll_(
+    'pedidos',
+    'id,cliente_id'
+  ) || [];
+  const itens = supabaseSelectAll_(
+    'pedido_itens',
+    'pedido_id,quantidade'
+  ) || [];
+
+  const pedidosPorCliente = {};
+  const pedidoIds = {};
+  pedidos.forEach(function(p) {
+    const cid = String(p.cliente_id || '');
+    const pid = String(p.id || '');
+    if (cid) pedidosPorCliente[cid] = (pedidosPorCliente[cid] || 0) + 1;
+    if (pid) pedidoIds[pid] = cid;
+  });
+
+  const paesPorCliente = {};
+  itens.forEach(function(item) {
+    const cid = pedidoIds[String(item.pedido_id || '')];
+    if (!cid) return;
+    paesPorCliente[cid] =
+      (paesPorCliente[cid] || 0) + (Number(item.quantidade) || 0);
+  });
+
+  return clientes.map(function(c) {
+    return {
+      id: String(c.id || ''),
+      nome: String(c.nome || ''),
+      telefone: String(c.telefone || ''),
+      email: String(c.email || ''),
+      ativo: c.ativo !== false,
+      mustChangePassword: c.primeira_senha === true,
+      pedidos: pedidosPorCliente[String(c.id)] || 0,
+      paes: paesPorCliente[String(c.id)] || 0
+    };
+  });
 }
 
 function adminListClientsFast(ss) {
