@@ -272,6 +272,15 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <button class="primary" style="margin-top:12px" onclick="saveCost()">Salvar</button>
 </div></div>
 
+<div id="orderEditModal" class="modal"><div class="card" style="max-width:620px">
+  <div class="row"><div><h3 style="margin:0">Editar pedido</h3><div id="orderEditInfo" class="muted"></div></div><button class="secondary" onclick="closeOrderEdit()">×</button></div>
+  <div id="orderEditItems" class="grid" style="margin-top:14px"></div>
+  <div class="actions" style="margin-top:16px">
+    <button class="secondary" onclick="closeOrderEdit()">Cancelar</button>
+    <button id="saveOrderEditBtn" class="primary" onclick="saveOrderEdit()">Salvar alterações</button>
+  </div>
+</div></div>
+
 <script>
 let sb=null,session=null,clients=[],products=[],supabaseConfig=null;
 let salesCache=[],ordersCache=[],costsCache=[];
@@ -457,7 +466,19 @@ function renderOrdersFiltered(){
     return matchesName && matchesExactDate(x.data,date);
   });
   $('ordersTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+
-    (rows.length?rows.map(x=>{const itens=(x.itens||[]).map(i=>i.quantidade+'× '+esc(i.produto)).join(', ');return '<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+itens+'</td><td>'+brl(x.total)+'</td><td><span class="pill '+(x.status==='confirmado'?'ok':x.status==='reservado'?'warn':'bad')+'">'+x.status+'</span></td><td>'+(x.status==='reservado'?'<button class="primary" onclick="confirmOrder(\''+x.id+'\')">Confirmar</button> <button class="danger" onclick="cancelOrder(\''+x.id+'\')">Cancelar</button>':'—')+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum pedido encontrado com esses filtros.</td></tr>')+
+    (rows.length?rows.map(x=>{
+      const itens=(x.itens||[]).map(i=>i.quantidade+'× '+esc(i.produto)).join(', ');
+      const pago=Number(x.valor_pago||0)>0;
+      let actions='—';
+      if(x.status==='reservado'){
+        actions='<div class="action-group"><button class="primary" onclick="confirmOrder(\''+x.id+'\')">Confirmar</button><button class="secondary" onclick="openOrderEdit(\''+x.id+'\')">✏️ Editar</button><button class="danger" onclick="cancelOrder(\''+x.id+'\')">Cancelar</button></div>';
+      }else if(x.status==='confirmado'&&!pago){
+        actions='<div class="action-group"><button class="secondary" onclick="openOrderEdit(\''+x.id+'\')">✏️ Editar</button><button class="danger" onclick="cancelOrder(\''+x.id+'\')">Cancelar</button></div>';
+      }else if(x.status==='confirmado'&&pago){
+        actions='<span class="pill ok">🔒 Pago · bloqueado</span>';
+      }
+      return '<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+itens+'</td><td>'+brl(x.total)+'</td><td><span class="pill '+(x.status==='confirmado'?'ok':x.status==='reservado'?'warn':'bad')+'">'+x.status+'</span></td><td>'+actions+'</td></tr>';
+    }).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum pedido encontrado com esses filtros.</td></tr>')+
     '</tbody></table>';
 }
 function clearOrderFilters(){
@@ -496,13 +517,65 @@ async function paySale(id,saldo){
   if(r.error)return alert(r.error.message); await Promise.all([loadSales(),loadDashboard()]); if($('receber').classList.contains('active'))await loadReceivables();
 }
 async function loadOrders(){
-  const r=await sb.from('v2_pedidos_completos').select('*').order('data',{ascending:false}).order('created_at',{ascending:false});
+  const [r,v]=await Promise.all([
+    sb.from('v2_pedidos_completos').select('*').order('data',{ascending:false}).order('created_at',{ascending:false}),
+    sb.from('v2_vendas').select('pedido_id,valor_pago').not('pedido_id','is',null)
+  ]);
   if(r.error)return msg(r.error.message,'error');
-  ordersCache=r.data||[];
+  if(v.error)return msg(v.error.message,'error');
+  const pay={};(v.data||[]).forEach(x=>{if(x.pedido_id)pay[x.pedido_id]=Number(x.valor_pago)||0});
+  ordersCache=(r.data||[]).map(x=>Object.assign({},x,{valor_pago:pay[x.id]||0}));
   renderOrdersFiltered();
 }
-async function confirmOrder(id){if(!confirm('Confirmar este pedido e gerar a venda?'))return;const r=await sb.rpc('v2_confirmar_pedido',{p_pedido_id:id});if(r.error)return alert(r.error.message);await Promise.all([loadOrders(),loadDashboard(),loadStock()])}
-async function cancelOrder(id){if(!confirm('Cancelar este pedido?'))return;const r=await sb.rpc('v2_cancelar_pedido',{p_pedido_id:id});if(r.error)return alert(r.error.message);await Promise.all([loadOrders(),loadDashboard(),loadStock()])}
+async function confirmOrder(id){
+  if(!confirm('Confirmar este pedido e gerar a venda?'))return;
+  const r=await sb.rpc('v2_confirmar_pedido',{p_pedido_id:id});
+  if(r.error)return alert(r.error.message);
+  await Promise.all([loadOrders(),loadDashboard(),loadStock(),loadSales()]);
+}
+async function cancelOrder(id){
+  const pedido=ordersCache.find(x=>String(x.id)===String(id));
+  const texto=pedido?.status==='confirmado'
+    ? 'Cancelar este pedido confirmado? A venda vinculada sem pagamento será removida e o estoque será devolvido.'
+    : 'Cancelar este pedido?';
+  if(!confirm(texto))return;
+  const r=await sb.rpc('v2_cancelar_pedido',{p_pedido_id:id});
+  if(r.error)return alert(r.error.message);
+  await Promise.all([loadOrders(),loadDashboard(),loadStock(),loadSales()]);
+  if($('receber').classList.contains('active'))await loadReceivables();
+}
+let editingAdminOrderId=null;
+function openOrderEdit(id){
+  const pedido=ordersCache.find(x=>String(x.id)===String(id));
+  if(!pedido)return;
+  if(Number(pedido.valor_pago||0)>0)return alert('Este pedido já possui pagamento e não pode ser editado.');
+  editingAdminOrderId=id;
+  const current={};(pedido.itens||[]).forEach(i=>current[i.produto_id]=(current[i.produto_id]||0)+Number(i.quantidade||0));
+  $('orderEditInfo').textContent=pedido.cliente+' · '+pedido.status+' · '+brl(pedido.total);
+  $('orderEditItems').innerHTML=(products||[]).map(p=>'<div class="field"><label>'+esc(p.nome)+'</label><input class="admin-order-qty" data-product="'+p.id+'" type="number" min="0" step="1" value="'+(current[p.id]||0)+'"></div>').join('');
+  $('orderEditModal').style.display='grid';
+}
+function closeOrderEdit(){
+  editingAdminOrderId=null;
+  $('orderEditModal').style.display='none';
+}
+async function saveOrderEdit(){
+  if(!editingAdminOrderId)return;
+  const itens=[...document.querySelectorAll('.admin-order-qty')].map(el=>({produto_id:el.dataset.product,quantidade:Math.max(0,Math.floor(Number(el.value)||0))})).filter(x=>x.quantidade>0);
+  if(!itens.length)return alert('Informe pelo menos um item.');
+  const btn=$('saveOrderEditBtn');btn.disabled=true;btn.textContent='Salvando...';
+  try{
+    const r=await sb.rpc('v2_admin_editar_pedido',{p_pedido_id:editingAdminOrderId,p_itens:itens});
+    if(r.error)throw r.error;
+    closeOrderEdit();
+    await Promise.all([loadOrders(),loadDashboard(),loadStock(),loadSales()]);
+    if($('receber').classList.contains('active'))await loadReceivables();
+  }catch(e){
+    alert(e?.message||'Não foi possível editar o pedido.');
+  }finally{
+    btn.disabled=false;btn.textContent='Salvar alterações';
+  }
+}
 const LEGACY_API_URL='https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec';
 async function gerarAcessoCliente(clienteId,tipo){
   if(!session?.access_token)return alert('Sessão administrativa inválida.');
