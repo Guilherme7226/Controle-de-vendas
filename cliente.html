@@ -116,6 +116,48 @@ input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,
   .account-grid,.stock-grid{grid-template-columns:1fr}
 }
 
+
+.reserve-overlay{
+  position:fixed;inset:0;display:none;align-items:center;justify-content:center;
+  background:rgba(15,23,42,.48);backdrop-filter:blur(5px);z-index:9999;overflow:hidden
+}
+.reserve-overlay.show{display:flex}
+.reserve-card{
+  position:relative;z-index:2;background:var(--card);color:var(--text);
+  border:1px solid var(--line);border-radius:24px;padding:30px 24px;width:min(92vw,390px);
+  text-align:center;box-shadow:0 24px 70px rgba(0,0,0,.24);animation:reservePop .34s ease
+}
+.reserve-card .reserve-icon{font-size:46px;margin-bottom:8px}
+.reserve-card h2{margin:0 0 8px;font-size:26px;letter-spacing:-.03em}
+.reserve-card p{margin:0;color:var(--muted);font-size:15px;line-height:1.5}
+.bread-rain{position:absolute;inset:0;pointer-events:none;overflow:hidden}
+.bread-rain span{
+  position:absolute;top:-70px;font-size:36px;opacity:0;
+  animation:breadFall 2.6s linear forwards
+}
+.bread-rain span:nth-child(1){left:5%;animation-delay:0s}
+.bread-rain span:nth-child(2){left:16%;animation-delay:.18s}
+.bread-rain span:nth-child(3){left:29%;animation-delay:.05s}
+.bread-rain span:nth-child(4){left:42%;animation-delay:.28s}
+.bread-rain span:nth-child(5){left:55%;animation-delay:.12s}
+.bread-rain span:nth-child(6){left:67%;animation-delay:.36s}
+.bread-rain span:nth-child(7){left:79%;animation-delay:.08s}
+.bread-rain span:nth-child(8){left:90%;animation-delay:.24s}
+@keyframes reservePop{
+  from{transform:scale(.88);opacity:0}
+  to{transform:scale(1);opacity:1}
+}
+@keyframes breadFall{
+  0%{transform:translateY(-30px) rotate(0deg);opacity:0}
+  10%{opacity:1}
+  50%{transform:translateY(48vh) rotate(14deg)}
+  100%{transform:translateY(108vh) rotate(-12deg);opacity:0}
+}
+@media(prefers-reduced-motion:reduce){
+  .bread-rain span{animation:none;display:none}
+  .reserve-card{animation:none}
+}
+
 </style>
 </head>
 <body>
@@ -177,6 +219,22 @@ const recheios=['Frango','Frango com milho','Frango com milho e salada','Frango 
 const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
+
+let reserveAnimationTimer=null;
+function showReserveAnimation(){
+  const el=$('reserveOverlay');
+  if(!el)return;
+  if(reserveAnimationTimer)clearTimeout(reserveAnimationTimer);
+  el.classList.remove('show');
+  void el.offsetWidth;
+  el.classList.add('show');
+  el.setAttribute('aria-hidden','false');
+  reserveAnimationTimer=setTimeout(()=>{
+    el.classList.remove('show');
+    el.setAttribute('aria-hidden','true');
+  },2700);
+}
+
 function showMsg(t,c=''){ $('msg').innerHTML='<div class="notice '+c+'">'+String(t).replace(/[&<>"]/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[m]))+'</div>'}
 async function api(action,data,opts={}){
   try{
@@ -576,6 +634,7 @@ $('orderBtn').onclick=async()=>{
      j=await api('cliente_pedido',{token:s.token,data:today(),itens,requestId:pendingOrderRequestId});
      if(!j)return;
      showMsg('Pedido '+j.data.id+' reservado com sucesso!','success');
+     showReserveAnimation();
    }
 
    if(j.data&&j.data.id){
@@ -638,5 +697,18 @@ loadClient();
 let clientRefreshBusy=false;
 setInterval(()=>{if(document.hidden||clientRefreshBusy)return;clientRefreshBusy=true;loadClient().finally(()=>{clientRefreshBusy=false})},60000);
 </script>
+
+<div id="reserveOverlay" class="reserve-overlay" aria-hidden="true">
+  <div class="bread-rain" aria-hidden="true">
+    <span>🥖</span><span>🥖</span><span>🥖</span><span>🥖</span>
+    <span>🥖</span><span>🥖</span><span>🥖</span><span>🥖</span>
+  </div>
+  <div class="reserve-card" role="status" aria-live="polite">
+    <div class="reserve-icon">✅</div>
+    <h2>Pedido reservado!</h2>
+    <p>Seu pedido foi reservado com sucesso.</p>
+  </div>
+</div>
+
 </body>
 </html>
