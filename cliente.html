@@ -327,13 +327,13 @@ async function api(action,data,opts={}){
     if(action==='cliente_cadastro')throw Error('Novos cadastros estão desativados nesta versão. O acesso é criado pelo administrador.');
 
     if(action==='estoque_atual'){
-      const {data,error}=await supabaseClient.from('v2_estoque_publico').select('produto_id,nome,preco,disponivel').order('nome');
+      const {data,error}=await supabaseClient.rpc('v2_estoque_cliente');
       if(error)throw error;
       return {ok:true,data:{stock:(data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0}))}};
     }
 
     if(action==='cliente_pedido'){
-      const estoque=await supabaseClient.from('v2_estoque_publico').select('produto_id,nome,preco,disponivel');
+      const estoque=await supabaseClient.rpc('v2_estoque_cliente');
       if(estoque.error)throw estoque.error;
       const itensInput=(data?.itens||[]).filter(i=>Number(i.quantidade)>0);
       if(!itensInput.length)throw Error('Escolha pelo menos um recheio.');
