@@ -120,7 +120,7 @@ input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,
 </head>
 <body>
 <div class="wrap">
-<header><div class="top"><div><h1>🥖 Paozinhos</h1><small>Área do cliente • fazer pedido</small></div><div style="display:flex;gap:8px;align-items:center"><button id="backTop" class="theme-btn" type="button">← Voltar</button><button id="themeToggle" class="theme-btn" type="button">🌙 Modo escuro</button><button id="clientSettings" class="theme-btn hidden" type="button">⚙️ Configurações</button><button id="logout" class="secondary logout hidden">Sair</button></div></div></header>
+<header><div class="top"><div><h1>🥖 Paozinhos</h1><small>Área do cliente • fazer pedido</small></div><div style="display:flex;gap:8px;align-items:center"><button id="backTop" class="theme-btn" type="button">← Voltar</button><button id="themeToggle" class="theme-btn" type="button">🌙 Modo escuro</button><button id="adminPanelBtn" class="theme-btn hidden" type="button">🛠️ Painel ADM</button><button id="clientSettings" class="theme-btn hidden" type="button">⚙️ Configurações</button><button id="logout" class="secondary logout hidden">Sair</button></div></div></header>
 <div id="msg"></div>
 
 <section id="auth">
@@ -351,15 +351,15 @@ async function api(action,data,opts={}){
 function session(){try{return JSON.parse(localStorage.getItem('paozinhos_cliente')||'null')}catch(_){return null}}
 function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(v))}
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
-function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente?.nome||'';$('clientSettingsPanel').classList.add('hidden');setClientTab('atual');if(!s.mustChangePassword){if(!$('stockGrid').children.length)$('stockGrid').innerHTML='<div class="notice">⏳ Carregando estoque...</div>';if(!$('orders').children.length)$('orders').innerHTML='<div class="notice">⏳ Carregando seus pedidos...</div>'}}
-function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
+function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('adminPanelBtn').classList.toggle('hidden',!s.isAdmin||!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente?.nome||'';$('clientSettingsPanel').classList.add('hidden');setClientTab('atual');if(!s.mustChangePassword){if(!$('stockGrid').children.length)$('stockGrid').innerHTML='<div class="notice">⏳ Carregando estoque...</div>';if(!$('orders').children.length)$('orders').innerHTML='<div class="notice">⏳ Carregando seus pedidos...</div>'}}
+function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('adminPanelBtn').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
   const {data:sessionData}=await supabaseClient.auth.getSession();
   if(!sessionData.session){showAuth();return false;}
   const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{}, {timeout:20000,retries:0,silent:true});
   if(!j){showAuth();return false;}
-  const sess={mustChangePassword:!!j.data.mustChangePassword,cliente:j.data.cliente};
+  const sess={mustChangePassword:!!j.data.mustChangePassword,cliente:j.data.cliente,isAdmin:sessionData.session?.user?.app_metadata?.role==='admin'};
   saveSession(sess);showApp(sess);
   if(!sess.mustChangePassword){currentPedidos=j.data.pedidos||[];currentVendas=j.data.vendas||[];await refreshStock();renderOrders(currentPedidos,currentVendas);}
   return true;
@@ -499,6 +499,7 @@ $('loginBtn').onclick=async()=>{
  }
 };
 $('changePasswordBtn').onclick=async()=>{const s=session(),a=$('newPassword').value,b=$('newPassword2').value;if(!s)return;if(a.length<6){showMsg('A nova senha deve ter pelo menos 6 caracteres.','error');return}if(a!==b){showMsg('As senhas não conferem.','error');return}const j=await api('cliente_alterar_senha',{token:s.token,novaSenha:a});if(!j)return;saveSession(j.data);$('newPassword').value='';$('newPassword2').value='';showMsg('Senha alterada com sucesso.','success');await loadClient()};$('changeLogout').onclick=()=>{clearSession();showAuth();showMsg('Você saiu da sua conta.','success')};
+$('adminPanelBtn').onclick=()=>location.href='/sistema';
 $('tabAtual').onclick=()=>setClientTab('atual');
 $('tabHistorico').onclick=()=>setClientTab('historico');
 $('clientSettings').onclick=()=>{
