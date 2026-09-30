@@ -269,14 +269,20 @@ function showApp(s){$('auth').classList.add('hidden');$('changePassword').classL
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
 let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
-  const {data:sessionData}=await supabaseClient.auth.getSession();
-  if(!sessionData.session){showAuth();return false;}
-  const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{}, {timeout:20000,retries:0,silent:true});
-  if(!j){showAuth();return false;}
-  const sess={mustChangePassword:!!j.data.mustChangePassword,cliente:j.data.cliente};
-  saveSession(sess);showApp(sess);
-  if(!sess.mustChangePassword){currentPedidos=j.data.pedidos||[];currentVendas=j.data.vendas||[];await refreshStock();renderOrders(currentPedidos,currentVendas);}
-  return true;
+ try{
+   const {data:sessionData}=await supabaseClient.auth.getSession();
+   if(!sessionData?.session){showAuth();return false;}
+   const j=prefetched?{ok:true,data:prefetched}:await api('cliente_dados',{}, {timeout:20000,retries:0,silent:true});
+   if(!j?.ok || !j?.data){
+     const erro=j?.error||j?.details||j?.hint||'Não foi possível carregar seus dados.';
+     console.error('cliente_dados:',j);showMsg(erro,'error');showAuth();return false;
+   }
+   const sess={mustChangePassword:!!j.data.mustChangePassword,cliente:j.data.cliente||null};
+   if(!sess.cliente){showMsg('Cadastro do cliente não encontrado.','error');showAuth();return false;}
+   saveSession(sess);showApp(sess);
+   if(!sess.mustChangePassword){currentPedidos=j.data.pedidos||[];currentVendas=j.data.vendas||[];await refreshStock();renderOrders(currentPedidos,currentVendas);}
+   return true;
+ }catch(e){console.error(e);showMsg(e?.message||'Erro ao carregar seus dados.','error');showAuth();return false;}
 }
 async function refreshStock(){
   const j=await api('estoque_atual',{}, {timeout:15000,retries:0,silent:true});
