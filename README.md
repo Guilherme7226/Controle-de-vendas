@@ -16,3 +16,6 @@ Preço padrão configurado: **R$ 8,00 por pão**.
 5. No site, clique em **⚙️ Configurar** e informe essa URL.
 
 Enquanto a URL do Apps Script não estiver configurada, o site funciona em modo local no navegador.
+
+
+<!-- Redeploy produção após criação da V2: 2026-09-30 -->
