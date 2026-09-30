@@ -15,6 +15,72 @@ main{min-height:calc(100vh - 64px);display:grid;place-items:center;padding:28px 
 .choices{display:grid;grid-template-columns:1fr 1fr;gap:16px}.choice{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:24px;box-shadow:var(--shadow);display:flex;flex-direction:column;min-height:230px}.choice-icon{font-size:36px}.choice h2{margin:14px 0 8px;font-size:22px}.choice p{color:var(--muted);line-height:1.5;margin:0 0 20px}.choice button{margin-top:auto;width:100%;border:0;border-radius:11px;padding:13px 15px;color:#fff;font-weight:750;font-size:16px;cursor:pointer}.client button{background:var(--orange)}.admin button{background:var(--blue)}.choice button:hover{filter:brightness(.96)}
 .status{margin-top:18px;text-align:center;color:var(--muted);font-size:12px}
 @media(max-width:680px){.choices{grid-template-columns:1fr}.choice{min-height:190px}.intro h1{font-size:29px}.top{padding:0 12px}.brand small{display:none}main{padding:20px 12px}}
+
+/* ===== Design System V2 ===== */
+:root{
+  --bg:#f6f7fb;--card:#ffffff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;
+  --header:#0f172a;--accent:#f97316;--accent-strong:#ea580c;--accent-soft:#fff7ed;
+  --surface:#f8fafc;--shadow:0 12px 34px rgba(15,23,42,.08);--shadow-hover:0 18px 44px rgba(15,23,42,.12)
+}
+[data-theme=dark]{
+  --bg:#08111f;--card:#101827;--text:#f8fafc;--muted:#94a3b8;--line:#243044;
+  --header:#050b14;--accent:#fb923c;--accent-strong:#f97316;--accent-soft:#2b170b;
+  --surface:#0d1625;--shadow:0 12px 34px rgba(0,0,0,.28);--shadow-hover:0 18px 44px rgba(0,0,0,.38)
+}
+body{
+  background:
+    radial-gradient(circle at 12% 10%,rgba(249,115,22,.10),transparent 28%),
+    radial-gradient(circle at 88% 18%,rgba(15,23,42,.07),transparent 26%),
+    var(--bg);
+  letter-spacing:-.01em
+}
+.top{
+  height:72px;padding:0 24px;background:rgba(15,23,42,.96);
+  border-bottom:1px solid rgba(255,255,255,.08);backdrop-filter:blur(14px);z-index:30
+}
+.brand strong{font-size:19px;font-weight:800;letter-spacing:-.02em}.brand small{font-size:12px;color:#94a3b8}
+.theme{
+  background:rgba(255,255,255,.07);border:1px solid rgba(255,255,255,.12);
+  padding:10px 14px;border-radius:12px;font-weight:700;transition:.2s ease
+}
+.theme:hover{background:rgba(255,255,255,.12);transform:translateY(-1px)}
+main{min-height:calc(100vh - 72px);padding:42px 20px}
+.hero{width:min(980px,100%)}
+.intro{margin-bottom:28px}.logo{
+  width:82px;height:82px;margin:0 auto 12px;display:grid;place-items:center;font-size:42px;
+  border-radius:24px;background:linear-gradient(135deg,var(--accent),var(--accent-strong));
+  box-shadow:0 18px 36px rgba(249,115,22,.24)
+}
+.intro h1{font-size:38px;letter-spacing:-.035em;margin:10px 0 8px}.intro p{font-size:16px}
+.choices{gap:18px}
+.choice{
+  min-height:250px;padding:26px;border-radius:22px;border:1px solid var(--line);
+  background:linear-gradient(180deg,var(--card),color-mix(in srgb,var(--card) 94%,var(--surface)));
+  box-shadow:var(--shadow);transition:.22s ease;position:relative;overflow:hidden
+}
+.choice::after{
+  content:"";position:absolute;width:150px;height:150px;border-radius:999px;
+  background:rgba(249,115,22,.07);right:-55px;top:-55px;pointer-events:none
+}
+.choice:hover{transform:translateY(-4px);box-shadow:var(--shadow-hover);border-color:rgba(249,115,22,.25)}
+.choice-icon{
+  width:52px;height:52px;border-radius:16px;display:grid;place-items:center;font-size:25px;
+  background:var(--accent-soft);border:1px solid rgba(249,115,22,.16)
+}
+.choice h2{font-size:23px;letter-spacing:-.02em}.choice p{font-size:14px;line-height:1.65}
+.choice button{
+  background:linear-gradient(135deg,var(--accent),var(--accent-strong))!important;
+  border-radius:13px;padding:14px 16px;box-shadow:0 10px 22px rgba(249,115,22,.18);
+  transition:.2s ease;position:relative;z-index:2
+}
+.choice button:hover{filter:none;transform:translateY(-1px);box-shadow:0 14px 28px rgba(249,115,22,.26)}
+.status{margin-top:22px;font-size:12px}
+@media(max-width:680px){
+  .top{height:64px;padding:0 14px}main{min-height:calc(100vh - 64px);padding:28px 12px}
+  .intro h1{font-size:30px}.logo{width:70px;height:70px;font-size:36px;border-radius:20px}
+  .choice{min-height:210px;padding:20px}
+}
+
 </style>
 </head>
 <body>
