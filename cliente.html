@@ -240,9 +240,10 @@ async function api(action,data,opts={}){
       const statusPedido=String(pedido.status||'').trim().toLowerCase();
    if(statusPedido!=='reservado') throw Error('Este pedido já foi confirmado e não pode mais ser cancelado.');
 
-      const {data:atualizado,error:errorPedido}=await supabaseClient.from('pedidos').update({status:'cancelado',updated_at:new Date().toISOString()}).eq('id',id).eq('cliente_id',cliente.id).select('id,status,total,created_at').single();
-      if(errorPedido) throw errorPedido;
-      return {ok:true,data:{id:atualizado.id,status:'cancelado'}};
+      const {data:cancelResult,error:cancelError}=await supabaseClient.rpc('cancelar_pedido_cliente',{p_cliente_id:cliente.id,p_pedido_id:id});
+      if(cancelError) throw cancelError;
+      if(!cancelResult?.ok) throw Error(cancelResult?.error||'Não foi possível cancelar o pedido.');
+      return {ok:true,data:{id,status:'cancelado',deleted:true}};
     }
 
     if(action==='cliente_alterar_senha'){
