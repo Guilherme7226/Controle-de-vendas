@@ -104,7 +104,7 @@ function doPost(e) {
         return json({ok:true,data:resultClientePedido});
       }
       case 'estoque_atual':
-        return json({ok:true,data:readStock(ss)});
+        return json({ok:true,data:readStockSupabase_()});
       case 'cliente_dados':
         return json({ok:true,data:getClientData(ss,d)});
       case 'cliente_confirmar_pedido': {
@@ -3018,6 +3018,24 @@ function calculateStock(production,orders,adjustments) {
       // As rotinas de gravação também validam disponibilidade antes de alterar dados.
       disponivel:Math.max(0,bruto)
     };
+  });
+}
+
+function readStockSupabase_() {
+  const rows = supabaseSelectAll_(
+    'estoque',
+    'produto_id,quantidade,produtos(nome)'
+  ) || [];
+
+  return rows.map(function(x) {
+    return {
+      recheio: x.produtos && x.produtos.nome
+        ? String(x.produtos.nome)
+        : '',
+      disponivel: Math.max(0, Number(x.quantidade) || 0)
+    };
+  }).filter(function(x) {
+    return x.recheio;
   });
 }
 
