@@ -128,11 +128,10 @@ function doPost(e) {
         return json({ok:true,data:adminListClients(ss)});
       case 'admin_listar_clientes_rapido':
         return json({ok:true,data:adminListClientsSupabase_()});
-      case 'admin_bootstrap':
-        // Bootstrap leve: entrega somente Dashboard/resumo.
-        // A tela já está liberada antes desta chamada; o restante
-        // continua sendo carregado separadamente pelo frontend.
-        const dashboardBootstrap=readDashboardData(getSS());
+      case 'admin_bootstrap': {
+        // Bootstrap isolado: lê diretamente a aba Vendas e não depende
+        // de Resumo/Custos para entregar os indicadores principais.
+        const dashboardBootstrap=readDashboardDataBootstrap_(ss);
         return json({ok:true,data:{
           sales:dashboardBootstrap.sales||[],
           summary:dashboardBootstrap.summary||{},
@@ -143,6 +142,7 @@ function doPost(e) {
           stock:[],
           orders:[]
         }});
+      }
 
       case 'admin_listar_pedidos':
         return json({ok:true,data:{orders:readOrdersSupabase_()}});
@@ -1002,6 +1002,85 @@ function readDashboardDataSupabase_() {
     console.warn('Dashboard Supabase indisponível; usando histórico da planilha.', err);
     return readDashboardData(getSS());
   }
+}
+
+function readDashboardDataBootstrap_(ss) {
+  const sales = [];
+  const sh = ss.getSheetByName(SHEET_VENDAS);
+
+  if (sh && sh.getLastRow() >= 2) {
+    const lastRow = sh.getLastRow();
+    const width = Math.min(12, Math.max(11, sh.getLastColumn()));
+    const rows = sh.getRange(2,1,lastRow - 1,width).getValues();
+    const pedidoIdsVistos = new Set();
+
+    for (let i=0; i<rows.length; i++) {
+      const r=rows[i];
+      if (isTotalValues(r)) break;
+      if (!r[0] && !r[1] && !r[3] && !r[5]) continue;
+
+      const pedidoId=String(r[11]||'').trim();
+      if (pedidoId) {
+        if (pedidoIdsVistos.has(pedidoId)) continue;
+        pedidoIdsVistos.add(pedidoId);
+      }
+
+      const total=parseMoney(r[5]);
+      const valorPago=parseMoney(r[9]);
+      const saldo=r[10]!=='' && r[10]!=null
+        ? parseMoney(r[10])
+        : Math.max(0,total-valorPago);
+
+      sales.push({
+        row:i+2,
+        data:dateValue(r[0]),
+        cliente:String(r[1]||''),
+        contatoEmpresa:String(r[2]||''),
+        quantidade:parseNumber(r[3]),
+        valorUnitario:parseMoney(r[4]),
+        total:total,
+        dataPagamento:dateValue(r[6]),
+        pago:saldo<=0 && total>0,
+        parcial:String(r[8]||'Não'),
+        valorPago:valorPago,
+        deve:Math.max(0,saldo),
+        status:saldo<=0 && total>0?'Pago':valorPago>0?'Parcial':'Pendente',
+        pedidoId:pedidoId
+      });
+    }
+  }
+
+  const totalVendido=sales.reduce((s,x)=>s+(Number(x.total)||0),0);
+  const totalRecebido=sales.reduce((s,x)=>s+(Number(x.valorPago)||0),0);
+  const totalAReceber=sales.reduce((s,x)=>s+(Number(x.deve)||0),0);
+  const qtdPaes=sales.reduce((s,x)=>s+(Number(x.quantidade)||0),0);
+  const qtdVendas=sales.length;
+  const ticketMedio=qtdVendas?totalVendido/qtdVendas:0;
+  let custoTotal=0;
+  try { custoTotal=calcularCustoTotal(ss); } catch (_) {}
+
+  const porCliente={};
+  sales.forEach(v=>{
+    const nome=String(v.cliente||'').trim();
+    if(!nome)return;
+    const chave=normalize(nome);
+    if(!porCliente[chave])porCliente[chave]={cliente:nome,qtdPaes:0,qtdVendas:0,totalVendido:0,totalPago:0,saldoDevedor:0};
+    const x=porCliente[chave];
+    x.qtdPaes+=Number(v.quantidade)||0;
+    x.qtdVendas+=1;
+    x.totalVendido+=Number(v.total)||0;
+    x.totalPago+=Number(v.valorPago)||0;
+    x.saldoDevedor+=Number(v.deve)||0;
+  });
+
+  return {
+    sales:sales,
+    summary:{
+      totalVendido,totalRecebido,totalAReceber,qtdPaes,qtdVendas,
+      ticketMedio,custoTotal,lucro:totalVendido-custoTotal
+    },
+    clientSummary:Object.keys(porCliente).map(k=>porCliente[k])
+  };
 }
 
 function readDashboardData(ss) {
