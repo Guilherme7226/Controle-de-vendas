@@ -14,7 +14,7 @@ const RECHEIOS = ['Frango','Frango com milho','Frango com milho e salada','Frang
 const PRECO_PAODEFINIDO = 8;
 const APP_VERSION = '2026-09-30-supabase-migracao-v1';
 const FORMATACAO_PLANILHA_VERSAO = '2026-09-28-1';
-const SUPPORTED_ACTIONS = ['venda','custo','editar_custo','excluir_custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_verificar_migracao_supabase','admin_migrar_tudo','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes','admin_client_access'];
+const SUPPORTED_ACTIONS = ['venda','custo','editar_custo','excluir_custo','pagamento','editar_venda','excluir_venda','admin_login','admin_validar','cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_listar_clientes','admin_listar_clientes_rapido','admin_bootstrap','admin_full_data','admin_listar_pedidos','admin_migrar_vendas_pedidos','admin_criar_cliente','admin_editar_cliente','admin_excluir_cliente','admin_editar_pedido','admin_excluir_pedido','admin_confirmar_pedido','admin_confirmar_pedidos_lote','admin_pagar_cliente','admin_editar_estoque','estoque_atual','producao','admin_verificar_integridade','admin_verificar_migracao_supabase','admin_migrar_tudo','admin_recalcular_resumo','admin_historico_custos','admin_historico_producao','admin_custos_recentes','admin_client_access','admin_update_client_login'];
 
 const VENDAS_HEADERS = [
   'Data','Cliente','Contato/Empresa','Quantidade','Valor Unit. (R$)',
@@ -51,7 +51,7 @@ function doPost(e) {
     const d = body.data || body || {};
 
     // Somente ações de cliente podem ser chamadas sem sessão administrativa.
-    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar','admin_client_access'];
+    const clientActions = ['cliente_cadastro','cliente_login','cliente_pedido','cliente_dados','cliente_confirmar_pedido','cliente_editar_pedido','cliente_excluir_pedido','cliente_alterar_senha','admin_login','admin_validar','admin_client_access','admin_update_client_login'];
     if (body.action === 'estoque_atual') {
       // O estoque é consultado tanto pela área do cliente quanto pela administração.
       // Cliente envia d.token; administração envia body.adminToken.
@@ -102,6 +102,8 @@ function doPost(e) {
         return json({ok:true,data:adminValidate(d)});
       case 'admin_client_access':
         return json({ok:true,data:adminClientAccessSupabase_(d)});
+      case 'admin_update_client_login':
+        return json({ok:true,data:adminUpdateClientLoginSupabase_(d)});
       case 'cliente_cadastro':
         return json({ok:true,data:registerClient(ss,d)});
       case 'cliente_login':
@@ -4560,6 +4562,44 @@ function validarAdminSupabaseToken_(token) {
   try{isAdmin=JSON.parse(rpcRes.getContentText())===true;}catch(_){}
   if(!isAdmin)throw new Error('Acesso administrativo negado.');
   return true;
+}
+
+function adminUpdateClientLoginSupabase_(d) {
+  validarAdminSupabaseToken_(d.supabaseToken);
+
+  const clienteId=String(d.clienteId||'').trim();
+  const nome=String(d.nome||'').trim();
+  let telefone=String(d.telefone||'').replace(/\D/g,'');
+  if(!clienteId)throw new Error('Cliente inválido.');
+  if(!nome)throw new Error('Informe o nome do cliente.');
+  if(telefone.indexOf('55')===0&&(telefone.length===12||telefone.length===13))telefone=telefone.slice(2);
+  if(telefone.length<10||telefone.length>11)throw new Error('Informe um telefone válido com DDD.');
+
+  const rows=supabaseRequest_(
+    '/rest/v1/v2_clientes?select=id,nome,telefone,usuario_id,ativo&id=eq.'+encodeURIComponent(clienteId)+'&limit=1',
+    'get'
+  )||[];
+  if(!rows.length)throw new Error('Cliente não encontrado.');
+  const cliente=rows[0];
+  const uid=String(cliente.usuario_id||'').trim();
+  const email=telefone+'@clientes.paozinhos.local';
+
+  if(uid){
+    supabaseAuthRequest_('/auth/v1/admin/users/'+encodeURIComponent(uid),'put',{
+      email:email,
+      email_confirm:true,
+      user_metadata:{nome:nome,telefone:telefone}
+    });
+  }
+
+  supabaseRequest_(
+    '/rest/v1/v2_clientes?id=eq.'+encodeURIComponent(clienteId),
+    'patch',
+    {nome:nome,telefone:telefone,updated_at:new Date().toISOString()},
+    'return=minimal'
+  );
+
+  return {clienteId:clienteId,nome:nome,telefone:telefone,login:telefone,loginAtualizado:!!uid};
 }
 
 function adminClientAccessSupabase_(d) {
