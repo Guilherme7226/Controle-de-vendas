@@ -4585,15 +4585,8 @@ function adminClientAccessSupabase_(d) {
   const senha=gerarSenhaTemporaria_();
   let uid=String(cliente.usuario_id||'').trim();
 
-  if(uid){
-    supabaseAuthRequest_('/auth/v1/admin/users/'+encodeURIComponent(uid),'put',{
-      email:email,
-      password:senha,
-      email_confirm:true,
-      user_metadata:{nome:cliente.nome,telefone:telefone},
-      app_metadata:{role:'cliente'}
-    });
-  }else{
+  if(tipo==='login'){
+    if(uid)throw new Error('Este cliente já possui acesso. Use "Resetar senha" se ele esqueceu a senha.');
     const criado=supabaseAuthRequest_('/auth/v1/admin/users','post',{
       email:email,
       password:senha,
@@ -4603,6 +4596,17 @@ function adminClientAccessSupabase_(d) {
     });
     uid=String(criado&&criado.id||'');
     if(!uid)throw new Error('Não foi possível criar o acesso do cliente.');
+  }else if(tipo==='reset'){
+    if(!uid)throw new Error('Este cliente ainda não possui acesso. Use "Criar/Enviar acesso" primeiro.');
+    supabaseAuthRequest_('/auth/v1/admin/users/'+encodeURIComponent(uid),'put',{
+      email:email,
+      password:senha,
+      email_confirm:true,
+      user_metadata:{nome:cliente.nome,telefone:telefone},
+      app_metadata:{role:'cliente'}
+    });
+  }else{
+    throw new Error('Tipo de ação inválido.');
   }
 
   supabaseRequest_(
