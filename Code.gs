@@ -5233,7 +5233,7 @@ function syncSupabaseParaPlanilhaEditavel_() {
     SpreadsheetApp.flush();
     const ctrl=ss.getSheetByName('Controle Sync');
     if(ctrl){
-      ctrl.getRange('B9').setValue('ATIVA — edição manual → Supabase imediata; Supabase → planilha a cada 5 min');
+      ctrl.getRange('B9').setValue('ATIVA — alterações marcadas em Ação Sync ↔ Supabase a cada 5 min');
       ctrl.getRange('B12').setValue(Utilities.formatDate(new Date(),'America/Sao_Paulo','dd/MM/yyyy HH:mm:ss'));
     }
 
