@@ -149,7 +149,7 @@ function doPost(e) {
       case 'admin_full_data': {
         // Fonte principal do ADM: Supabase. Mantemos apenas os históricos
         // ainda não migrados (custos/produção) como fallback temporário.
-        const dash=readDashboardData(getSS());
+        const dash=readDashboardDataBootstrap_(ss);
         let custos=dashCostosFallback_();
         let clientes=adminListClientsSupabase_();
         let pedidos=readOrdersSupabase_();
@@ -839,15 +839,20 @@ function readSaleRow(ss,rowNumber){
 }
 
 function dashCostosFallback_() {
+  // Enquanto a migração histórica não estiver 100% conferida,
+  // a planilha continua sendo a fonte oficial dos custos do ADM.
   try {
-    const rows=supabaseSelectAll_('custos','id,descricao,valor,data')||[];
-    return rows;
+    return (readCostHistory(getSS())||[]).map(function(c,i){
+      return {
+        id:c.id||('sheet-'+i),
+        descricao:c.descricao||c.descrição||'',
+        valor:Number(c.valor)||0,
+        data:c.data||'',
+        row:c.row
+      };
+    });
   } catch (_) {
-    try {
-      return (readCostHistory(getSS())||[]).map(function(c,i){
-        return {id:c.id||('sheet-'+i),descricao:c.descricao||c.descrição||'',valor:Number(c.valor)||0,data:c.data||'',row:c.row};
-      });
-    } catch (__) { return []; }
+    return [];
   }
 }
 
