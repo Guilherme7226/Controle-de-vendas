@@ -193,7 +193,7 @@ input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,
   </div>
   <div class="account-note">Pedidos ficam em “Atual” por 24 horas após a criação. Depois disso, passam automaticamente para o Histórico.</div>
 </div>
-<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> pães</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
+<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><button id="refreshStockBtn" type="button" class="secondary" onclick="refreshStock()">🔄 Atualizar estoque</button><p id="stockStatus" role="status" aria-live="polite"></p><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> pães</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
 <div id="currentPanel"><div class="panel"><h2>📋 Pedidos atuais</h2><div id="orders"></div></div></div>
 <div id="historyPanel" class="hidden">
   <div class="panel"><h2>🕘 Histórico completo</h2>
@@ -327,7 +327,12 @@ async function api(action,data,opts={}){
     if(action==='cliente_cadastro')throw Error('Novos cadastros estão desativados nesta versão. O acesso é criado pelo administrador.');
 
     if(action==='estoque_atual'){
-      const {data,error}=await supabaseClient.rpc('v2_estoque_cliente');
+      const controller=new AbortController();
+      const timer=setTimeout(()=>controller.abort(),opts.timeout||15000);
+      let result;
+      try{result=await supabaseClient.rpc('v2_estoque_cliente').abortSignal(controller.signal);}
+      finally{clearTimeout(timer);}
+      const {data,error}=result;
       if(error)throw error;
       return {ok:true,data:{stock:(data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0}))}};
     }
@@ -420,12 +425,27 @@ async function loadClient(prefetched=null){
   if(!j){showAuth();return false;}
   const sess={mustChangePassword:!!j.data.mustChangePassword,cliente:j.data.cliente,isAdmin:sessionData.session?.user?.app_metadata?.role==='admin'};
   saveSession(sess);showApp(sess);
-  if(!sess.mustChangePassword){currentPedidos=j.data.pedidos||[];currentVendas=j.data.vendas||[];await refreshStock();renderOrders(currentPedidos,currentVendas);}
+  if(!sess.mustChangePassword){currentPedidos=j.data.pedidos||[];currentVendas=j.data.vendas||[];renderOrders(currentPedidos,currentVendas);await refreshStock();}
   return true;
 }
-async function refreshStock(){
-  const j=await api('estoque_atual',{}, {timeout:15000,retries:0,silent:true});
-  if(j&&j.ok){stock=j.data.stock||[];renderStock(stock)}
+let stockRefreshPromise=null;
+function refreshStock(){
+  if(stockRefreshPromise)return stockRefreshPromise;
+  stockRefreshPromise=(async()=>{
+    const btn=$('refreshStockBtn'),status=$('stockStatus');
+    btn.disabled=true;status.textContent='⏳ Atualizando estoque...';
+    try{
+      let j=await api('estoque_atual',{}, {timeout:10000,silent:true});
+      if(!j)j=await api('estoque_atual',{}, {timeout:10000,silent:true});
+      if(!j?.ok){
+        status.textContent='Não foi possível carregar o estoque. Toque em Atualizar estoque para tentar novamente.';
+        if(!stock.length)$('stockGrid').innerHTML='';
+        return false;
+      }
+      renderStock(j.data.stock||[]);status.textContent='Estoque atualizado.';return true;
+    }finally{btn.disabled=false;}
+  })().finally(()=>{stockRefreshPromise=null;});
+  return stockRefreshPromise;
 }
 function renderStock(data){
  stock=data;const map={};data.forEach(x=>map[x.recheio]=x);
