@@ -377,7 +377,7 @@ function cobrançaWhatsApp(nome,telefone,total){
   if(!numero)return alert('Esse cliente não possui telefone cadastrado.');
   const valor=brl(total);
   const primeiroNome=String(nome||'').trim().split(/\s+/)[0]||'';
-  const texto='Olá'+(primeiroNome?', '+primeiroNome:'')+'! Tudo bem? 🥖%0A%0APassando para lembrar que ficou um valor em aberto de *'+valor+'* referente aos Pãozinhos.%0A%0AQuando realizar o pagamento, por favor me avise. Obrigado! 😊';
+  const texto='Olá'+(primeiroNome?', '+primeiroNome:'')+'! Tudo bem? 🥖%0A%0APassando para lembrar que ficou um valor em aberto de *'+valor+'* referente aos Pãozinhos.%0A%0A*PIX:* 44558352883%0A%0AQuando realizar o pagamento, por favor me avise. Obrigado! 😊';
   window.open('https://wa.me/'+numero+'?text='+texto,'_blank','noopener,noreferrer');
 }
 async function loadReceivables(){
@@ -439,7 +439,7 @@ function renderSalesFiltered(){
     return matchesName && matchesExactDate(x.data,date);
   });
   $('salesTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
-    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(x.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(x.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(x.saldo)+')">💬 Cobrar</button><button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button></div>':'—')+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
+    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button>':'—')+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
     '</tbody></table>';
 }
 function clearSalesFilters(){
