@@ -154,6 +154,31 @@ async function api(action,data,opts={}){
         throw itensError;
       }
 
+      // Reserva o estoque imediatamente. A quantidade em estoque representa o saldo disponível.
+      const estoqueAlterado=[];
+      try{
+        for(const linha of linhas){
+          const {data:est,error:estError}=await supabaseClient.from('estoque')
+            .select('produto_id,quantidade').eq('produto_id',linha.produto_id).maybeSingle();
+          if(estError) throw estError;
+          const disponivel=Number(est?.quantidade)||0;
+          if(!est) throw Error('Produto sem estoque cadastrado: '+linha.produto_id);
+          if(linha.quantidade>disponivel) throw Error('Estoque insuficiente para '+itens.find(x=>x.recheio===String((produtos||[]).find(p=>String(p.id)===String(linha.produto_id))?.nome||''))?.recheio+'. Disponível: '+disponivel+'.');
+          const novoSaldo=disponivel-linha.quantidade;
+          const {error:updError}=await supabaseClient.from('estoque').update({quantidade:novoSaldo}).eq('produto_id',linha.produto_id);
+          if(updError) throw updError;
+          estoqueAlterado.push({produto_id:linha.produto_id,quantidade:linha.quantidade});
+        }
+      }catch(e){
+        for(const x of estoqueAlterado){
+          const {data:estAtual}=await supabaseClient.from('estoque').select('quantidade').eq('produto_id',x.produto_id).maybeSingle();
+          if(estAtual) await supabaseClient.from('estoque').update({quantidade:(Number(estAtual.quantidade)||0)+x.quantidade}).eq('produto_id',x.produto_id);
+        }
+        await supabaseClient.from('pedido_itens').delete().eq('pedido_id',pedido.id);
+        await supabaseClient.from('pedidos').delete().eq('id',pedido.id);
+        throw e;
+      }
+
       return {ok:true,data:{
         id:pedido.id,
         data:(pedido.created_at||'').slice(0,10),
