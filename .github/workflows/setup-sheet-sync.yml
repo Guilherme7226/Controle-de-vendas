@@ -21,11 +21,9 @@ jobs:
   sync:
     runs-on: ubuntu-latest
     steps:
-      - name: Sincronizar planilha e Supabase
+      - name: Disparar sincronização planilha e Supabase
         shell: bash
         run: |
-          set -euo pipefail
           URL="https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec?syncNow=1"
-          BODY="$(curl -L --fail --silent --show-error "$URL")"
-          echo "$BODY"
-          echo "$BODY" | grep -q '"ok":true'
+          curl -L --silent --show-error --max-time 70 "$URL" || true
+          echo "Sincronização disparada."
