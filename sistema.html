@@ -496,7 +496,7 @@ async function loadReceivables(){
   });
   const grupos=Object.values(grouped).sort((a,b)=>b.total-a.total);
   $('receivablesTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Vendas abertas</th><th>Total devido</th><th>Ações</th></tr></thead><tbody>'+
-    grupos.map(g=>'<tr><td>'+esc(g.cliente)+'</td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(g.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(g.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(g.total)+')">💬 Cobrar</button><button class="primary" onclick="payClientDebt(\''+g.vendas[0].cliente_id+'\')">Receber</button></div></td></tr>').join('')+
+    grupos.map(g=>'<tr><td><button class="link-btn" type="button" onclick="openClientReceivables(\''+String(g.cliente).replace(/'/g,"\\'")+'\')">'+esc(g.cliente)+'</button></td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(g.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(g.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(g.total)+')">💬 Cobrar</button><button class="primary" onclick="payClientDebt(\''+g.vendas[0].cliente_id+'\')">Receber</button></div></td></tr>').join('')+
     '</tbody></table>';
   addClientOnlyFilter('receivablesTable');
 }
