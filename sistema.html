@@ -840,7 +840,7 @@ async function loadClients(){
       : '<button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Criar/Enviar acesso</button>';
     return '<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td>'+action+'</td></tr>';
   }).join('')+'</tbody></table>';
-  addColumnFilters('clientsTable');
+  addClientOnlyFilter('clientsTable');
 }
 let stockCache=[];
 function renderStockFiltered(){
