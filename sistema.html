@@ -257,7 +257,7 @@ async function loadClients(force=false){
     $('clientsTable').innerHTML='<tr><td colspan="7"><div class="notice">⏳ Carregando clientes...</div></td></tr>';
   }
   clientsPromise=(async()=>{
-    const j=await api('admin_listar_clientes_rapido',{});
+    const j=await api('admin_listar_clientes',{});
     if(!j)return clients;
     clients=j.data||[];
     clientsLoadedAt=Date.now();
@@ -330,35 +330,28 @@ function fillSaleFromOrder(){
  $('data').value=formatDate(o.data);
 }
 async function load(){
+  // Bootstrap leve: o ADM não pode ficar travado esperando a carga pesada.
   if(fullDataPromise)return fullDataPromise;
-  setAdminLoading(true,'⏳ Carregando dados completos...');
+  setAdminLoading(true,'⏳ Carregando dados...');
   fullDataPromise=(async()=>{
-    const j=await api('admin_full_data',{}, {timeout:30000,retries:0,silent:true});
+    const j=await api('admin_bootstrap',{}, {timeout:15000,retries:1,silent:true});
     if(!j){
       setAdminLoading(false);
-      showMsg(lastApiError||'Não foi possível carregar os dados completos.','error');
+      showMsg(lastApiError||'Não foi possível carregar os dados.','error');
       return false;
     }
     const d=j.data||{};
     sales=d.sales||[];
-    costs=d.costs||[];
     summary=d.summary||{};
     clientSummary=d.clientSummary||[];
-    production=d.production||[];
-    stock=d.stock||[];
-    orders=d.orders||[];
     fullDataLoaded=true;
     clientsLoadedAt=0;
     render();
     renderRanking();
-    renderStockAdmin();
-    renderProduction();
-    renderOrdersAdmin();
-    renderSaleStock();
     setAdminLoading(false);
     return true;
   })().catch(err=>{
-    console.error('Falha no carregamento completo:',err);
+    console.error('Falha no carregamento do ADM:',err);
     setAdminLoading(false);
     showMsg(err?.message||'Falha ao carregar os dados.','error');
     return false;
