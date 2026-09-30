@@ -535,7 +535,7 @@ async function gerarAcessoCliente(clienteId,tipo){
 
     let texto='';
     if(tipo==='reset'){
-      texto='Olá, '+(d.nome||'')+'! 🔑%0A%0ASua senha de acesso ao Pãozinhos foi redefinida.%0A%0A*Login:* '+d.login+'%0A*Senha temporária:* '+d.senhaTemporaria+'%0A%0AAo entrar, o sistema vai pedir para você criar uma nova senha.';
+      texto='Olá, '+(d.nome||'')+'!%0A%0ASua senha de acesso ao Pãozinhos foi redefinida.%0A%0A*Login:* '+d.login+'%0A*Senha temporária:* '+d.senhaTemporaria+'%0A%0AAo entrar, o sistema vai pedir para você criar uma nova senha.';
     }else{
       texto='Olá, '+(d.nome||'')+'! 🥖%0A%0ASeu acesso ao sistema Pãozinhos foi criado.%0A%0A*Login:* '+d.login+'%0A*Senha temporária:* '+d.senhaTemporaria+'%0A%0AAo entrar pela primeira vez, crie sua nova senha.';
     }
