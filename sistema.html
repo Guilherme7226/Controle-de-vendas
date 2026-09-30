@@ -241,13 +241,13 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <div class="row"><div><h2>Nova venda</h2><div class="muted">Cria pedido confirmado + venda + pagamento em uma operação</div></div></div>
   <div class="card">
     <div class="form-grid">
-      <div class="field"><label>Cliente</label><select id="saleClient"></select></div>
+      <div class="field"><label for="saleClient">Cliente</label><select id="saleClient" onchange="toggleSaleGuest()"></select><div id="saleGuestField" hidden><label for="saleGuestName">Nome do cliente avulso</label><input id="saleGuestName" type="text" maxlength="200" placeholder="Digite o nome do cliente" disabled></div></div>
       <div class="field"><label>Produto</label><select id="saleProduct"></select></div>
       <div class="field"><label>Quantidade</label><input id="saleQty" type="number" min="1" value="1"></div>
       <div class="field"><label>Valor já pago</label><input id="salePaid" type="number" min="0" step=".01" value="0"></div>
       <div class="field"><label>Data</label><input id="saleDate" type="date"></div>
     </div>
-    <div class="actions" style="margin-top:14px"><button class="primary" onclick="saveDirectSale()">Registrar venda</button></div>
+    <div class="actions" style="margin-top:14px"><button id="saveDirectSaleBtn" class="primary" onclick="saveDirectSale()">Registrar venda</button></div>
   </div>
 </section>
 
@@ -404,9 +404,21 @@ async function loadBase(){
   ]);
   if(c.error)throw c.error;if(p.error)throw p.error;
   clients=c.data||[];products=p.data||[];
-  const copt=clients.map(x=>'<option value="'+x.id+'">'+esc(x.nome)+'</option>').join('');
+  const selectedClient=$('saleClient').value;
+  const copt='<option value="">Selecione o cliente</option><option value="avulso">Cliente avulso</option>'+clients.map(x=>'<option value="'+x.id+'">'+esc(x.nome)+'</option>').join('');
   const popt=products.map(x=>'<option value="'+x.id+'">'+esc(x.nome)+' — '+brl(x.preco)+'</option>').join('');
   $('saleClient').innerHTML=copt;$('saleProduct').innerHTML=popt;$('prodProduct').innerHTML=popt;$('discardProduct').innerHTML=popt;
+  if(selectedClient==='avulso'||clients.some(x=>x.id===selectedClient))$('saleClient').value=selectedClient;
+  toggleSaleGuest();
+}
+function toggleSaleGuest(){
+  const guest=$('saleClient').value==='avulso';
+  $('saleGuestField').hidden=!guest;
+  $('saleGuestName').disabled=!guest;
+  $('saleGuestName').required=guest;
+}
+function saleCustomerKey(sale){
+  return sale.cliente_id||'avulso:'+String(sale.cliente||'').trim();
 }
 let dashboardPeriod='all';
 function dashboardRange(period){
@@ -447,15 +459,15 @@ async function loadDashboard(){
     ['A receber',brl(aReceber)],
     ['Pães vendidos',paes],
     ['Vendas',vendas.length],
-    ['Clientes',new Set(vendas.map(x=>x.cliente_id)).size],
+    ['Clientes',new Set(vendas.map(saleCustomerKey)).size],
     ['Recebido',brl(recebido)]
   ];
   $('metrics').innerHTML=cards.map(x=>'<div class="card metric"><span class="muted">'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
 
   const grouped={};
   vendas.forEach(x=>{
-    if(!grouped[x.cliente_id])grouped[x.cliente_id]={nome:x.cliente,paes:0,vendas:0,total_comprado:0,total_pago:0,divida:0};
-    const g=grouped[x.cliente_id];
+    if(!grouped[saleCustomerKey(x)])grouped[saleCustomerKey(x)]={nome:x.cliente,paes:0,vendas:0,total_comprado:0,total_pago:0,divida:0};
+    const g=grouped[saleCustomerKey(x)];
     g.paes+=Number(x.quantidade||0);
     g.vendas+=1;
     g.total_comprado+=Number(x.total||0);
@@ -488,7 +500,7 @@ async function loadReceivables(){
   if(r.error)return msg(r.error.message,'error');
   const rows=r.data||[];
   const total=rows.reduce((s,x)=>s+Number(x.saldo||0),0);
-  const clientesUnicos=new Set(rows.map(x=>x.cliente_id)).size;
+  const clientesUnicos=new Set(rows.map(saleCustomerKey)).size;
   const vencidas=rows.filter(x=>new Date(x.data+'T23:59:59')<new Date()).length;
   $('receivableMetrics').innerHTML=[
     ['Total a receber',brl(total)],
@@ -498,13 +510,13 @@ async function loadReceivables(){
   ].map(x=>'<div class="card metric"><span class="muted">'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
   const grouped={};
   rows.forEach(x=>{
-    if(!grouped[x.cliente_id])grouped[x.cliente_id]={cliente:x.cliente,telefone:x.telefone,total:0,vendas:[]};
-    grouped[x.cliente_id].total+=Number(x.saldo||0);
-    grouped[x.cliente_id].vendas.push(x);
+    if(!grouped[saleCustomerKey(x)])grouped[saleCustomerKey(x)]={cliente:x.cliente,telefone:x.telefone,total:0,vendas:[]};
+    grouped[saleCustomerKey(x)].total+=Number(x.saldo||0);
+    grouped[saleCustomerKey(x)].vendas.push(x);
   });
   const grupos=Object.values(grouped).sort((a,b)=>b.total-a.total);
   $('receivablesTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Vendas abertas</th><th>Total devido</th><th>Ações</th></tr></thead><tbody>'+
-    grupos.map(g=>'<tr><td><button class="link-btn" type="button" onclick="openClientReceivables(\''+String(g.cliente).replace(/'/g,"\\'")+'\')">'+esc(g.cliente)+'</button></td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(g.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(g.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(g.total)+')">💬 Cobrar</button><button class="primary" onclick="payClientDebt(\''+g.vendas[0].cliente_id+'\')">Receber</button></div></td></tr>').join('')+
+    grupos.map(g=>'<tr><td><button class="link-btn" type="button" onclick="openClientReceivables(\''+String(g.cliente).replace(/'/g,"\\'")+'\')">'+esc(g.cliente)+'</button></td><td>'+esc(g.telefone||'—')+'</td><td>'+g.vendas.length+'</td><td><strong>'+brl(g.total)+'</strong></td><td><div class="action-group"><button class="whatsapp-btn" onclick="cobrançaWhatsApp(\''+esc(g.cliente).replace(/'/g,'\\&#39;')+'\',\''+esc(g.telefone||'').replace(/'/g,'\\&#39;')+'\','+Number(g.total)+')">💬 Cobrar</button><button class="primary" onclick="payClientDebt(\''+encodeURIComponent(saleCustomerKey(g.vendas[0])).replace(/'/g,'%27')+'\')">Receber</button></div></td></tr>').join('')+
     '</tbody></table>';
   addClientOnlyFilter('receivablesTable');
 }
@@ -537,8 +549,11 @@ function closeClientReceivableHistory(){
   $('clientReceivableHistoryTable').innerHTML='';
   [...$('receivablesTable').querySelectorAll('tbody tr')].forEach(row=>row.style.display='');
 }
-async function payClientDebt(clienteId){
-  const r=await sb.from('v2_vendas_detalhadas').select('*').eq('cliente_id',clienteId).gt('saldo',0).order('data',{ascending:true});
+async function payClientDebt(encodedKey){
+  const key=decodeURIComponent(encodedKey);
+  let query=sb.from('v2_vendas_detalhadas').select('*').gt('saldo',0).order('data',{ascending:true});
+  query=key.startsWith('avulso:')?query.is('cliente_id',null).eq('cliente',key.slice(7)):query.eq('cliente_id',key);
+  const r=await query;
   if(r.error)return alert(r.error.message);
   const abertas=r.data||[];
   if(!abertas.length)return alert('Esse cliente não possui saldo em aberto.');
@@ -937,9 +952,20 @@ async function saveDiscard(){
   if(r.error)return alert(r.error.message);$('discardQty').value='';await loadStock();
 }
 async function saveDirectSale(){
-  const p={p_cliente_id:$('saleClient').value,p_produto_id:$('saleProduct').value,p_quantidade:Number($('saleQty').value),p_valor_pago:Number($('salePaid').value||0),p_data:$('saleDate').value};
-  const r=await sb.rpc('v2_registrar_venda_direta',p);if(r.error)return alert(r.error.message);
-  $('saleQty').value=1;$('salePaid').value=0;alert('Venda registrada.');await Promise.all([loadDashboard(),loadStock()]);
+  const cliente=$('saleClient').value, guest=cliente==='avulso', nome=$('saleGuestName').value.trim();
+  if(!cliente)return alert('Selecione o cliente.');
+  if(guest&&!nome){$('saleGuestName').focus();return alert('Informe o nome do cliente avulso.');}
+  const p={p_produto_id:$('saleProduct').value,p_quantidade:Number($('saleQty').value),p_valor_pago:Number($('salePaid').value||0),p_data:$('saleDate').value};
+  if(!p.p_produto_id||!Number.isInteger(p.p_quantidade)||p.p_quantidade<1||!p.p_data)return alert('Preencha produto, quantidade e data.');
+  if(guest)p.p_cliente_nome=nome;else p.p_cliente_id=cliente;
+  const btn=$('saveDirectSaleBtn');if(btn.disabled)return;btn.disabled=true;btn.textContent='Registrando...';
+  try{
+    const r=await sb.rpc(guest?'v2_registrar_venda_avulsa':'v2_registrar_venda_direta',p);
+    if(r.error)throw r.error;
+    $('saleQty').value=1;$('salePaid').value=0;$('saleGuestName').value='';
+    alert('Venda registrada.');await Promise.all([loadDashboard(),loadStock()]);
+  }catch(e){alert(e?.message||'Não foi possível registrar a venda.');}
+  finally{btn.disabled=false;btn.textContent='Registrar venda';}
 }
 function openCost(){$('costModal').style.display='grid';$('costDate').value=today()}
 function closeCost(){$('costModal').style.display='none'}
