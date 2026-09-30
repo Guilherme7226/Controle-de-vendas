@@ -128,7 +128,6 @@ input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,
 <h2>👤 Área do cliente</h2><div style="color:var(--muted);margin-bottom:12px">Entre com seu telefone e senha.</div>
 <div class="grid"><div class="field"><label>Telefone</label><input id="login" inputmode="tel" autocomplete="tel"></div><div class="field"><label>Senha</label><input id="senha" type="password" autocomplete="current-password"></div></div>
 <div class="tabs"><button id="loginBtn" class="primary">Entrar</button><button id="showRegister" class="secondary">Criar conta</button></div>
-<button id="loginAdminBtn" type="button" class="secondary" style="width:100%;margin-top:10px">🔐 Área ADM</button>
 <button id="forgotPasswordBtn" type="button" class="secondary" style="width:100%;margin-top:10px">Esqueci minha senha</button>
 </div>
 <div class="panel hidden" id="registerBox">
@@ -469,7 +468,6 @@ function clienteEnterLogin(e){
 }
 $('login').addEventListener('keydown',clienteEnterLogin);
 $('senha').addEventListener('keydown',clienteEnterLogin);
-$('loginAdminBtn').onclick=()=>{window.location.href='https://paozinhos.mgpz.workers.dev/sistema'};
 $('forgotPasswordBtn').onclick=()=>{
   const login=String($('login').value||'').replace(/\D/g,'');
   if(!login)return alert('Digite seu telefone/login primeiro.');
