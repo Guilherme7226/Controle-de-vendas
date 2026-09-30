@@ -146,10 +146,30 @@ function doPost(e) {
 
       case 'admin_listar_pedidos':
         return json({ok:true,data:{orders:readOrdersSupabase_()}});
-      case 'admin_full_data':
-        // Dados completos somente depois que a tela do ADM já abriu.
-        // Mantém o bootstrap de autenticação leve sem sacrificar o painel.
-        return json({ok:true,data:readAll()});
+      case 'admin_full_data': {
+        // Fonte principal do ADM: Supabase. Mantemos apenas os históricos
+        // ainda não migrados (custos/produção) como fallback temporário.
+        const dash=readDashboardDataSupabase_();
+        let custos=dashCostosFallback_();
+        let clientes=adminListClientsSupabase_();
+        let pedidos=readOrdersSupabase_();
+        let estoque=readStockSupabase_();
+        let producao=[];
+        try { producao=readProductionHistory(ss) || []; } catch (_) {}
+
+        return json({ok:true,data:{
+          sales:dash.sales||[],
+          summary:dash.summary||{},
+          clientSummary:dash.clientSummary||[],
+          clients:clientes||[],
+          costs:custos||[],
+          production:producao||[],
+          stock:(estoque||[]).map(function(x){
+            return Object.assign({produzido:0,reservado:0,vendido:0,descartado:0},x);
+          }),
+          orders:pedidos||[]
+        }});
+      }
       case 'admin_migrar_vendas_pedidos':
         return json({ok:true,data:migrarVendasParaPedidos(ss)});
       case 'admin_criar_cliente':
@@ -814,6 +834,19 @@ function readSaleRow(ss,rowNumber){
   const valorPago=parseMoney(r[9])||0;
   const saldo=Number(r[10])||Math.max(0,total-valorPago);
   return {row:rowNumber,data:dateValue(r[0]),cliente:String(r[1]||''),contatoEmpresa:String(r[2]||''),quantidade:Number(r[3])||0,valorUnitario:Number(r[4])||0,total:total,dataPagamento:dateValue(r[6]),pago:!!r[7],parcial:String(r[8]||'Não'),valorPago:valorPago,deve:saldo,status:saldo<=0?'Pago':valorPago>0?'Parcial':'Pendente',pedidoId:String(r[11]||'').trim()};
+}
+
+function dashCostosFallback_() {
+  try {
+    const rows=supabaseSelectAll_('custos','id,descricao,valor,data')||[];
+    return rows;
+  } catch (_) {
+    try {
+      return (readCostHistory(getSS())||[]).map(function(c,i){
+        return {id:c.id||('sheet-'+i),descricao:c.descricao||c.descrição||'',valor:Number(c.valor)||0,data:c.data||'',row:c.row};
+      });
+    } catch (__) { return []; }
+  }
 }
 
 function readDashboardDataSupabase_() {
