@@ -458,7 +458,7 @@ async function loadDashboard(){
   $('ranking').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Pago</th><th>Dívida</th></tr></thead><tbody>'+
     (ranking.length?ranking.map(x=>'<tr><td><button class="link-btn" type="button" onclick="openClientReceivables(\''+String(x.nome).replace(/'/g,"\\'")+'\')">'+esc(x.nome)+'</button></td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum dado nesse período.</td></tr>')+
     '</tbody></table>';
-  addColumnFilters('ranking');
+  addClientOnlyFilter('ranking');
 }
 function whatsappNumber(value){
   let digits=String(value||'').replace(/\D/g,'');
@@ -555,6 +555,40 @@ function normalizeFilterText(value){
 }
 function matchesExactDate(value,filter){
   return !filter || String(value||'').slice(0,10)===filter;
+}
+function addClientOnlyFilter(containerId){
+  const container=$(containerId);
+  if(!container)return;
+  const table=container.querySelector('table');
+  if(!table)return;
+  const thead=table.querySelector('thead');
+  const headRow=thead?.querySelector('tr');
+  const tbody=table.querySelector('tbody');
+  if(!thead||!headRow||!tbody)return;
+  thead.querySelector('.column-filter-row')?.remove();
+
+  const filterRow=document.createElement('tr');
+  filterRow.className='column-filter-row';
+  [...headRow.children].forEach((th,index)=>{
+    const cell=document.createElement('th');
+    if(index===0){
+      const input=document.createElement('input');
+      input.type='search';
+      input.placeholder='Filtrar cliente';
+      input.setAttribute('aria-label','Filtrar Cliente');
+      input.addEventListener('input',()=>{
+        const value=normalizeFilterText(input.value);
+        [...tbody.querySelectorAll('tr')].forEach(row=>{
+          if(row.querySelector('td[colspan]'))return;
+          const text=normalizeFilterText(row.children[0]?.textContent||'');
+          row.style.display=!value||text.includes(value)?'':'none';
+        });
+      });
+      cell.appendChild(input);
+    }
+    filterRow.appendChild(cell);
+  });
+  thead.appendChild(filterRow);
 }
 function addColumnFilters(containerId){
   const container=$(containerId);
