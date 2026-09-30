@@ -343,6 +343,14 @@ function setClientTab(tab){
 
 $('showRegister').onclick=()=>{$('loginBox').classList.add('hidden');$('registerBox').classList.remove('hidden')};
 $('showLogin').onclick=()=>{$('registerBox').classList.add('hidden');$('loginBox').classList.remove('hidden')};
+function clienteEnterLogin(e){
+  if(e.key==='Enter'){
+    e.preventDefault();
+    $('loginBtn').click();
+  }
+}
+$('login').addEventListener('keydown',clienteEnterLogin);
+$('senha').addEventListener('keydown',clienteEnterLogin);
 $('loginBtn').onclick=async()=>{
  const btn=$('loginBtn');
  btn.disabled=true;
