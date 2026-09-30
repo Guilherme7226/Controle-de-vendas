@@ -114,6 +114,25 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   main{padding:14px}.section h2{font-size:23px}.card{padding:14px;border-radius:15px}
 }
 
+
+.filter-bar{
+  display:grid;grid-template-columns:minmax(240px,1fr) minmax(170px,220px) auto;
+  gap:12px;align-items:end;margin:0 0 14px;padding:14px;
+  background:var(--card);border:1px solid var(--line);border-radius:16px;box-shadow:var(--shadow)
+}
+.filter-bar .field{margin:0}
+.filter-bar input[type="search"]{appearance:none}
+.filter-clear{height:44px;padding-inline:16px}
+@media(max-width:700px){
+  .filter-bar{grid-template-columns:1fr 1fr}
+  .filter-search{grid-column:1/-1}
+  .filter-clear{width:100%}
+}
+@media(max-width:430px){
+  .filter-bar{grid-template-columns:1fr}
+  .filter-search{grid-column:auto}
+}
+
 </style>
 </head>
 <body>
@@ -164,11 +183,21 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 
 <section id="pedidos" class="section">
   <div class="row"><div><h2>Pedidos</h2><div class="muted">Reservados e confirmados recentes</div></div><button class="secondary" onclick="loadOrders()">Atualizar</button></div>
+  <div class="filter-bar">
+    <div class="field filter-search"><label>Buscar por nome</label><input id="ordersNameFilter" type="search" placeholder="Digite o nome do cliente"></div>
+    <div class="field filter-date"><label>Data</label><input id="ordersDateFilter" type="date"></div>
+    <button class="secondary filter-clear" type="button" onclick="clearOrderFilters()">Limpar</button>
+  </div>
   <div class="card"><div id="ordersTable" class="table-wrap"></div></div>
 </section>
 
 <section id="vendas" class="section">
   <div class="row"><div><h2>Vendas</h2><div class="muted">77 vendas históricas migradas</div></div><button class="secondary" onclick="loadSales()">Atualizar</button></div>
+  <div class="filter-bar">
+    <div class="field filter-search"><label>Buscar por nome</label><input id="salesNameFilter" type="search" placeholder="Digite o nome do cliente"></div>
+    <div class="field filter-date"><label>Data</label><input id="salesDateFilter" type="date"></div>
+    <button class="secondary filter-clear" type="button" onclick="clearSalesFilters()">Limpar</button>
+  </div>
   <div class="card"><div id="salesTable" class="table-wrap"></div></div>
 </section>
 
@@ -214,6 +243,11 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 
 <section id="custos" class="section">
   <div class="row"><div><h2>Custos</h2><div class="muted">Histórico total: R$ 244,00 na migração inicial</div></div><button class="primary" onclick="openCost()">+ Novo custo</button></div>
+  <div class="filter-bar">
+    <div class="field filter-search"><label>Buscar custo</label><input id="costsNameFilter" type="search" placeholder="Nome, descrição ou categoria"></div>
+    <div class="field filter-date"><label>Data</label><input id="costsDateFilter" type="date"></div>
+    <button class="secondary filter-clear" type="button" onclick="clearCostFilters()">Limpar</button>
+  </div>
   <div class="card"><div id="costsTable" class="table-wrap"></div></div>
 </section>
 </main>
@@ -231,6 +265,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 
 <script>
 let sb=null,session=null,clients=[],products=[],supabaseConfig=null;
+let salesCache=[],ordersCache=[],costsCache=[];
 const $=id=>document.getElementById(id);
 const brl=v=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(v||0));
 const esc=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
@@ -367,11 +402,67 @@ async function payClientDebt(clienteId){
   await Promise.all([loadReceivables(),loadDashboard()]);
   if($('vendas').classList.contains('active'))await loadSales();
 }
+function normalizeFilterText(value){
+  return String(value||'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().trim();
+}
+function matchesExactDate(value,filter){
+  return !filter || String(value||'').slice(0,10)===filter;
+}
+function renderSalesFiltered(){
+  const name=normalizeFilterText($('salesNameFilter')?.value);
+  const date=$('salesDateFilter')?.value||'';
+  const rows=(salesCache||[]).filter(x=>{
+    const matchesName=!name || normalizeFilterText(x.cliente).includes(name);
+    return matchesName && matchesExactDate(x.data,date);
+  });
+  $('salesTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
+    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button>':'—')+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
+    '</tbody></table>';
+}
+function clearSalesFilters(){
+  if($('salesNameFilter'))$('salesNameFilter').value='';
+  if($('salesDateFilter'))$('salesDateFilter').value='';
+  renderSalesFiltered();
+}
+function renderOrdersFiltered(){
+  const name=normalizeFilterText($('ordersNameFilter')?.value);
+  const date=$('ordersDateFilter')?.value||'';
+  const rows=(ordersCache||[]).filter(x=>{
+    const matchesName=!name || normalizeFilterText(x.cliente).includes(name);
+    return matchesName && matchesExactDate(x.data,date);
+  });
+  $('ordersTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+
+    (rows.length?rows.map(x=>{const itens=(x.itens||[]).map(i=>i.quantidade+'× '+esc(i.produto)).join(', ');return '<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+itens+'</td><td>'+brl(x.total)+'</td><td><span class="pill '+(x.status==='confirmado'?'ok':x.status==='reservado'?'warn':'bad')+'">'+x.status+'</span></td><td>'+(x.status==='reservado'?'<button class="primary" onclick="confirmOrder(\''+x.id+'\')">Confirmar</button> <button class="danger" onclick="cancelOrder(\''+x.id+'\')">Cancelar</button>':'—')+'</td></tr>'}).join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum pedido encontrado com esses filtros.</td></tr>')+
+    '</tbody></table>';
+}
+function clearOrderFilters(){
+  if($('ordersNameFilter'))$('ordersNameFilter').value='';
+  if($('ordersDateFilter'))$('ordersDateFilter').value='';
+  renderOrdersFiltered();
+}
+function renderCostsFiltered(){
+  const name=normalizeFilterText($('costsNameFilter')?.value);
+  const date=$('costsDateFilter')?.value||'';
+  const rows=(costsCache||[]).filter(x=>{
+    const hay=normalizeFilterText((x.descricao||'')+' '+(x.categoria||''));
+    const matchesName=!name || hay.includes(name);
+    return matchesName && matchesExactDate(x.data,date);
+  });
+  $('costsTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead><tbody>'+
+    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.descricao)+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+brl(x.valor)+'</td></tr>').join(''):'<tr><td colspan="4" class="muted" style="text-align:center;padding:24px">Nenhum custo encontrado com esses filtros.</td></tr>')+
+    '</tbody></table>';
+}
+function clearCostFilters(){
+  if($('costsNameFilter'))$('costsNameFilter').value='';
+  if($('costsDateFilter'))$('costsDateFilter').value='';
+  renderCostsFiltered();
+}
+
 async function loadSales(){
   const r=await sb.from('v2_vendas_detalhadas').select('*').order('data',{ascending:false}).order('source_row',{ascending:false});
   if(r.error)return msg(r.error.message,'error');
-  $('salesTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
-  (r.data||[]).map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button>':'—')+'</td></tr>').join('')+'</tbody></table>';
+  salesCache=r.data||[];
+  renderSalesFiltered();
 }
 async function paySale(id,saldo){
   const raw=prompt('Valor a registrar (saldo '+brl(saldo)+'):',Number(saldo).toFixed(2)); if(raw===null)return;
@@ -382,8 +473,8 @@ async function paySale(id,saldo){
 async function loadOrders(){
   const r=await sb.from('v2_pedidos_completos').select('*').order('data',{ascending:false}).order('created_at',{ascending:false});
   if(r.error)return msg(r.error.message,'error');
-  $('ordersTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Itens</th><th>Total</th><th>Status</th><th>Ações</th></tr></thead><tbody>'+
-  (r.data||[]).map(x=>{const itens=(x.itens||[]).map(i=>i.quantidade+'× '+esc(i.produto)).join(', ');return '<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+itens+'</td><td>'+brl(x.total)+'</td><td><span class="pill '+(x.status==='confirmado'?'ok':x.status==='reservado'?'warn':'bad')+'">'+x.status+'</span></td><td>'+(x.status==='reservado'?'<button class="primary" onclick="confirmOrder(\''+x.id+'\')">Confirmar</button> <button class="danger" onclick="cancelOrder(\''+x.id+'\')">Cancelar</button>':'—')+'</td></tr>'}).join('')+'</tbody></table>';
+  ordersCache=r.data||[];
+  renderOrdersFiltered();
 }
 async function confirmOrder(id){if(!confirm('Confirmar este pedido e gerar a venda?'))return;const r=await sb.rpc('v2_confirmar_pedido',{p_pedido_id:id});if(r.error)return alert(r.error.message);await Promise.all([loadOrders(),loadDashboard(),loadStock()])}
 async function cancelOrder(id){if(!confirm('Cancelar este pedido?'))return;const r=await sb.rpc('v2_cancelar_pedido',{p_pedido_id:id});if(r.error)return alert(r.error.message);await Promise.all([loadOrders(),loadDashboard(),loadStock()])}
@@ -420,8 +511,8 @@ function closeCost(){$('costModal').style.display='none'}
 async function loadCosts(){
   const r=await sb.from('v2_custos').select('*').order('data',{ascending:false}).order('created_at',{ascending:false});
   if(r.error)return msg(r.error.message,'error');
-  $('costsTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Descrição</th><th>Categoria</th><th>Valor</th></tr></thead><tbody>'+
-  (r.data||[]).map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.descricao)+'</td><td>'+esc(x.categoria||'—')+'</td><td>'+brl(x.valor)+'</td></tr>').join('')+'</tbody></table>';
+  costsCache=r.data||[];
+  renderCostsFiltered();
 }
 async function saveCost(){
   const descricao=$('costDesc').value.trim(),categoria=$('costCat').value.trim()||null,valor=Number($('costValue').value),data=$('costDate').value;
@@ -438,6 +529,20 @@ function subscribe(){
     .on('postgres_changes',{event:'*',schema:'public',table:'v2_producao'},()=>{if($('estoque').classList.contains('active'))loadStock()})
     .subscribe();
 }
+['salesNameFilter','ordersNameFilter','costsNameFilter'].forEach(id=>{
+  const el=$(id);if(el)el.addEventListener('input',()=>{
+    if(id==='salesNameFilter')renderSalesFiltered();
+    if(id==='ordersNameFilter')renderOrdersFiltered();
+    if(id==='costsNameFilter')renderCostsFiltered();
+  });
+});
+['salesDateFilter','ordersDateFilter','costsDateFilter'].forEach(id=>{
+  const el=$(id);if(el)el.addEventListener('change',()=>{
+    if(id==='salesDateFilter')renderSalesFiltered();
+    if(id==='ordersDateFilter')renderOrdersFiltered();
+    if(id==='costsDateFilter')renderCostsFiltered();
+  });
+});
 init();
 </script>
 </body></html>
