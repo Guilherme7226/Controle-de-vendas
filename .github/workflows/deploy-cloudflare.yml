@@ -4,13 +4,14 @@ on:
   push:
     branches:
       - main
+      - v2-supabase
   workflow_dispatch:
 
 permissions:
   contents: read
 
 concurrency:
-  group: deploy-cloudflare-worker
+  group: deploy-cloudflare-worker-${{ github.ref }}
   cancel-in-progress: false
 
 jobs:
