@@ -852,6 +852,10 @@ function dashCostosFallback_() {
 }
 
 function readDashboardDataSupabase_() {
+  // Supabase é a fonte principal da V2. Se a configuração/endpoint do
+  // Supabase estiver indisponível no Apps Script, não derruba o Dashboard:
+  // usamos a base histórica da planilha como fallback.
+  try {
   const vendas = supabaseSelectAll_(
     'vendas',
     'id,cliente_id,pedido_id,data,total,valor_pago'
@@ -980,6 +984,7 @@ function readDashboardDataSupabase_() {
         saldoDevedor: 0
       };
     }
+    porCliente[chave].qtdPaes += Number(v.quantidade) || 0;
     porCliente[chave].qtdVendas++;
     porCliente[chave].totalVendido += Number(v.total) || 0;
     porCliente[chave].totalPago += Number(v.valorPago) || 0;
@@ -993,6 +998,10 @@ function readDashboardDataSupabase_() {
       return porCliente[k];
     })
   };
+  } catch (err) {
+    console.warn('Dashboard Supabase indisponível; usando histórico da planilha.', err);
+    return readDashboardData(getSS());
+  }
 }
 
 function readDashboardData(ss) {
