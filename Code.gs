@@ -205,6 +205,8 @@ function doPost(e) {
         return json({ok:true,data:adminVerificarIntegridade(ss)});
       case 'admin_verificar_migracao_supabase':
         return json({ok:true,data:verificarSupabaseMigracao()});
+      case 'admin_migrar_tudo':
+        return json({ok:true,data:migrarDadosParaSupabase()});
       case 'admin_recalcular_resumo':
         return json({ok:true,data:recalcularResumo(ss)});
       case 'producao':
@@ -3713,14 +3715,14 @@ function migStatus_(v) {
     'AGUARDANDO':'pendente',
     'CONFIRMANDO':'pendente',
     'CONFIRMADO':'confirmado',
-    'EM_PRODUCAO':'em_producao',
-    'EM PRODUÇÃO':'em_producao',
-    'EM PRODUCAO':'em_producao',
-    'PRONTO':'pronto',
-    'ENTREGUE':'entregue',
+    'EM_PRODUCAO':'confirmado',
+    'EM PRODUÇÃO':'confirmado',
+    'EM PRODUCAO':'confirmado',
+    'PRONTO':'confirmado',
+    'ENTREGUE':'confirmado',
     'CANCELADO':'cancelado',
-    'HISTÓRICO':'entregue',
-    'HISTORICO':'entregue'
+    'HISTÓRICO':'confirmado',
+    'HISTORICO':'confirmado'
   };
   return map[s] || 'pendente';
 }
