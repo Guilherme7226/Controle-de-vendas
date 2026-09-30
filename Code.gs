@@ -4250,7 +4250,6 @@ function verificarSupabaseMigracao() {
   ];
 
   const contagens = {};
-
   tabelas.forEach(function(t) {
     contagens[t] = supabaseSelectAll_(t, 'id').length;
   });
@@ -4288,6 +4287,10 @@ function verificarSupabaseMigracao() {
     return a + Math.max(0, Math.floor(migNumber_(r.quantidade)));
   }, 0);
 
+  const quantidadeVendidaOrigem = origem.vendasRows.reduce(function(a, r) {
+    return a + Math.max(0, Math.floor(migNumber_(r[3])));
+  }, 0);
+
   const comparacao = {
     faturamentoBanco: vendasBanco.reduce(function(a, r) {
       return a + migNumber_(r.total);
@@ -4296,27 +4299,26 @@ function verificarSupabaseMigracao() {
       return a + migNumber_(r.valor_pago);
     }, 0),
     aReceberBanco: vendasBanco.reduce(function(a, r) {
-      return a + Math.max(0, migNumber_(r.total) - migNumber_(r.valor_pago));
+      return a + Math.max(
+        0,
+        migNumber_(r.total) - migNumber_(r.valor_pago)
+      );
     }, 0),
+    quantidadeVendidaBanco: quantidadeVendidaBanco,
     totalCustosBanco: custosBanco.reduce(function(a, r) {
       return a + migNumber_(r.valor);
     }, 0),
     quantidadeProduzidaBanco: producaoBanco.reduce(function(a, r) {
       return a + Math.max(0, Math.floor(migNumber_(r.quantidade)));
     }, 0),
-    quantidadeVendidaBanco: quantidadeVendidaBanco,
     quantidadeEstoqueBanco: quantidadeEstoqueBanco
   };
-
-  const quantidadeVendidaOrigem = origem.vendasRows.reduce(function(a, r) {
-    return a + Math.max(0, Math.floor(migNumber_(r[3])));
-  }, 0);
 
   const diferencas = {
     clientes: contagens.clientes - origem.clientes,
     pedidos: contagens.pedidos - origem.pedidos,
     vendas: contagens.vendas - origem.vendas,
-    pãesVendidos: quantidadeVendidaBanco - quantidadeVendidaOrigem,
+    paesVendidos: quantidadeVendidaBanco - quantidadeVendidaOrigem,
     faturamento: comparacao.faturamentoBanco - origem.faturamento,
     recebido: comparacao.recebidoBanco - origem.recebido,
     aReceber: comparacao.aReceberBanco - origem.aReceber,
@@ -4330,7 +4332,7 @@ function verificarSupabaseMigracao() {
     diferencas.clientes === 0 &&
     diferencas.pedidos === 0 &&
     diferencas.vendas === 0 &&
-    diferencas.pãesVendidos === 0 &&
+    diferencas.paesVendidos === 0 &&
     Math.abs(diferencas.faturamento) < 0.01 &&
     Math.abs(diferencas.recebido) < 0.01 &&
     Math.abs(diferencas.aReceber) < 0.01 &&
@@ -4338,9 +4340,28 @@ function verificarSupabaseMigracao() {
     diferencas.producao === 0 &&
     diferencas.estoque === 0;
 
+  // Retorna somente o resumo da conferência.
+  // As linhas individuais de Vendas continuam disponíveis no log,
+  // mas não poluem a resposta da API.
   const resultado = {
     ok: ok,
-    origem: origem,
+    origem: {
+      clientes: origem.clientes,
+      pedidos: origem.pedidos,
+      vendas: origem.vendas,
+      paesVendidos: quantidadeVendidaOrigem,
+      faturamento: origem.faturamento,
+      recebido: origem.recebido,
+      aReceber: origem.aReceber,
+      custos: origem.custos,
+      totalCustos: origem.totalCustos,
+      producao: origem.producao,
+      quantidadeProduzida: origem.quantidadeProduzida,
+      estoqueCalculado: Math.max(
+        0,
+        origem.quantidadeProduzida - quantidadeVendidaOrigem
+      )
+    },
     banco: {
       contagens: contagens,
       totais: comparacao
@@ -4351,7 +4372,6 @@ function verificarSupabaseMigracao() {
   Logger.log(JSON.stringify(resultado, null, 2));
   return resultado;
 }
-
 
 /* ===== PAOZINHOS V2 — SUPABASE AUTH BOOTSTRAP ===== */
 /**
