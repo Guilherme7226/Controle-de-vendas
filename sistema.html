@@ -252,7 +252,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 </section>
 
 <section id="clientes" class="section">
-  <div class="row"><div><h2>Clientes</h2><div class="muted">Clientes migrados e contas vinculadas</div></div><button class="secondary" onclick="loadClients()">Atualizar</button></div>
+  <div class="row"><div><h2>Clientes</h2><div class="muted">Clientes migrados e contas vinculadas</div></div><div class="actions"><button class="primary" onclick="openClientModal()">+ Criar cliente</button><button class="secondary" onclick="loadClients()">Atualizar</button></div></div>
   <div class="card"><div id="clientsTable" class="table-wrap"></div></div>
 </section>
 
@@ -305,6 +305,14 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <div class="field"><label>Valor</label><input id="costValue" type="number" min="0" step=".01"></div>
   <div class="field"><label>Data</label><input id="costDate" type="date"></div>
   <button class="primary" style="margin-top:12px" onclick="saveCost()">Salvar</button>
+</div></div>
+
+<div id="clientModal" class="modal"><div class="card" style="max-width:520px">
+  <div class="row"><div><h3 id="clientModalTitle" style="margin:0">Criar cliente</h3><div class="muted">Cadastre ou atualize os dados do cliente</div></div><button class="secondary" onclick="closeClientModal()">×</button></div>
+  <input id="clientEditId" type="hidden">
+  <div class="field" style="margin-top:14px"><label>Nome</label><input id="clientEditName" autocomplete="off"></div>
+  <div class="field"><label>Telefone</label><input id="clientEditPhone" type="tel" inputmode="tel" placeholder="(13) 99999-9999"></div>
+  <div class="actions" style="margin-top:16px"><button class="secondary" onclick="closeClientModal()">Cancelar</button><button class="primary" onclick="saveClient()">Salvar cliente</button></div>
 </div></div>
 
 <div id="orderEditModal" class="modal"><div class="card" style="max-width:620px">
@@ -824,23 +832,56 @@ async function gerarAcessoCliente(clienteId,tipo){
 async function loadClients(){
   const [dash,base]=await Promise.all([
     sb.from('v2_dashboard_clientes').select('*').order('nome'),
-    sb.from('v2_clientes').select('id,usuario_id').order('nome')
+    sb.from('v2_clientes').select('id,nome,telefone,usuario_id').order('nome')
   ]);
   if(dash.error)return msg(dash.error.message,'error');
   if(base.error)return msg(base.error.message,'error');
 
-  const accessById={};
-  (base.data||[]).forEach(x=>accessById[x.id]=!!x.usuario_id);
+  const accessById={},clientById={};
+  (base.data||[]).forEach(x=>{accessById[x.id]=!!x.usuario_id;clientById[x.id]=x});
 
   $('clientsTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Dívida</th><th>Ação</th></tr></thead><tbody>'+
   (dash.data||[]).map(x=>{
     const hasAccess=!!accessById[x.id];
-    const action=hasAccess
+    const edit='<button class="secondary" onclick="openClientModal(\''+x.id+'\')">✏️ Editar</button>';
+    const access=hasAccess
       ? '<button class="secondary" onclick="gerarAcessoCliente(\''+x.id+'\',\'reset\')">🔑 Resetar senha</button>'
       : '<button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Criar/Enviar acesso</button>';
+    const action='<div class="action-group">'+edit+access+'</div>';
     return '<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td>'+action+'</td></tr>';
   }).join('')+'</tbody></table>';
   addClientOnlyFilter('clientsTable');
+}
+function openClientModal(id=''){
+  const client=id?clients.find(x=>String(x.id)===String(id)):null;
+  $('clientEditId').value=id||'';
+  $('clientEditName').value=client?.nome||'';
+  $('clientEditPhone').value=client?.telefone||'';
+  $('clientModalTitle').textContent=id?'Editar cliente':'Criar cliente';
+  $('clientModal').style.display='grid';
+  setTimeout(()=>$('clientEditName').focus(),50);
+}
+function closeClientModal(){
+  $('clientModal').style.display='none';
+  $('clientEditId').value='';
+  $('clientEditName').value='';
+  $('clientEditPhone').value='';
+}
+async function saveClient(){
+  const id=$('clientEditId').value;
+  const nome=$('clientEditName').value.trim();
+  const telefone=$('clientEditPhone').value.trim()||null;
+  if(!nome)return alert('Informe o nome do cliente.');
+  let r;
+  if(id){
+    r=await sb.from('v2_clientes').update({nome,telefone,updated_at:new Date().toISOString()}).eq('id',id).select('id').single();
+  }else{
+    r=await sb.from('v2_clientes').insert({nome,telefone,ativo:true}).select('id').single();
+  }
+  if(r.error)return alert(r.error.message);
+  closeClientModal();
+  await Promise.all([loadBase(),loadClients(),loadDashboard()]);
+  alert(id?'Cliente atualizado.':'Cliente criado.');
 }
 let stockCache=[];
 function renderStockFiltered(){
