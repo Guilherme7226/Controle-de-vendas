@@ -302,6 +302,7 @@ function renderStock(data){
 }
 function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
 function renderOrders(list, vendas=[]){
+  list=(list||[]).filter(o=>String(o.status||'').trim().toLowerCase()!=='cancelado');
   // Cada pedido confirmado já possui uma venda vinculada pelo pedidoId.
   // A venda vinculada não pode aparecer como um segundo registro no cliente.
   let numeroPedido=0;
@@ -507,6 +508,7 @@ $('orderBtn').onclick=async()=>{
    btn.textContent='Reservar meu pedido';
    $('cancelEdit').classList.add('hidden');
    if(j.data&&j.data.stock)renderStock(j.data.stock);
+   await refreshStock();
    renderOrders(currentPedidos,currentVendas);
  }finally{
    btn.disabled=false;
@@ -548,6 +550,8 @@ document.addEventListener('click',async e=>{
    const j=await api('cliente_excluir_pedido',{token:s.token,id});
    if(!j?.ok)return;
    currentPedidos=currentPedidos.filter(o=>String(o.id)!==String(id));
+   await refreshStock();
+   renderOrders(currentPedidos,currentVendas);
    editingOrderId=null;quantities={};renderStock(stock);renderOrders(currentPedidos,currentVendas);showMsg('Pedido cancelado com sucesso.','success');
  }finally{clientOrderActionBusy=false;btn.disabled=false;btn.textContent='❌ Cancelar'}
 });
