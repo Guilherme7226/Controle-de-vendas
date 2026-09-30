@@ -827,6 +827,23 @@ function readDashboardDataSupabase_() {
     'id,nome'
   ) || [];
 
+  const itensPedidos = supabaseSelectAll_(
+    'pedido_itens',
+    'pedido_id,quantidade,preco_unitario'
+  ) || [];
+
+  const quantidadePorPedido = {};
+  const valorUnitarioPorPedido = {};
+  itensPedidos.forEach(function(item) {
+    const id = String(item.pedido_id || '');
+    if (!id) return;
+    quantidadePorPedido[id] =
+      (quantidadePorPedido[id] || 0) + (Number(item.quantidade) || 0);
+    if (!valorUnitarioPorPedido[id] && Number(item.preco_unitario)) {
+      valorUnitarioPorPedido[id] = Number(item.preco_unitario);
+    }
+  });
+
   const nomes = {};
   clientes.forEach(function(c) {
     nomes[String(c.id)] = String(c.nome || '');
@@ -842,8 +859,8 @@ function readDashboardDataSupabase_() {
       data: String(v.data || '').slice(0,10),
       cliente: nomes[String(v.cliente_id)] || 'Cliente não identificado',
       contatoEmpresa: '',
-      quantidade: 0,
-      valorUnitario: 0,
+      quantidade: quantidadePorPedido[String(v.pedido_id || '')] || 0,
+      valorUnitario: valorUnitarioPorPedido[String(v.pedido_id || '')] || 0,
       total: total,
       dataPagamento: '',
       pago: saldo <= 0 && total > 0,
@@ -877,13 +894,16 @@ function readDashboardDataSupabase_() {
   }, 0);
 
   const qtdVendas = sales.length;
+  const qtdPaes = sales.reduce(function(total, v) {
+    return total + (Number(v.quantidade) || 0);
+  }, 0);
   const ticketMedio = qtdVendas ? totalVendido / qtdVendas : 0;
 
   const summary = {
     totalVendido: totalVendido,
     totalRecebido: totalRecebido,
     totalAReceber: totalAReceber,
-    qtdPaes: 0,
+    qtdPaes: qtdPaes,
     qtdVendas: qtdVendas,
     ticketMedio: ticketMedio,
     custoTotal: custoTotal,
