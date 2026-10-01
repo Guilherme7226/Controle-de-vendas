@@ -5,6 +5,7 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>Pãozinhos — ADM V2</title>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.7/dist/chart.umd.min.js"></script>
 <style>
 :root{--bg:#f4f6f8;--card:#fff;--text:#172033;--muted:#6b7280;--line:#e5e7eb;--primary:#2563eb;--header:#111827;--danger:#b91c1c;--ok:#166534}
 [data-theme=dark]{--bg:#0b1120;--card:#111827;--text:#f3f4f6;--muted:#9ca3af;--line:#263244;--header:#050914}
@@ -204,6 +205,11 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
     <button class="secondary dashboard-period active" data-period="all">Geral</button>
   </div>
   <div id="metrics" class="grid"></div>
+  <div class="card" style="margin-top:14px">
+    <div class="row"><div><h3 style="margin:0">Análise mensal de faturamento</h3><div class="muted">Faturamento por mês × média móvel dos últimos 3 meses</div></div><div id="monthlyTrendSummary" class="pill">Carregando...</div></div>
+    <div style="height:320px;position:relative"><canvas id="monthlyRevenueChart"></canvas></div>
+    <div id="monthlyRevenueTable" class="table-wrap" style="margin-top:14px"></div>
+  </div>
   <div class="card" style="margin-top:14px"><h3>Ranking / situação por cliente</h3><div id="ranking" class="table-wrap"></div></div>
 </section>
 
@@ -420,7 +426,7 @@ function toggleSaleGuest(){
 function saleCustomerKey(sale){
   return sale.cliente_id||'avulso:'+String(sale.cliente||'').trim();
 }
-let dashboardPeriod='all';
+let dashboardPeriod='all',monthlyRevenueChart=null;
 function dashboardRange(period){
   const now=new Date();
   const end=new Date(now.getFullYear(),now.getMonth(),now.getDate(),23,59,59,999);
@@ -432,6 +438,61 @@ function dashboardRange(period){
   }
   if(period==='month')start=new Date(now.getFullYear(),now.getMonth(),1,0,0,0,0);
   return {start:start.toISOString().slice(0,10),end:end.toISOString().slice(0,10)};
+}
+async function loadMonthlyRevenueAnalysis(){
+  const r=await sb.from('v2_vendas_detalhadas').select('data,total').order('data',{ascending:true});
+  if(r.error){
+    $('monthlyTrendSummary').textContent='Erro ao carregar';
+    return;
+  }
+  const rows=r.data||[];
+  const grouped={};
+  rows.forEach(x=>{
+    if(!x.data)return;
+    const key=String(x.data).slice(0,7);
+    grouped[key]=(grouped[key]||0)+Number(x.total||0);
+  });
+  const keys=Object.keys(grouped).sort();
+  const points=keys.map((key,index)=>{
+    const revenue=grouped[key];
+    const from=Math.max(0,index-2);
+    const window=keys.slice(from,index+1).map(k=>grouped[k]);
+    const average=window.reduce((a,b)=>a+b,0)/window.length;
+    const previous=index?grouped[keys[index-1]]:null;
+    const change=previous===null?null:(previous===0?(revenue>0?100:0):((revenue-previous)/previous)*100);
+    const trend=change===null?'—':change>0.5?'↑ Subindo':change<-.5?'↓ Descendo':'→ Estável';
+    return {key,revenue,average,change,trend};
+  });
+  const labels=points.map(p=>{
+    const [y,m]=p.key.split('-');
+    return new Date(Number(y),Number(m)-1,1).toLocaleDateString('pt-BR',{month:'short',year:'2-digit'}).replace('.','');
+  });
+  const canvas=$('monthlyRevenueChart');
+  if(monthlyRevenueChart)monthlyRevenueChart.destroy();
+  monthlyRevenueChart=new Chart(canvas,{
+    type:'line',
+    data:{labels,datasets:[
+      {label:'Faturamento',data:points.map(p=>p.revenue),borderWidth:3,tension:.28,pointRadius:4},
+      {label:'Média móvel (3 meses)',data:points.map(p=>p.average),borderWidth:2,borderDash:[7,5],tension:.28,pointRadius:2}
+    ]},
+    options:{
+      responsive:true,maintainAspectRatio:false,interaction:{mode:'index',intersect:false},
+      plugins:{legend:{position:'bottom'},tooltip:{callbacks:{label:ctx=>ctx.dataset.label+': '+brl(ctx.parsed.y)}}},
+      scales:{y:{beginAtZero:true,ticks:{callback:v=>brl(v)}}}
+    }
+  });
+  const last=points.at(-1);
+  const summary=$('monthlyTrendSummary');
+  if(!last){summary.textContent='Sem dados';$('monthlyRevenueTable').innerHTML='';return;}
+  summary.textContent=last.trend+(last.change===null?'':' · '+(last.change>=0?'+':'')+last.change.toFixed(1)+'%');
+  summary.className='pill '+(last.change>0.5?'ok':last.change<-.5?'bad':'warn');
+  $('monthlyRevenueTable').innerHTML='<table class="table"><thead><tr><th>Mês</th><th>Faturamento</th><th>Média 3 meses</th><th>Variação</th><th>Tendência</th></tr></thead><tbody>'+
+    points.slice().reverse().map((p,i)=>{
+      const label=labels[points.length-1-i];
+      const variation=p.change===null?'—':(p.change>=0?'+':'')+p.change.toFixed(1)+'%';
+      const cls=p.change===null?'':p.change>0.5?'ok':p.change<-.5?'bad':'warn';
+      return '<tr><td>'+esc(label)+'</td><td><strong>'+brl(p.revenue)+'</strong></td><td>'+brl(p.average)+'</td><td>'+variation+'</td><td><span class="pill '+cls+'">'+p.trend+'</span></td></tr>';
+    }).join('')+'</tbody></table>';
 }
 async function loadDashboard(){
   msg('');
@@ -479,6 +540,7 @@ async function loadDashboard(){
     (ranking.length?ranking.map(x=>'<tr><td><button class="link-btn" type="button" onclick="openClientReceivables(\''+String(x.nome).replace(/'/g,"\\'")+'\')">'+esc(x.nome)+'</button></td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.total_pago)+'</td><td>'+brl(x.divida)+'</td></tr>').join(''):'<tr><td colspan="6" class="muted" style="text-align:center;padding:24px">Nenhum dado nesse período.</td></tr>')+
     '</tbody></table>';
   addClientOnlyFilter('ranking');
+  await loadMonthlyRevenueAnalysis();
 }
 function whatsappNumber(value){
   let digits=String(value||'').replace(/\D/g,'');
