@@ -190,6 +190,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <button class="nav" data-view="nova">➕ <span>Nova venda</span></button>
   <button class="nav" data-view="clientes">👥 <span>Clientes</span></button>
   <button class="nav" data-view="estoque">📦 <span>Estoque</span></button>
+  <button class="nav" data-view="financeiro">📈 <span>Financeiro</span></button>
   <button class="nav" data-view="custos">💸 <span>Custos</span></button>
 </aside>
 <main>
@@ -282,6 +283,41 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
       <div class="field"><label>Data</label><input id="discardDate" type="date"></div>
       <button class="danger" style="margin-top:10px" onclick="saveDiscard()">Registrar descarte</button>
     </div>
+  </div>
+</section>
+
+<section id="financeiro" class="section">
+  <div class="row">
+    <div><h2>Financeiro</h2><div class="muted">DRE gerencial mensal com base nas vendas e custos registrados</div></div>
+    <button class="secondary" onclick="loadFinanceiro()">Atualizar</button>
+  </div>
+
+  <div class="card" style="margin-bottom:14px">
+    <div class="form-grid" style="grid-template-columns:minmax(180px,240px) 1fr">
+      <div class="field">
+        <label>Competência</label>
+        <input id="financeMonth" type="month">
+      </div>
+      <div class="field">
+        <label>Leitura do DRE</label>
+        <div class="muted" style="padding:11px 0">Receita das vendas do mês menos os custos/despesas lançados no mesmo período.</div>
+      </div>
+    </div>
+  </div>
+
+  <div id="financeMetrics" class="grid"></div>
+
+  <div class="card" style="margin-top:14px">
+    <div class="row" style="margin-bottom:8px">
+      <div><h3 style="margin:0">DRE mensal</h3><div id="financePeriodLabel" class="muted"></div></div>
+    </div>
+    <div id="dreTable" class="table-wrap"></div>
+  </div>
+
+  <div class="card" style="margin-top:14px">
+    <h3 style="margin-top:0">Histórico mensal</h3>
+    <div class="muted" style="margin-bottom:10px">Comparativo de faturamento, custos, resultado e margem por competência.</div>
+    <div id="financeHistory" class="table-wrap"></div>
   </div>
 </section>
 
@@ -394,7 +430,7 @@ document.querySelectorAll('.nav').forEach(b=>b.onclick=async()=>{
   document.querySelectorAll('.nav').forEach(x=>x.classList.remove('active'));
   document.querySelectorAll('.section').forEach(x=>x.classList.remove('active'));
   b.classList.add('active'); $(b.dataset.view).classList.add('active');
-  const fn={dashboard:loadDashboard,receber:loadReceivables,pedidos:loadOrders,vendas:loadSales,nova:loadBase,clientes:loadClients,estoque:loadStock,custos:loadCosts}[b.dataset.view];
+  const fn={dashboard:loadDashboard,receber:loadReceivables,pedidos:loadOrders,vendas:loadSales,nova:loadBase,clientes:loadClients,estoque:loadStock,financeiro:loadFinanceiro,custos:loadCosts}[b.dataset.view];
   if(fn)await fn();
 });
 async function loadBase(){
@@ -495,6 +531,103 @@ function cobrançaWhatsApp(nome,telefone,total){
   const texto='Olá'+(primeiroNome?', '+primeiroNome:'')+'! Tudo bem?%0A%0APassando para lembrar que ficou um valor em aberto de *'+valor+'* referente aos Pãozinhos.%0A%0A*PIX:* 44558352883%0A%0AQuando realizar o pagamento, por favor me avise. Obrigado!';
   window.open('https://wa.me/'+numero+'?text='+texto,'_blank','noopener,noreferrer');
 }
+
+function monthKey(dateValue){
+  const d=String(dateValue||'').slice(0,10);
+  return /^\d{4}-\d{2}-\d{2}$/.test(d)?d.slice(0,7):'';
+}
+function monthBounds(ym){
+  const m=/^(\d{4})-(\d{2})$/.exec(String(ym||''));
+  if(!m)return null;
+  const y=Number(m[1]),mo=Number(m[2]);
+  const last=new Date(y,mo,0).getDate();
+  return {start:ym+'-01',end:ym+'-'+String(last).padStart(2,'0')};
+}
+function monthLabel(ym){
+  const m=/^(\d{4})-(\d{2})$/.exec(String(ym||''));
+  if(!m)return ym||'';
+  return new Date(Number(m[1]),Number(m[2])-1,1).toLocaleDateString('pt-BR',{month:'long',year:'numeric'});
+}
+function pct(v){return Number.isFinite(v)?v.toLocaleString('pt-BR',{minimumFractionDigits:1,maximumFractionDigits:1})+'%':'0,0%';}
+async function loadFinanceiro(){
+  msg('');
+  const monthEl=$('financeMonth');
+  if(!monthEl.value){
+    const now=new Date();
+    monthEl.value=now.getFullYear()+'-'+String(now.getMonth()+1).padStart(2,'0');
+  }
+  const bounds=monthBounds(monthEl.value);
+  if(!bounds)return;
+
+  const [salesMonth,costsMonth,salesAll,costsAll]=await Promise.all([
+    sb.from('v2_vendas_detalhadas').select('*').gte('data',bounds.start).lte('data',bounds.end),
+    sb.from('v2_custos').select('*').gte('data',bounds.start).lte('data',bounds.end),
+    sb.from('v2_vendas_detalhadas').select('data,total,valor_pago,saldo,quantidade').order('data',{ascending:true}),
+    sb.from('v2_custos').select('data,valor').order('data',{ascending:true})
+  ]);
+  const err=salesMonth.error||costsMonth.error||salesAll.error||costsAll.error;
+  if(err)return msg(err.message,'error');
+
+  const vendas=salesMonth.data||[];
+  const custos=costsMonth.data||[];
+  const receita=vendas.reduce((s,x)=>s+Number(x.total||0),0);
+  const recebido=vendas.reduce((s,x)=>s+Number(x.valor_pago||0),0);
+  const aReceber=vendas.reduce((s,x)=>s+Number(x.saldo||0),0);
+  const custosTotal=custos.reduce((s,x)=>s+Number(x.valor||0),0);
+  const resultado=receita-custosTotal;
+  const margem=receita?resultado/receita*100:0;
+  const qtd=vendas.reduce((s,x)=>s+Number(x.quantidade||0),0);
+  const ticket=vendas.length?receita/vendas.length:0;
+
+  $('financeMetrics').innerHTML=[
+    ['Faturamento',brl(receita)],
+    ['Custos / despesas',brl(custosTotal)],
+    ['Resultado',brl(resultado)],
+    ['Margem',pct(margem)],
+    ['Recebido',brl(recebido)],
+    ['A receber',brl(aReceber)],
+    ['Pães vendidos',qtd],
+    ['Ticket médio',brl(ticket)]
+  ].map(x=>'<div class="card metric"><span class="muted">'+x[0]+'</span><strong>'+x[1]+'</strong></div>').join('');
+
+  $('financePeriodLabel').textContent=monthLabel(monthEl.value);
+  const dreRows=[
+    ['Receita bruta',receita,''],
+    ['(-) Custos e despesas',-custosTotal,''],
+    ['(=) Resultado do mês',resultado,resultado>=0?'ok':'bad'],
+    ['Margem do resultado',margem,null]
+  ];
+  $('dreTable').innerHTML='<table class="table"><thead><tr><th>Linha</th><th>Valor</th></tr></thead><tbody>'+
+    dreRows.map((x,i)=>{
+      const value=i===3?pct(x[1]):brl(x[1]);
+      return '<tr><td><strong>'+x[0]+'</strong></td><td>'+(x[2]?'<span class="pill '+x[2]+'">'+value+'</span>':value)+'</td></tr>';
+    }).join('')+
+    '</tbody></table>';
+
+  const monthly={};
+  (salesAll.data||[]).forEach(x=>{
+    const k=monthKey(x.data);if(!k)return;
+    if(!monthly[k])monthly[k]={receita:0,custos:0,recebido:0,aReceber:0,qtd:0};
+    monthly[k].receita+=Number(x.total||0);
+    monthly[k].recebido+=Number(x.valor_pago||0);
+    monthly[k].aReceber+=Number(x.saldo||0);
+    monthly[k].qtd+=Number(x.quantidade||0);
+  });
+  (costsAll.data||[]).forEach(x=>{
+    const k=monthKey(x.data);if(!k)return;
+    if(!monthly[k])monthly[k]={receita:0,custos:0,recebido:0,aReceber:0,qtd:0};
+    monthly[k].custos+=Number(x.valor||0);
+  });
+  const history=Object.entries(monthly).sort((a,b)=>b[0].localeCompare(a[0]));
+  $('financeHistory').innerHTML='<table class="table"><thead><tr><th>Competência</th><th>Faturamento</th><th>Custos</th><th>Resultado</th><th>Margem</th><th>Recebido</th><th>A receber</th></tr></thead><tbody>'+
+    (history.length?history.map(([k,x])=>{
+      const result=x.receita-x.custos;
+      const margin=x.receita?result/x.receita*100:0;
+      return '<tr><td><strong>'+monthLabel(k)+'</strong></td><td>'+brl(x.receita)+'</td><td>'+brl(x.custos)+'</td><td><span class="pill '+(result>=0?'ok':'bad')+'">'+brl(result)+'</span></td><td>'+pct(margin)+'</td><td>'+brl(x.recebido)+'</td><td>'+brl(x.aReceber)+'</td></tr>';
+    }).join(''):'<tr><td colspan="7" class="muted" style="text-align:center;padding:24px">Ainda não há dados financeiros.</td></tr>')+
+    '</tbody></table>';
+}
+
 async function loadReceivables(){
   const r=await sb.from('v2_vendas_detalhadas').select('*').gt('saldo',0).order('cliente').order('data',{ascending:true});
   if(r.error)return msg(r.error.message,'error');
@@ -1024,6 +1157,7 @@ document.querySelectorAll('.dashboard-period').forEach(btn=>{
 ['stockFilterName','stockFilterAvailable','stockFilterProduced','stockFilterSold','stockFilterReserved','stockFilterDiscarded'].forEach(id=>{
   const el=$(id);if(el)el.addEventListener('input',renderStockFiltered);
 });
+const financeMonthEl=$('financeMonth');if(financeMonthEl)financeMonthEl.addEventListener('change',loadFinanceiro);
 ['salesDateFilter','ordersDateFilter','costsDateFilter'].forEach(id=>{
   const el=$(id);if(el)el.addEventListener('change',()=>{
     if(id==='salesDateFilter')renderSalesFiltered();
