@@ -1,5 +1,6 @@
 // Proxy estável do frontend para o Apps Script.
 const APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec";
+const CONFIG_URL = "https://lsevhjjklsnqegrpkiku.supabase.co/functions/v1/public-config";
 
 async function proxyToAppsScript(request) {
   const headers = new Headers();
@@ -77,6 +78,25 @@ async function proxyToAppsScript(request) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    if (url.pathname === "/supabase-config") {
+      try {
+        const cfg = await fetch(CONFIG_URL, { headers: { accept: "application/json" }, cache: "no-store" });
+        const body = await cfg.text();
+        return new Response(body, {
+          status: cfg.status,
+          headers: {
+            "content-type": "application/json; charset=UTF-8",
+            "cache-control": "no-store, no-cache, must-revalidate",
+            "x-paozinhos-config": "supabase"
+          }
+        });
+      } catch (error) {
+        return new Response(JSON.stringify({ok:false,error:"Falha ao carregar configuração do Supabase."}), {
+          status:502, headers:{"content-type":"application/json; charset=UTF-8","cache-control":"no-store"}
+        });
+      }
+    }
+
     if (url.pathname === "/api" || url.pathname === "/api/") {
       try { return await proxyToAppsScript(request); }
       catch (error) {
