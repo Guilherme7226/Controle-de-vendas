@@ -5389,7 +5389,11 @@ function syncSupabaseParaPlanilhaEditavel_() {
       let row=vendaIds[String(v.id)]||Number(v.source_row)||0;
       if(row<3 && v.pedido_id && ids[String(v.pedido_id)])row=ids[String(v.pedido_id)];
 
-      if(row<3 && String(v.data||'')>=SYNC_EDITABLE_START_DATE){
+      // Venda criada diretamente no V2 não possui source_row. Ela precisa
+      // entrar na planilha mesmo quando a data comercial é retroativa.
+      // O corte por data continua valendo apenas como fallback para registros
+      // que já vieram com source_row.
+      if(row<3 && (!v.source_row || String(v.data||'')>=SYNC_EDITABLE_START_DATE)){
         const totalRow=totalRowVendas_();
         if(totalRow>=3){
           shV.insertRowBefore(totalRow);
@@ -5411,6 +5415,13 @@ function syncSupabaseParaPlanilhaEditavel_() {
       shV.getRange(row,1,1,11).setValues(arr);
       shV.getRange(row,13).setValue(v.id);
       vendaIds[String(v.id)]=row;
+
+      // Persiste o vínculo para que próximas sincronizações encontrem a linha
+      // sem depender apenas da coluna oculta ID Venda.
+      if(!v.source_row || Number(v.source_row)!==row){
+        syncPatchById_('v2_vendas',v.id,{source_row:row});
+        v.source_row=row;
+      }
 
       if(v.pedido_id)ids[String(v.pedido_id)]=row;
     });
