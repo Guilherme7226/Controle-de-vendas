@@ -30,6 +30,9 @@ function doGet(e) {
     if (e && e.parameter && e.parameter.setupSync === '1') {
       return json({ok:true,data:instalarSyncPlanilhaEditavel_()});
     }
+    if (e && e.parameter && e.parameter.syncAuto === '1') {
+      return json({ok:true,data:syncPlanilhaEditavelAutomatico_()});
+    }
     if (e && e.parameter && e.parameter.syncNow === '1') {
       return json({ok:true,data:syncBidirecionalPlanilhaEditavel_()});
     }
@@ -5489,34 +5492,33 @@ function syncBidirecionalPlanilhaEditavel_() {
   return {ok:true,enviados:enviados,recebidos:recebidos};
 }
 
+function syncRegistrarVerificacao_() {
+  const ctrl=syncEditableSS_().getSheetByName('Controle Sync');
+  if(ctrl){
+    ctrl.getRange('A13').setValue('Última verificação automática');
+    ctrl.getRange('B13').setValue(Utilities.formatDate(new Date(),'America/Sao_Paulo','dd/MM/yyyy HH:mm:ss'));
+  }
+}
+
 function syncPlanilhaEditavelAutomatico_() {
   // A consulta leve evita regravar toda a planilha sem alterações no banco.
+  const enviados=syncPlanilhaEditavelParaSupabase_();
+  if(enviados.erros.length)throw new Error('Falha ao sincronizar alterações: '+enviados.erros.join('; '));
   const atual=supabaseRequest_('/rest/v1/rpc/v2_planilha_sync_fingerprint','post',{});
   const props=PropertiesService.getScriptProperties();
   if(atual && atual===props.getProperty('PLANILHA_SYNC_FINGERPRINT')){
+    syncRegistrarVerificacao_();
     return {ok:true,semAlteracoes:true};
   }
   const result=syncSupabaseParaPlanilhaEditavel_();
   // Usa a versão lida antes da exportação: mudanças concorrentes serão vistas na próxima execução.
   if(atual)props.setProperty('PLANILHA_SYNC_FINGERPRINT',atual);
+  syncRegistrarVerificacao_();
   return result;
 }
 
 function instalarSyncPlanilhaEditavel_() {
-  const triggers=ScriptApp.getProjectTriggers();
-  let edit=false;
-  triggers.forEach(function(t){
-    if(t.getHandlerFunction()==='syncPlanilhaEditavelOnEdit_')edit=true;
-    if(['syncSupabaseParaPlanilhaEditavel_','syncPlanilhaEditavelAutomatico_'].indexOf(t.getHandlerFunction())>=0){
-      ScriptApp.deleteTrigger(t);
-    }
-  });
-  if(!edit){
-    ScriptApp.newTrigger('syncPlanilhaEditavelOnEdit_')
-      .forSpreadsheet(SYNC_EDITABLE_SPREADSHEET_ID).onEdit().create();
-  }
-  ScriptApp.newTrigger('syncPlanilhaEditavelAutomatico_').timeBased().everyMinutes(1).create();
+  // O agendamento de um minuto pertence ao Supabase Cron; não requer novas autorizações Google.
   PropertiesService.getScriptProperties().deleteProperty('PLANILHA_SYNC_FINGERPRINT');
-  const result=syncPlanilhaEditavelAutomatico_();
-  return {ok:true,onEdit:true,cada1Min:true,primeiraSincronizacao:result};
+  return {ok:true,cada1Min:true,agendador:'Supabase Cron',primeiraSincronizacao:syncPlanilhaEditavelAutomatico_()};
 }
