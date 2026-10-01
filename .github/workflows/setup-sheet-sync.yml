@@ -25,5 +25,15 @@ jobs:
         shell: bash
         run: |
           URL="https://script.google.com/macros/s/AKfycby-E-1j5rfU1eAMWX-5APMTMCK7C_0muyeV4FdM8JlbHTxKL47lqimoVlyuHdV0vcU4/exec?syncNow=1"
-          curl -L --silent --show-error --max-time 70 "$URL" || true
-          echo "Sincronização disparada."
+          curl -fL --silent --show-error --max-time 60 "$URL" -o /tmp/planilha-sync.json
+          python - <<'PYTHON'
+          import json
+          with open('/tmp/planilha-sync.json') as f:
+              result = json.load(f)
+          if not result.get('ok'):
+              raise SystemExit(result.get('error') or 'Sincronização não concluída')
+          errors = result.get('data', {}).get('enviados', {}).get('erros', [])
+          if errors:
+              raise SystemExit('Erros ao importar alterações: ' + '; '.join(errors))
+          print('Sincronização confirmada pelo Apps Script.')
+          PYTHON

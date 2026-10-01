@@ -5354,12 +5354,23 @@ function syncSupabaseParaPlanilhaEditavel_() {
     const vendas=supabaseSelectAll_('v2_vendas_detalhadas','id,source_row,pedido_id,data,cliente,quantidade,valor_unitario,total,valor_pago,saldo,data_pagamento,created_at');
     const shV=ss.getSheetByName('Vendas');
     const existingLast=Math.max(shV.getLastRow(),2);
-    const ids={};
+    const ids={},vendaIds={};
+    shV.getRange(2,13).setValue('ID Venda');
+    shV.hideColumns(13);
     if(existingLast>=3){
-      const vals=shV.getRange(3,1,existingLast-2,11).getValues();
+      const vals=shV.getRange(3,1,existingLast-2,13).getValues();
+      const ativos={},pedidosAtivos={};
+      vendas.forEach(function(v){ativos[String(v.id)]=true;if(v.pedido_id)pedidosAtivos[String(v.pedido_id)]=true;});
       vals.forEach(function(r,idx){
-        const k=String(r[10]||'').trim();
+        const k=String(r[10]||'').trim(),id=String(r[12]||'').trim();
+        // Limpa apenas linhas com vínculo de sistema removido; mantém linhas manuais.
+        if((id && !ativos[id]) || (!id && k && !pedidosAtivos[k])){
+          shV.getRange(idx+3,1,1,11).clearContent();
+          shV.getRange(idx+3,13).clearContent();
+          return;
+        }
         if(k)ids[k]=idx+3;
+        if(id)vendaIds[id]=idx+3;
       });
     }
     function totalRowVendas_(){
@@ -5372,7 +5383,7 @@ function syncSupabaseParaPlanilhaEditavel_() {
     }
 
     vendas.forEach(function(v){
-      let row=Number(v.source_row)||0;
+      let row=vendaIds[String(v.id)]||Number(v.source_row)||0;
       if(row<3 && v.pedido_id && ids[String(v.pedido_id)])row=ids[String(v.pedido_id)];
 
       if(row<3 && String(v.data||'')>=SYNC_EDITABLE_START_DATE){
@@ -5395,6 +5406,8 @@ function syncSupabaseParaPlanilhaEditavel_() {
       const pago=Number(v.valor_pago)||0,total=Number(v.total)||0,saldo=Math.max(0,Number(v.saldo)||0);
       const arr=[[v.data||'',v.cliente||'',Number(v.quantidade)||0,Number(v.valor_unitario)||0,total,v.data_pagamento||'',saldo<=0&&total>0,pago>0&&saldo>0?'Sim':'Não',pago,saldo,v.pedido_id||'']];
       shV.getRange(row,1,1,11).setValues(arr);
+      shV.getRange(row,13).setValue(v.id);
+      vendaIds[String(v.id)]=row;
 
       if(v.pedido_id)ids[String(v.pedido_id)]=row;
     });
@@ -5402,8 +5415,11 @@ function syncSupabaseParaPlanilhaEditavel_() {
     SpreadsheetApp.flush();
     const ctrl=ss.getSheetByName('Controle Sync');
     if(ctrl){
-      ctrl.getRange('B9').setValue('ATIVA — alterações marcadas em Ação Sync ↔ Supabase a cada 5 min');
-      ctrl.getRange('B12').setValue(Utilities.formatDate(new Date(),'America/Sao_Paulo','dd/MM/yyyy HH:mm:ss'));
+      ctrl.getRange('B7').setValue('ATIVA — verificação automática a cada 1 minuto');
+      ctrl.getRange('B9').setValue('ATUALIZAR, NOVO, EXCLUIR');
+      const atualizadoEm=Utilities.formatDate(new Date(),'America/Sao_Paulo','dd/MM/yyyy HH:mm:ss');
+      ctrl.getRange('B10').setValue(atualizadoEm);
+      ctrl.getRange('B12').setValue(atualizadoEm);
     }
 
     return {
@@ -5473,25 +5489,34 @@ function syncBidirecionalPlanilhaEditavel_() {
   return {ok:true,enviados:enviados,recebidos:recebidos};
 }
 
+function syncPlanilhaEditavelAutomatico_() {
+  // A consulta leve evita regravar toda a planilha sem alterações no banco.
+  const atual=supabaseRequest_('/rest/v1/rpc/v2_planilha_sync_fingerprint','post',{});
+  const props=PropertiesService.getScriptProperties();
+  if(atual && atual===props.getProperty('PLANILHA_SYNC_FINGERPRINT')){
+    return {ok:true,semAlteracoes:true};
+  }
+  const result=syncSupabaseParaPlanilhaEditavel_();
+  // Usa a versão lida antes da exportação: mudanças concorrentes serão vistas na próxima execução.
+  if(atual)props.setProperty('PLANILHA_SYNC_FINGERPRINT',atual);
+  return result;
+}
+
 function instalarSyncPlanilhaEditavel_() {
   const triggers=ScriptApp.getProjectTriggers();
-  let edit=false,clock=false;
+  let edit=false;
   triggers.forEach(function(t){
     if(t.getHandlerFunction()==='syncPlanilhaEditavelOnEdit_')edit=true;
-    if(t.getHandlerFunction()==='syncSupabaseParaPlanilhaEditavel_')clock=true;
+    if(['syncSupabaseParaPlanilhaEditavel_','syncPlanilhaEditavelAutomatico_'].indexOf(t.getHandlerFunction())>=0){
+      ScriptApp.deleteTrigger(t);
+    }
   });
   if(!edit){
     ScriptApp.newTrigger('syncPlanilhaEditavelOnEdit_')
-      .forSpreadsheet(SYNC_EDITABLE_SPREADSHEET_ID)
-      .onEdit()
-      .create();
+      .forSpreadsheet(SYNC_EDITABLE_SPREADSHEET_ID).onEdit().create();
   }
-  if(!clock){
-    ScriptApp.newTrigger('syncSupabaseParaPlanilhaEditavel_')
-      .timeBased()
-      .everyMinutes(5)
-      .create();
-  }
-  const result=syncSupabaseParaPlanilhaEditavel_();
-  return {ok:true,onEdit:true,cada5Min:true,primeiraSincronizacao:result};
+  ScriptApp.newTrigger('syncPlanilhaEditavelAutomatico_').timeBased().everyMinutes(1).create();
+  PropertiesService.getScriptProperties().deleteProperty('PLANILHA_SYNC_FINGERPRINT');
+  const result=syncPlanilhaEditavelAutomatico_();
+  return {ok:true,onEdit:true,cada1Min:true,primeiraSincronizacao:result};
 }

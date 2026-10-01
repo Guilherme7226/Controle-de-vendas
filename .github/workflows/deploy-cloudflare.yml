@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+    paths:
+      - "*.html"
+      - "worker.js"
+      - "wrangler.toml"
+      - "functions/**"
   workflow_dispatch:
 
 permissions:
