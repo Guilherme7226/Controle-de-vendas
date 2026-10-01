@@ -665,7 +665,7 @@ function renderSalesFiltered(){
     return matchesName && matchesExactDate(x.data,date);
   });
   $('salesTable').innerHTML='<table class="table"><thead><tr><th>Data</th><th>Cliente</th><th>Qtd.</th><th>Total</th><th>Pago</th><th>Saldo</th><th>Status</th><th>Ação</th></tr></thead><tbody>'+
-    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+(Number(x.saldo)>0?'<button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button>':'—')+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
+    (rows.length?rows.map(x=>'<tr><td>'+new Date(x.data+'T00:00:00').toLocaleDateString('pt-BR')+'</td><td>'+esc(x.cliente)+'</td><td>'+x.quantidade+'</td><td>'+brl(x.total)+'</td><td>'+brl(x.valor_pago)+'</td><td>'+brl(x.saldo)+'</td><td><span class="pill '+(x.status_pagamento==='pago'?'ok':x.status_pagamento==='parcial'?'warn':'bad')+'">'+x.status_pagamento+'</span></td><td>'+'<div class="action-group">'+(Number(x.saldo)>0?'<button class="primary" onclick="paySale(\''+x.id+'\','+x.saldo+')">Pagamento</button>':'')+'<button class="danger" type="button" onclick="deleteSale(\''+x.id+'\',this)">Excluir</button></div>'+'</td></tr>').join(''):'<tr><td colspan="8" class="muted" style="text-align:center;padding:24px">Nenhuma venda encontrada com esses filtros.</td></tr>')+
     '</tbody></table>';
   addColumnFilters('salesTable');
 }
@@ -733,6 +733,23 @@ async function paySale(id,saldo){
   const valor=Number(String(raw).replace(',','.')); if(!valor||valor<=0)return;
   const r=await sb.rpc('v2_registrar_pagamento',{p_venda_id:id,p_valor:valor,p_data:today()});
   if(r.error)return alert(r.error.message); await Promise.all([loadSales(),loadDashboard()]); if($('receber').classList.contains('active'))await loadReceivables();
+}
+let deletingSale=false;
+async function deleteSale(id,btn){
+  if(deletingSale)return;
+  const venda=salesCache.find(x=>String(x.id)===String(id));
+  if(!venda)return alert('Atualize a lista de vendas e tente novamente.');
+  const data=new Date(venda.data+'T00:00:00').toLocaleDateString('pt-BR');
+  if(!confirm('Excluir esta venda?\n\nCliente: '+venda.cliente+'\nData: '+data+'\nQuantidade: '+venda.quantidade+'\nTotal: '+brl(venda.total)+'\nPago: '+brl(venda.valor_pago)+'\n\nOs pagamentos deste lançamento serão excluídos e os totais e o estoque serão recalculados.'))return;
+  deletingSale=true;if(btn){btn.disabled=true;btn.textContent='Excluindo...';}
+  try{
+    const r=await sb.rpc('v2_excluir_venda',{p_venda_id:id});
+    if(r.error)throw r.error;
+    salesCache=salesCache.filter(x=>String(x.id)!==String(id));renderSalesFiltered();
+    await Promise.all([loadSales(),loadDashboard(),loadStock(),loadOrders(),loadClients(),loadReceivables()]);
+    alert('Venda excluída.');
+  }catch(e){alert(e?.message||'Não foi possível excluir a venda.');}
+  finally{deletingSale=false;if(btn){btn.disabled=false;btn.textContent='Excluir';}}
 }
 async function loadOrders(){
   const [r,v]=await Promise.all([
