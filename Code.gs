@@ -5426,6 +5426,15 @@ function syncSupabaseParaPlanilhaEditavel_() {
       if(v.pedido_id)ids[String(v.pedido_id)]=row;
     });
 
+    // Mantém o TOTAL GERAL incluindo todas as vendas inseridas antes dele.
+    const totalRowFinal=totalRowVendas_();
+    if(totalRowFinal>=3){
+      const lastSaleRow=totalRowFinal-1;
+      shV.getRange(totalRowFinal,5).setFormula('=SUM(E3:E'+lastSaleRow+')');
+      shV.getRange(totalRowFinal,9).setFormula('=SUM(I3:I'+lastSaleRow+')');
+      shV.getRange(totalRowFinal,10).setFormula('=SUM(J3:J'+lastSaleRow+')');
+    }
+
     SpreadsheetApp.flush();
     const ctrl=ss.getSheetByName('Controle Sync');
     if(ctrl){
