@@ -188,3 +188,6 @@ left join lateral (
   from public.v2_pedido_itens it left join public.v2_produtos pr on pr.id=it.produto_id
   where it.pedido_id=v.pedido_id having count(*)>0
 ) i on true;
+
+-- Cadastro de clientes também preserva o indicador de pães.
+create or replace view public.v2_dashboard_clientes with (security_invoker=true) as select c.id,c.nome,c.telefone,c.ativo,count(v.id)::integer vendas,coalesce(sum(v.quantidade_paes),0)::integer paes,coalesce(sum(v.total),0) total_comprado,coalesce(sum(v.valor_pago),0) total_pago,coalesce(sum(v.saldo),0) divida from public.v2_clientes c left join public.v2_vendas_detalhadas v on v.cliente_id=c.id group by c.id,c.nome,c.telefone,c.ativo;
