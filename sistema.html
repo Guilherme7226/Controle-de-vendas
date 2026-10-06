@@ -148,13 +148,18 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   border-radius:8px;background:var(--card);color:var(--text);font-size:12px;font-weight:400
 }
 .column-filter-row input::placeholder{color:var(--muted)}
-.stock-filter-grid{display:grid;grid-template-columns:repeat(6,minmax(110px,1fr));gap:10px;margin:12px 0 14px}
+.stock-filter-grid{display:grid;grid-template-columns:repeat(5,minmax(110px,1fr));gap:10px;margin:12px 0 14px}
 .stock-filter-grid .field{margin:0}
 @media(max-width:900px){.stock-filter-grid{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:540px){.stock-filter-grid{grid-template-columns:1fr}}
 
 .link-btn{border:0;background:none;padding:0;color:var(--accent);font:inherit;font-weight:700;cursor:pointer;text-decoration:underline;text-underline-offset:2px}
 .link-btn:hover{opacity:.8}
+
+.combo-promo{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:18px;padding:22px;margin:14px 0 18px;border:2px solid #f97316;border-radius:18px;background:linear-gradient(120deg,#fff7ed,#ffedd5);color:#7c2d12;box-shadow:0 6px 20px rgba(234,88,12,.12)}
+.combo-promo-copy{flex:1 1 220px;min-width:0}.combo-promo-label{display:inline-block;padding:5px 10px;border-radius:999px;background:#c2410c;color:#fff;font-size:12px;font-weight:800;letter-spacing:.04em}.combo-promo h3{margin:10px 0 6px;font-size:23px;line-height:1.2;color:inherit}.combo-promo p{margin:0;font-size:14px;line-height:1.5;color:inherit}.combo-promo-price{flex:0 0 auto;text-align:right}.combo-promo-price small{display:block;font-size:12px;font-weight:700}.combo-promo-price strong{display:block;font-size:36px;line-height:1.15;font-weight:900;color:#c2410c}.combo-promo-detail{flex-basis:100%;font-size:12px;line-height:1.5;border-top:1px solid #fdba74;padding-top:12px}
+[data-theme=dark] .combo-promo{background:linear-gradient(120deg,#381b0d,#291b0e);color:#ffedd5;border-color:#ea580c}[data-theme=dark] .combo-promo-price strong{color:#fb923c}[data-theme=dark] .combo-promo-detail{border-color:#9a3412}
+@media(max-width:540px){.combo-promo{padding:17px;gap:12px}.combo-promo h3{font-size:21px}.combo-promo-price{text-align:left}.combo-promo-price strong{font-size:32px}}
 </style>
 </head>
 <body>
@@ -243,7 +248,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <div class="card">
     <div class="form-grid">
       <div class="field"><label for="saleClient">Cliente</label><select id="saleClient" onchange="toggleSaleGuest()"></select><div id="saleGuestField" hidden><label for="saleGuestName">Nome do cliente avulso</label><input id="saleGuestName" type="text" maxlength="200" placeholder="Digite o nome do cliente" disabled></div></div>
-      <div class="field" style="grid-column:1/-1"><label>Produtos do pedido</label><div id="saleItems" class="grid"></div><p class="muted">Uma Coca-Cola 220 ml por R$ 4,00 para cada pão. Bebidas avulsas: R$ 4,50.</p><strong id="saleTotal">Total: R$ 0,00</strong><div id="saleDiscount" class="muted"></div></div>
+      <div class="field" style="grid-column:1/-1"><div class="combo-promo" role="note" aria-label="Promoção pão e Coca-Cola"><div class="combo-promo-copy"><span class="combo-promo-label">PROMOÇÃO AUTOMÁTICA</span><h3>🥖 Pão + Coca-Cola 🥤</h3><p>Compre um pão e sua Coca sai por <strong>R$ 4,00</strong>!</p><p>Coca-Cola ou Coca-Cola Zero • 220 ml</p></div><div class="combo-promo-price"><small>COMBO COMPLETO</small><strong>R$ 12,00</strong></div><div class="combo-promo-detail">Uma Coca com desconto para cada pão no mesmo pedido. Bebida avulsa ou excedente: R$ 4,50.</div></div><label>Produtos do pedido</label><div id="saleItems" class="grid"></div><strong id="saleTotal">Total: R$ 0,00</strong><div id="saleDiscount" class="muted"></div></div>
       <div class="field"><label>Valor já pago</label><input id="salePaid" type="number" min="0" step=".01" value="0"></div>
       <div class="field"><label>Data</label><input id="saleDate" type="date"></div>
     </div>
@@ -259,7 +264,6 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 <section id="estoque" class="section">
   <div class="row"><div><h2>Estoque e entradas</h2><div class="muted">Entradas / produção − vendido − reservado − descartado</div></div><button class="secondary" onclick="loadStock()">Atualizar</button></div>
   <div class="stock-filter-grid">
-    <div class="field"><label>Produto</label><input id="stockFilterName" type="search" placeholder="Filtrar produto"></div>
     <div class="field"><label>Disponível</label><input id="stockFilterAvailable" type="search" placeholder="Ex.: 2"></div>
     <div class="field"><label>Entradas / produção</label><input id="stockFilterProduced" type="search" placeholder="Ex.: 10"></div>
     <div class="field"><label>Vendido</label><input id="stockFilterSold" type="search" placeholder="Ex.: 8"></div>
@@ -1068,7 +1072,6 @@ async function saveClient(){
 let stockCache=[];
 function renderStockFiltered(){
   const f={
-    nome:normalizeFilterText($('stockFilterName')?.value),
     disponivel:normalizeFilterText($('stockFilterAvailable')?.value),
     produzido:normalizeFilterText($('stockFilterProduced')?.value),
     vendido:normalizeFilterText($('stockFilterSold')?.value),
@@ -1076,7 +1079,6 @@ function renderStockFiltered(){
     descartado:normalizeFilterText($('stockFilterDiscarded')?.value)
   };
   const rows=(stockCache||[]).filter(x=>
-    (!f.nome||normalizeFilterText(x.nome).includes(f.nome)) &&
     (!f.disponivel||normalizeFilterText(x.disponivel).includes(f.disponivel)) &&
     (!f.produzido||normalizeFilterText(x.produzido).includes(f.produzido)) &&
     (!f.vendido||normalizeFilterText(x.vendido).includes(f.vendido)) &&
@@ -1172,7 +1174,7 @@ document.querySelectorAll('.dashboard-period').forEach(btn=>{
     loadDashboard();
   });
 });
-['stockFilterName','stockFilterAvailable','stockFilterProduced','stockFilterSold','stockFilterReserved','stockFilterDiscarded'].forEach(id=>{
+['stockFilterAvailable','stockFilterProduced','stockFilterSold','stockFilterReserved','stockFilterDiscarded'].forEach(id=>{
   const el=$(id);if(el)el.addEventListener('input',renderStockFiltered);
 });
 const financeMonthEl=$('financeMonth');if(financeMonthEl)financeMonthEl.addEventListener('change',loadFinanceiro);
