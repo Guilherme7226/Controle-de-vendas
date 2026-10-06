@@ -198,7 +198,7 @@ input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,
   </div>
   <div class="account-note">Pedidos ficam em “Atual” por 24 horas após a criação. Depois disso, passam automaticamente para o Histórico.</div>
 </div>
-<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><button id="refreshStockBtn" type="button" class="secondary" onclick="refreshStock()">🔄 Atualizar estoque</button><p id="stockStatus" role="status" aria-live="polite"></p><div class="combo-promo" role="note" aria-label="Promoção pão e Coca"><div class="combo-promo-copy"><span class="combo-promo-label">PROMOÇÃO</span><h3>🥖 Pão + Coca 🥤</h3><p>Na compra de 1 pão, sua Coca sai por <strong>R$ 4,00</strong>.</p></div><div class="combo-promo-price"><small>COMBO COMPLETO</small><strong>R$ 12,00</strong></div><div class="combo-promo-detail">Uma Coca com desconto para cada pão no mesmo pedido. Bebida avulsa ou excedente: R$ 4,50.</div></div><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> itens</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><p id="comboDiscount" role="status" style="color:var(--ok)"></p><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
+<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><div id="privateTestNotice" class="notice hidden">🧪 Teste exclusivo desta conta: escolha seus itens e veja a promoção. Reserva de demonstração, sem cobrança.</div><button id="refreshStockBtn" type="button" class="secondary" onclick="refreshStock()">🔄 Atualizar estoque</button><p id="stockStatus" role="status" aria-live="polite"></p><div class="combo-promo" role="note" aria-label="Promoção pão e Coca"><div class="combo-promo-copy"><span class="combo-promo-label">PROMOÇÃO</span><h3>🥖 Pão + Coca 🥤</h3><p>Na compra de 1 pão, sua Coca sai por <strong>R$ 4,00</strong>.</p></div><div class="combo-promo-price"><small>COMBO COMPLETO</small><strong>R$ 12,00</strong></div><div class="combo-promo-detail">Uma Coca com desconto para cada pão no mesmo pedido. Bebida avulsa ou excedente: R$ 4,50.</div></div><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> itens</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><p id="comboDiscount" role="status" style="color:var(--ok)"></p><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
 <div id="currentPanel"><div class="panel"><h2>📋 Pedidos atuais</h2><div id="orders"></div></div></div>
 <div id="historyPanel" class="hidden">
   <div class="panel"><h2>🕘 Histórico completo</h2>
@@ -279,6 +279,9 @@ async function api(action,data,opts={}){
 
     if(action==='cliente_dados'){
       const cliente=await getClient();
+      const test=await supabaseClient.from('v2_testes_cardapio').select('*').eq('cliente_id',cliente.id).eq('ativo',true).maybeSingle();
+      if(test.error)throw test.error;
+      privateCardapioTest=test.data||null;
       const {data:pedidos,error:pedidosError}=await supabaseClient.from('v2_pedidos')
         .select('id,numero_pedido,data,status,quantidade_total,total,origem,referencia,observacao,created_at,updated_at')
         .eq('cliente_id',cliente.id).order('created_at',{ascending:false});
@@ -322,6 +325,7 @@ async function api(action,data,opts={}){
           origem:p.origem||'',dataPagamento:venda?.dataPagamento||''
         };
       });
+      if(privateCardapioTest?.pedido_id)normalizedPedidos.unshift(privateTestOrder(privateCardapioTest));
       return {ok:true,data:{mustChangePassword:!!cliente.primeira_senha,cliente,pedidos:normalizedPedidos,vendas:normalizedVendas}};
     }
 
@@ -348,11 +352,12 @@ async function api(action,data,opts={}){
       const pr=await supabaseClient.from('v2_produtos').select('id,categoria,preco_combo').eq('ativo',true);
       if(pr.error)throw pr.error;
       const info=new Map((pr.data||[]).map(x=>[x.id,x]));
-      return {ok:true,data:{stock:(data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0,categoria:info.get(x.produto_id)?.categoria||'pao',precoCombo:info.get(x.produto_id)?.preco_combo??null}))}};
+      return {ok:true,data:{stock:privateTestStock((data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0,categoria:info.get(x.produto_id)?.categoria||'pao',precoCombo:info.get(x.produto_id)?.preco_combo??null})))}};
     }
 
     if(action==='cliente_pedido'){
       const itensInput=(data?.itens||[]).filter(i=>Number(i.quantidade)>0);
+      if(privateCardapioTest)return await savePrivateTest(itensInput,null,data?.requestId||null);
       if(!itensInput.length)throw Error('Escolha pelo menos um produto.');
       const rpcItens=itensInput.map(i=>{
         const st=stock.find(x=>x.recheio===i.recheio);
@@ -377,6 +382,7 @@ async function api(action,data,opts={}){
       const cliente=await getClient();
       const pedidoId=String(data?.id||'');
       if(!pedidoId)throw Error('Pedido inválido.');
+      if(privateCardapioTest?.pedido_id===pedidoId)return await savePrivateTest(data?.itens||[],pedidoId);
       const {data:pedido,error:pedidoError}=await supabaseClient.from('v2_pedidos')
         .select('id,status').eq('id',pedidoId).eq('cliente_id',cliente.id).maybeSingle();
       if(pedidoError)throw pedidoError;
@@ -399,6 +405,12 @@ async function api(action,data,opts={}){
     if(action==='cliente_excluir_pedido'){
       const cliente=await getClient();
       const pedidoId=String(data?.id||'');
+      if(privateCardapioTest?.pedido_id===pedidoId){
+        const result=await supabaseClient.rpc('v2_excluir_teste_cardapio',{p_pedido_id:pedidoId});
+        if(result.error)throw result.error;
+        privateCardapioTest={...privateCardapioTest,pedido_id:null,pedido_itens:[],pedido_total:0,request_id:null};
+        return {ok:true,data:{id:pedidoId,stock:privateTestStock(stock)}};
+      }
       const del=await supabaseClient.from('v2_pedidos').delete().eq('id',pedidoId).eq('cliente_id',cliente.id).eq('status','reservado');
       if(del.error)throw del.error;
       return {ok:true,data:{id:pedidoId}};
@@ -415,6 +427,7 @@ function saveSession(v){localStorage.setItem('paozinhos_cliente',JSON.stringify(
 function clearSession(){localStorage.removeItem('paozinhos_cliente')}
 function showApp(s){$('auth').classList.add('hidden');$('changePassword').classList.toggle('hidden',!s.mustChangePassword);$('app').classList.toggle('hidden',!!s.mustChangePassword);$('clientSettings').classList.toggle('hidden',!!s.mustChangePassword);$('adminPanelBtn').classList.toggle('hidden',!s.isAdmin||!!s.mustChangePassword);$('logout').classList.remove('hidden');$('backTop').classList.add('hidden');$('clientName').textContent=s.cliente?.nome||'';$('clientSettingsPanel').classList.add('hidden');setClientTab('atual');if(!s.mustChangePassword){if(!$('stockGrid').children.length)$('stockGrid').innerHTML='<div class="notice">⏳ Carregando estoque...</div>';if(!$('orders').children.length)$('orders').innerHTML='<div class="notice">⏳ Carregando seus pedidos...</div>'}}
 function showAuth(){$('auth').classList.remove('hidden');$('changePassword').classList.add('hidden');$('app').classList.add('hidden');$('clientSettings').classList.add('hidden');$('adminPanelBtn').classList.add('hidden');$('clientSettingsPanel').classList.add('hidden');$('logout').classList.add('hidden');$('backTop').classList.remove('hidden')}
+let privateCardapioTest=null;
 let stock=[];let quantities={};let pendingOrderRequestId=null;let pendingOrderFingerprint='';let editingOrderId=null;let currentPedidos=[];let currentVendas=[];
 async function loadClient(prefetched=null){
   const {data:sessionData}=await supabaseClient.auth.getSession();
@@ -445,6 +458,28 @@ function refreshStock(){
   })().finally(()=>{stockRefreshPromise=null;});
   return stockRefreshPromise;
 }
+function privateTestOrder(test){
+  const d=new Date(test.updated_at),pad=n=>String(n).padStart(2,'0');
+  return {id:test.pedido_id,data:d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()),createdAt:test.updated_at,status:'Reservado',origem:'TESTE',
+    itens:(test.pedido_itens||[]).map(i=>({recheio:i.descricao,quantidade:Number(i.quantidade),valorUnitario:Number(i.valor_unitario)})),
+    quantidadeTotal:(test.pedido_itens||[]).reduce((n,i)=>n+Number(i.quantidade),0),total:Number(test.pedido_total)||0,valorPago:0,saldo:0};
+}
+function privateTestStock(rows){
+  if(!privateCardapioTest)return rows;
+  const reserved=new Map();
+  (privateCardapioTest.pedido_itens||[]).forEach(i=>reserved.set(i.produto_id,(reserved.get(i.produto_id)||0)+Number(i.quantidade)));
+  return rows.map(x=>({...x,disponivel:Math.max(0,Number((privateCardapioTest.estoque||[]).find(i=>i.produto_id===x.produtoId)?.quantidade||0)-Number(reserved.get(x.produtoId)||0))}));
+}
+async function savePrivateTest(items,pedidoId=null,requestId=null){
+  const p_itens=items.filter(i=>Number(i.quantidade)>0).map(i=>{
+    const product=stock.find(x=>x.recheio===i.recheio);if(!product)throw Error('Produto inválido');
+    return {produto_id:product.produtoId,quantidade:Number(i.quantidade)};
+  });
+  const result=await boundedRequest(supabaseClient.rpc('v2_reservar_teste_cardapio',{p_itens,p_pedido_id:pedidoId,p_request_id:requestId}),15000);
+  if(result.error)throw result.error;
+  privateCardapioTest=result.data;
+  return {ok:true,data:{...privateTestOrder(privateCardapioTest),stock:privateTestStock(stock)}};
+}
 function stockLimit(x){
  const own=editingOrderId?(currentPedidos.find(o=>String(o.id)===String(editingOrderId))?.itens||[]).filter(i=>i.recheio===x?.recheio).reduce((t,i)=>t+Number(i.quantidade||0),0):0;
  return Number(x?.disponivel||0)+own;
@@ -460,6 +495,7 @@ function calculateCart(items){
  return {total:(gross-discount)/100,desconto:discount/100,quantidade:selected.reduce((t,x)=>t+x.quantidade,0)};
 }
 function renderStock(data){
+ $('privateTestNotice').classList.toggle('hidden',!privateCardapioTest);
  stock=data;recheios.splice(0,recheios.length,...data.map(x=>x.recheio));
  $('stockGrid').innerHTML=['pao','bebida'].map(category=>{
    const rows=data.filter(x=>(x.categoria||'pao')===category);
@@ -501,13 +537,14 @@ function renderOrders(list, vendas=[]){
   const limite24h=24*60*60*1000;
   const dentroDe24h=o=>{
     if(o.type!=='pedido') return false;
+    if(o.origem==='TESTE')return true;
     const base=o.createdAt || (o.data ? o.data+'T00:00:00' : '');
     const t=base ? new Date(base).getTime() : 0;
     return t>0 && (agora-t)<limite24h;
   };
-  const pendencias=registros.filter(x=>Number(x.saldo)>0);
+  const pendencias=registros.filter(x=>x.origem!=='TESTE'&&Number(x.saldo)>0);
   const atuais=registros.filter(dentroDe24h);
-  const historico=registros.filter(x=>!dentroDe24h(x));
+  const historico=registros.filter(x=>x.origem!=='TESTE'&&!dentroDe24h(x));
 
   const totalAtual=pendencias.reduce((a,x)=>a+(Number(x.total)||0),0);
   const pagoAtual=pendencias.reduce((a,x)=>a+(Number(x.valorPago)||0),0);
@@ -529,7 +566,7 @@ function renderOrders(list, vendas=[]){
       const pagamento=o.valorPago>0
         ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
         : '';
-      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' itens</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+escapeHtml(i.recheio)).join('<br>')+'</div>') + pagamento + actions + '</div>';
+      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.origem==='TESTE'?'Teste · sem cobrança':o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' itens</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+escapeHtml(i.recheio)).join('<br>')+'</div>') + pagamento + actions + '</div>';
     }).join('');
   }
 
@@ -545,7 +582,7 @@ function renderOrders(list, vendas=[]){
     $('historyList').innerHTML='<div class="notice">Nenhum histórico disponível.</div>';
   }else{
     $('historyList').innerHTML=[...historico].sort((a,b)=>String(b.createdAt||b.data||'').localeCompare(String(a.createdAt||a.data||''))).map(o=>{
-      const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Aguardando':o.status);
+      const status=o.saldo<=0 ? 'Pago' : (o.origem==='TESTE'?'Teste · sem cobrança':o.status==='Reservado'?'Aguardando':o.status);
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';
       return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' itens</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+escapeHtml(i.recheio)).join('<br>')+'</div>') + pagamento + '</div>';
@@ -757,4 +794,3 @@ setInterval(()=>{if(document.hidden||clientRefreshBusy)return;clientRefreshBusy=
 
 </body>
 </html>
-
