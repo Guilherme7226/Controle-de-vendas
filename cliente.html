@@ -193,7 +193,7 @@ input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,
   </div>
   <div class="account-note">Pedidos ficam em “Atual” por 24 horas após a criação. Depois disso, passam automaticamente para o Histórico.</div>
 </div>
-<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><button id="refreshStockBtn" type="button" class="secondary" onclick="refreshStock()">🔄 Atualizar estoque</button><p id="stockStatus" role="status" aria-live="polite"></p><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> pães</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
+<div id="orderArea" class="panel"><h2>🛒 Novo pedido</h2><button id="refreshStockBtn" type="button" class="secondary" onclick="refreshStock()">🔄 Atualizar estoque</button><p id="stockStatus" role="status" aria-live="polite"></p><p class="notice">🥖 + 🥤 Promoção: uma Coca-Cola ou Coca-Cola Zero 220 ml por R$ 4,00 para cada pão no mesmo pedido. Avulsa: R$ 4,50.</p><div id="stockGrid" class="stock-grid"></div><div class="summary"><div><div style="color:var(--muted)">Quantidade</div><strong id="totalQty">0</strong> itens</div><div style="text-align:right"><div style="color:var(--muted)">Total</div><div id="totalPrice" class="total">R$ 0,00</div></div></div><p id="comboDiscount" role="status" style="color:var(--ok)"></p><div style="margin-top:12px"><button id="orderBtn" type="button" class="primary">Reservar meu pedido</button><button id="cancelEdit" class="secondary hidden" type="button">Cancelar edição</button></div></div>
 <div id="currentPanel"><div class="panel"><h2>📋 Pedidos atuais</h2><div id="orders"></div></div></div>
 <div id="historyPanel" class="hidden">
   <div class="panel"><h2>🕘 Histórico completo</h2>
@@ -215,7 +215,8 @@ const SUPABASE_URL='https://lsevhjjklsnqegrpkiku.supabase.co';
 const SUPABASE_PUBLISHABLE_KEY='sb_publishable_sKFjadsYvUhjSW3kkrhkzw_Y9GGmoj2';
 const supabaseClient=window.supabase.createClient(SUPABASE_URL,SUPABASE_PUBLISHABLE_KEY);
 const PRECO=8;
-const recheios=['Frango','Frango com milho','Frango com milho e salada','Frango sem milho com salada'];
+const recheios=[];
+const escapeHtml=s=>String(s??'').replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
 const $=id=>document.getElementById(id);
 const brl=n=>new Intl.NumberFormat('pt-BR',{style:'currency',currency:'BRL'}).format(Number(n)||0);
 const today=()=>{const d=new Date(),p=n=>String(n).padStart(2,'0');return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())};
@@ -339,12 +340,15 @@ async function api(action,data,opts={}){
       const result=await boundedRequest(supabaseClient.rpc('v2_estoque_cliente'),opts.timeout||15000);
       const {data,error}=result;
       if(error)throw error;
-      return {ok:true,data:{stock:(data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0}))}};
+      const pr=await supabaseClient.from('v2_produtos').select('id,categoria,preco_combo').eq('ativo',true);
+      if(pr.error)throw pr.error;
+      const info=new Map((pr.data||[]).map(x=>[x.id,x]));
+      return {ok:true,data:{stock:(data||[]).map(x=>({produtoId:x.produto_id,recheio:x.nome||'',preco:Number(x.preco)||PRECO,disponivel:Number(x.disponivel)||0,categoria:info.get(x.produto_id)?.categoria||'pao',precoCombo:info.get(x.produto_id)?.preco_combo??null}))}};
     }
 
     if(action==='cliente_pedido'){
       const itensInput=(data?.itens||[]).filter(i=>Number(i.quantidade)>0);
-      if(!itensInput.length)throw Error('Escolha pelo menos um recheio.');
+      if(!itensInput.length)throw Error('Escolha pelo menos um produto.');
       const rpcItens=itensInput.map(i=>{
         const st=stock.find(x=>x.recheio===i.recheio);
         if(!st)throw Error('Produto inválido: '+i.recheio);
@@ -356,7 +360,10 @@ async function api(action,data,opts={}){
       if(!pedidoId)throw Error('Não foi possível confirmar a reserva. Tente novamente.');
       const pedido={id:pedidoId,data:data?.data||today(),status:'Reservado',itens:itensInput,
         quantidadeTotal:itensInput.reduce((s,i)=>s+Number(i.quantidade),0),
-        total:itensInput.reduce((s,i)=>s+Number(i.quantidade)*(Number(stock.find(x=>x.recheio===i.recheio)?.preco)||PRECO),0),valorPago:0};
+        total:calculateCart(itensInput).total,valorPago:0};
+      const saved=await supabaseClient.from('v2_pedidos').select('total,quantidade_total,numero_pedido,data').eq('id',pedidoId).single();
+      if(saved.error)throw saved.error;
+      pedido.total=Number(saved.data.total);pedido.quantidadeTotal=Number(saved.data.quantidade_total);pedido.numeroPedido=saved.data.numero_pedido;pedido.data=saved.data.data;
       const atualizado=stock.map(x=>({...x,disponivel:Math.max(0,Number(x.disponivel)-(Number(itensInput.find(i=>i.recheio===x.recheio)?.quantidade)||0))}));
       return {ok:true,data:{...pedido,saldo:pedido.total,stock:atualizado}};
     }
@@ -370,31 +377,14 @@ async function api(action,data,opts={}){
       if(pedidoError)throw pedidoError;
       if(!pedido||pedido.status!=='reservado')throw Error('Este pedido não pode mais ser editado.');
 
-      const estoque=await supabaseClient.from('v2_estoque_publico').select('produto_id,nome,preco,disponivel');
-      if(estoque.error)throw estoque.error;
-      const antigos=await supabaseClient.from('v2_pedido_itens').select('descricao,quantidade').eq('pedido_id',pedidoId);
-      if(antigos.error)throw antigos.error;
-      const oldMap={};(antigos.data||[]).forEach(i=>oldMap[i.descricao]=(oldMap[i.descricao]||0)+Number(i.quantidade||0));
-
       const itensInput=(data?.itens||[]).filter(i=>Number(i.quantidade)>0);
-      if(!itensInput.length)throw Error('Escolha pelo menos um recheio.');
-      let total=0,qtdTotal=0;
-      const rows=[];
-      itensInput.forEach(i=>{
-        const st=(estoque.data||[]).find(x=>x.nome===i.recheio);
+      const rpcItens=itensInput.map(i=>{
+        const st=stock.find(x=>x.recheio===i.recheio);
         if(!st)throw Error('Produto inválido: '+i.recheio);
-        const permitido=Number(st.disponivel||0)+Number(oldMap[i.recheio]||0);
-        const qtd=Number(i.quantidade)||0;
-        if(qtd>permitido)throw Error('Estoque insuficiente para '+i.recheio+'.');
-        total+=qtd*Number(st.preco||PRECO);qtdTotal+=qtd;
-        rows.push({pedido_id:pedidoId,produto_id:st.produto_id,descricao:st.nome,quantidade:qtd,valor_unitario:Number(st.preco||PRECO)});
+        return {produto_id:st.produtoId,quantidade:Number(i.quantidade)};
       });
-      const del=await supabaseClient.from('v2_pedido_itens').delete().eq('pedido_id',pedidoId);
-      if(del.error)throw del.error;
-      const ins=await supabaseClient.from('v2_pedido_itens').insert(rows);
-      if(ins.error)throw ins.error;
-      const up=await supabaseClient.from('v2_pedidos').update({quantidade_total:qtdTotal,total,updated_at:new Date().toISOString()}).eq('id',pedidoId);
-      if(up.error)throw up.error;
+      const edited=await supabaseClient.rpc('v2_editar_itens_cardapio',{p_pedido_id:pedidoId,p_itens:rpcItens});
+      if(edited.error)throw edited.error;
       const dados=await api('cliente_dados',{}, {silent:true});
       const pedidoAtual=(dados?.data?.pedidos||[]).find(x=>String(x.id)===pedidoId);
       const stk=await api('estoque_atual',{}, {silent:true});
@@ -450,11 +440,37 @@ function refreshStock(){
   })().finally(()=>{stockRefreshPromise=null;});
   return stockRefreshPromise;
 }
-function renderStock(data){
- stock=data;const map={};data.forEach(x=>map[x.recheio]=x);
- $('stockGrid').innerHTML=recheios.map(r=>{const x=map[r]||{disponivel:0};const q=Math.min(quantities[r]||0,Number(x.disponivel)||0);quantities[r]=q;return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+r+'</div><div class="available '+(x.disponivel?'':'soldout')+'">'+(x.disponivel?'Estoque: '+x.disponivel:'Estoque: 0')+'</div></div><div class="qty"><button type="button" class="secondary minus" data-r="'+r+'">−</button><input inputmode="numeric" min="0" max="'+(x.disponivel||0)+'" value="'+q+'" data-q="'+r+'"><button type="button" class="secondary plus" data-r="'+r+'">+</button></div></div>'}).join('');updateTotal()
+function stockLimit(x){
+ const own=editingOrderId?(currentPedidos.find(o=>String(o.id)===String(editingOrderId))?.itens||[]).filter(i=>i.recheio===x?.recheio).reduce((t,i)=>t+Number(i.quantidade||0),0):0;
+ return Number(x?.disponivel||0)+own;
 }
-function updateTotal(){let q=0;recheios.forEach(r=>q+=Number(quantities[r]||0));$('totalQty').textContent=q;$('totalPrice').textContent=brl(q*PRECO)}
+function calculateCart(items){
+ const selected=items.map(i=>({...stock.find(x=>x.recheio===i.recheio),quantidade:Number(i.quantidade)||0})).filter(x=>x.quantidade>0);
+ let pairs=selected.filter(x=>x.categoria==='pao').reduce((t,x)=>t+x.quantidade,0),gross=0,discount=0;
+ selected.sort((a,b)=>(a.recheio||'').localeCompare(b.recheio||''));
+ for(const x of selected){
+   gross+=Math.round(Number(x.preco||PRECO)*100)*x.quantidade;
+   if(x.categoria==='bebida'&&x.precoCombo!=null){const n=Math.min(pairs,x.quantidade);pairs-=n;discount+=n*(Math.round(x.preco*100)-Math.round(x.precoCombo*100));}
+ }
+ return {total:(gross-discount)/100,desconto:discount/100,quantidade:selected.reduce((t,x)=>t+x.quantidade,0)};
+}
+function renderStock(data){
+ stock=data;recheios.splice(0,recheios.length,...data.map(x=>x.recheio));
+ $('stockGrid').innerHTML=['pao','bebida'].map(category=>{
+   const rows=data.filter(x=>(x.categoria||'pao')===category);
+   if(!rows.length)return '';
+   return '<h3 style="grid-column:1/-1;margin-bottom:0">'+(category==='bebida'?'🥤 Bebidas':'🥖 Pães')+'</h3>'+rows.map(x=>{
+     const r=x.recheio,max=stockLimit(x),q=Math.min(quantities[r]||0,max);quantities[r]=q;
+     const disabled=max===0?' disabled':'';
+     return '<div class="stock-card"><div class="stock-head"><div class="stock-name">'+escapeHtml(r)+'</div><div class="available '+(max?'':'soldout')+'">'+(max?'Disponível: '+max:'Indisponível')+'</div></div><div style="margin:8px 0;color:var(--muted)">'+brl(x.preco)+(x.precoCombo!=null?' · Com pão: '+brl(x.precoCombo):'')+'</div><div class="qty"><button type="button" class="secondary minus" data-r="'+escapeHtml(r)+'"'+disabled+'>−</button><input type="number" inputmode="numeric" min="0" step="1" max="'+max+'" value="'+q+'" data-q="'+escapeHtml(r)+'"'+disabled+'><button type="button" class="secondary plus" data-r="'+escapeHtml(r)+'"'+disabled+'>+</button></div></div>';
+   }).join('');
+ }).join('');updateTotal();
+}
+function updateTotal(){
+ const cart=calculateCart(recheios.map(recheio=>({recheio,quantidade:quantities[recheio]||0})));
+ $('totalQty').textContent=cart.quantidade;$('totalPrice').textContent=brl(cart.total);
+ $('comboDiscount').textContent=cart.desconto?'Promoção aplicada: economia de '+brl(cart.desconto):'';
+}
 function renderOrders(list, vendas=[]){
   // Pedidos cancelados permanecem no banco para auditoria, mas não são exibidos ao cliente.
   const pedidosVisiveis=(list||[]).filter(o=>String(o.status||'').toLowerCase()!=='cancelado');
@@ -508,7 +524,7 @@ function renderOrders(list, vendas=[]){
       const pagamento=o.valorPago>0
         ? '<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>'
         : '';
-      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + actions + '</div>';
+      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+(o.status==='Reservado'?'Aguardando':o.status)+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' itens</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+escapeHtml(i.recheio)).join('<br>')+'</div>') + pagamento + actions + '</div>';
     }).join('');
   }
 
@@ -527,7 +543,7 @@ function renderOrders(list, vendas=[]){
       const status=o.saldo<=0 ? 'Pago' : (o.status==='Reservado'?'Aguardando':o.status);
       const badgeClass=o.status==='Confirmado'?'badge confirmed':'badge';
       const pagamento='<div style="margin-top:6px;color:var(--muted)">Pago: '+brl(o.valorPago)+' • Saldo: '+brl(o.saldo)+'</div>';
-      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' pães</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+i.recheio).join('<br>')+'</div>') + pagamento + '</div>';
+      return '<div class="order"><div class="order-top"><strong>'+o.id+'</strong><span class="'+badgeClass+'">'+status+'</span></div><div style="margin-top:5px"><strong>'+o.quantidadeTotal+' itens</strong> • '+brl(o.total)+' • '+o.data+'</div>' + ((o.origem==='VENDA_HISTORICA') ? '<div class="order-items">'+o.quantidadeTotal+' pães</div>' : '<div class="order-items">'+o.itens.map(i=>i.quantidade+' × '+escapeHtml(i.recheio)).join('<br>')+'</div>') + pagamento + '</div>';
     }).join('');
   }
 }
@@ -615,8 +631,8 @@ $('saveSettingsPassword').onclick=async()=>{
 $('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
 $('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
 $('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();
-document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
-document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=Number(x?.disponivel||0);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});
+document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=stockLimit(x);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
+document.addEventListener('input',e=>{const r=e.target.dataset.q;if(!r)return;const x=stock.find(s=>s.recheio===r),max=stockLimit(x);quantities[r]=Math.min(max,Math.max(0,Math.floor(Number(e.target.value)||0)));updateTotal()});
 $('orderBtn').onclick=async()=>{
  const btn=$('orderBtn');
  if(btn.disabled)return;
@@ -625,7 +641,7 @@ $('orderBtn').onclick=async()=>{
  if(!s)return;
 
  const itens=recheios.map(r=>({recheio:r,quantidade:Number(quantities[r]||0)})).filter(x=>x.quantidade>0);
- if(!itens.length){showMsg('Escolha pelo menos um recheio.','error');return}
+ if(!itens.length){showMsg('Escolha pelo menos um produto.','error');return}
 
  // Bloqueia imediatamente para evitar duplo clique.
  btn.disabled=true;
@@ -691,7 +707,7 @@ document.addEventListener('click',async e=>{
    const o=currentPedidos.find(x=>String(x.id)===String(id));if(!o)return;
    clientOrderActionBusy=true;
    try{
-     editingOrderId=id;quantities={};(o.itens||[]).forEach(i=>quantities[i.recheio]=Number(i.quantidade)||0);
+     editingOrderId=id;quantities={};(o.itens||[]).forEach(i=>quantities[i.recheio]=(quantities[i.recheio]||0)+(Number(i.quantidade)||0));
      $('orderBtn').textContent='Salvar alterações';$('cancelEdit').classList.remove('hidden');renderStock(stock);$('orderArea').scrollIntoView({behavior:'smooth',block:'start'});
    }finally{clientOrderActionBusy=false}
  }
@@ -736,3 +752,4 @@ setInterval(()=>{if(document.hidden||clientRefreshBusy)return;clientRefreshBusy=
 
 </body>
 </html>
+

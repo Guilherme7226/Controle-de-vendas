@@ -243,8 +243,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <div class="card">
     <div class="form-grid">
       <div class="field"><label for="saleClient">Cliente</label><select id="saleClient" onchange="toggleSaleGuest()"></select><div id="saleGuestField" hidden><label for="saleGuestName">Nome do cliente avulso</label><input id="saleGuestName" type="text" maxlength="200" placeholder="Digite o nome do cliente" disabled></div></div>
-      <div class="field"><label>Produto</label><select id="saleProduct"></select></div>
-      <div class="field"><label>Quantidade</label><input id="saleQty" type="number" min="1" value="1"></div>
+      <div class="field" style="grid-column:1/-1"><label>Produtos do pedido</label><div id="saleItems" class="grid"></div><p class="muted">Uma Coca-Cola 220 ml por R$ 4,00 para cada pão. Bebidas avulsas: R$ 4,50.</p><strong id="saleTotal">Total: R$ 0,00</strong><div id="saleDiscount" class="muted"></div></div>
       <div class="field"><label>Valor já pago</label><input id="salePaid" type="number" min="0" step=".01" value="0"></div>
       <div class="field"><label>Data</label><input id="saleDate" type="date"></div>
     </div>
@@ -258,11 +257,11 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 </section>
 
 <section id="estoque" class="section">
-  <div class="row"><div><h2>Estoque e produção</h2><div class="muted">Produzido − vendido − reservado − descartado</div></div><button class="secondary" onclick="loadStock()">Atualizar</button></div>
+  <div class="row"><div><h2>Estoque e entradas</h2><div class="muted">Entradas / produção − vendido − reservado − descartado</div></div><button class="secondary" onclick="loadStock()">Atualizar</button></div>
   <div class="stock-filter-grid">
     <div class="field"><label>Produto</label><input id="stockFilterName" type="search" placeholder="Filtrar produto"></div>
     <div class="field"><label>Disponível</label><input id="stockFilterAvailable" type="search" placeholder="Ex.: 2"></div>
-    <div class="field"><label>Produzido</label><input id="stockFilterProduced" type="search" placeholder="Ex.: 10"></div>
+    <div class="field"><label>Entradas / produção</label><input id="stockFilterProduced" type="search" placeholder="Ex.: 10"></div>
     <div class="field"><label>Vendido</label><input id="stockFilterSold" type="search" placeholder="Ex.: 8"></div>
     <div class="field"><label>Reservado</label><input id="stockFilterReserved" type="search" placeholder="Ex.: 1"></div>
     <div class="field"><label>Descartado</label><input id="stockFilterDiscarded" type="search" placeholder="Ex.: 0"></div>
@@ -270,11 +269,11 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <div id="stockCards" class="grid"></div>
   <div class="grid" style="margin-top:14px">
     <div class="card">
-      <h3>Registrar produção</h3>
+      <h3>Registrar entrada / produção</h3><p class="muted">Use para produção de pães ou entrada de bebidas. A quantidade só fica disponível após salvar.</p>
       <div class="field"><label>Produto</label><select id="prodProduct"></select></div>
       <div class="field"><label>Quantidade</label><input id="prodQty" type="number" min="1"></div>
       <div class="field"><label>Data</label><input id="prodDate" type="date"></div>
-      <button class="primary" style="margin-top:10px" onclick="saveProduction()">Salvar produção</button>
+      <button class="primary" style="margin-top:10px" onclick="saveProduction()">Adicionar ao estoque</button>
     </div>
     <div class="card">
       <h3>Registrar descarte</h3>
@@ -436,14 +435,17 @@ document.querySelectorAll('.nav').forEach(b=>b.onclick=async()=>{
 async function loadBase(){
   const [c,p]=await Promise.all([
     sb.from('v2_clientes').select('id,nome,telefone,ativo').eq('ativo',true).order('nome'),
-    sb.from('v2_produtos').select('id,nome,preco,ativo').eq('ativo',true).order('nome')
+    sb.from('v2_produtos').select('id,nome,preco,ativo,categoria,custo_unitario,preco_combo').eq('ativo',true).order('nome')
   ]);
   if(c.error)throw c.error;if(p.error)throw p.error;
   clients=c.data||[];products=p.data||[];
   const selectedClient=$('saleClient').value;
   const copt='<option value="">Selecione o cliente</option><option value="avulso">Cliente avulso</option>'+clients.map(x=>'<option value="'+x.id+'">'+esc(x.nome)+'</option>').join('');
   const popt=products.map(x=>'<option value="'+x.id+'">'+esc(x.nome)+' — '+brl(x.preco)+'</option>').join('');
-  $('saleClient').innerHTML=copt;$('saleProduct').innerHTML=popt;$('prodProduct').innerHTML=popt;$('discardProduct').innerHTML=popt;
+  const selectedItems=new Map([...document.querySelectorAll('.sale-item-qty')].map(x=>[x.dataset.product,x.value]));
+  $('saleClient').innerHTML=copt;$('prodProduct').innerHTML=popt;$('discardProduct').innerHTML=popt;
+  $('saleItems').innerHTML=products.map(x=>'<div class="field"><label>'+esc(x.nome)+' — '+brl(x.preco)+'</label><input class="sale-item-qty" data-product="'+x.id+'" type="number" min="0" step="1" value="'+Number(selectedItems.get(x.id)||0)+'" oninput="updateSaleTotal()"></div>').join('');
+  updateSaleTotal();
   if(selectedClient==='avulso'||clients.some(x=>x.id===selectedClient))$('saleClient').value=selectedClient;
   toggleSaleGuest();
 }
@@ -487,13 +489,15 @@ async function loadDashboard(){
   const recebido=vendas.reduce((s,x)=>s+Number(x.valor_pago||0),0);
   const aReceber=vendas.reduce((s,x)=>s+Number(x.saldo||0),0);
   const custosTotal=custosRows.reduce((s,x)=>s+Number(x.valor||0),0);
-  const paes=vendas.reduce((s,x)=>s+Number(x.quantidade||0),0);
+  const paes=vendas.reduce((s,x)=>s+Number(x.quantidade_paes??x.quantidade??0),0);
+  const bebidas=vendas.reduce((s,x)=>s+Number(x.quantidade_bebidas||0),0);
   const cards=[
     ['Faturamento',brl(faturamento)],
     ['Custos',brl(custosTotal)],
     ['Lucro',brl(faturamento-custosTotal)],
     ['A receber',brl(aReceber)],
     ['Pães vendidos',paes],
+    ['Bebidas vendidas',bebidas],
     ['Vendas',vendas.length],
     ['Clientes',new Set(vendas.map(saleCustomerKey)).size],
     ['Recebido',brl(recebido)]
@@ -504,7 +508,7 @@ async function loadDashboard(){
   vendas.forEach(x=>{
     if(!grouped[saleCustomerKey(x)])grouped[saleCustomerKey(x)]={nome:x.cliente,paes:0,vendas:0,total_comprado:0,total_pago:0,divida:0};
     const g=grouped[saleCustomerKey(x)];
-    g.paes+=Number(x.quantidade||0);
+    g.paes+=Number(x.quantidade_paes??x.quantidade??0);
     g.vendas+=1;
     g.total_comprado+=Number(x.total||0);
     g.total_pago+=Number(x.valor_pago||0);
@@ -576,7 +580,7 @@ async function loadFinanceiro(){
   const custosTotal=custos.reduce((s,x)=>s+Number(x.valor||0),0);
   const resultado=receita-custosTotal;
   const margem=receita?resultado/receita*100:0;
-  const qtd=vendas.reduce((s,x)=>s+Number(x.quantidade||0),0);
+  const qtd=vendas.reduce((s,x)=>s+Number(x.quantidade_paes??x.quantidade??0),0);
   const ticket=vendas.length?receita/vendas.length:0;
 
   $('financeMetrics').innerHTML=[
@@ -1080,7 +1084,7 @@ function renderStockFiltered(){
     (!f.descartado||normalizeFilterText(x.descartado).includes(f.descartado))
   );
   $('stockCards').innerHTML=rows.length
-    ? rows.map(x=>'<div class="card metric"><span class="muted">'+esc(x.nome)+'</span><strong>'+x.disponivel+'</strong><div class="muted">Produzido '+x.produzido+' · Vendido '+x.vendido+' · Reservado '+x.reservado+' · Descartado '+x.descartado+'</div></div>').join('')
+    ? rows.map(x=>'<div class="card metric"><span class="muted">'+esc(x.nome)+'</span><strong>'+x.disponivel+'</strong><div class="muted">'+(products.find(p=>p.id===x.produto_id)?.categoria==='bebida'?'Entradas ':'Produzido ')+x.produzido+' · Vendido '+x.vendido+' · Reservado '+x.reservado+' · Descartado '+x.descartado+'</div><div class="muted">Venda: '+brl(x.preco)+(products.find(p=>p.id===x.produto_id)?.custo_unitario!=null?' · Custo/un.: '+brl(products.find(p=>p.id===x.produto_id).custo_unitario):'')+'</div></div>').join('')
     : '<div class="notice">Nenhum item de estoque encontrado com esses filtros.</div>';
 }
 async function loadStock(){
@@ -1091,8 +1095,9 @@ async function loadStock(){
 }
 async function saveProduction(){
   const produto_id=$('prodProduct').value,quantidade=Number($('prodQty').value),data=$('prodDate').value;
-  if(!produto_id||!quantidade)return alert('Preencha produto e quantidade.');
-  const r=await sb.from('v2_producao').insert({produto_id,quantidade,data,observacao:'Produção lançada no ADM V2'});
+  if(!produto_id||!Number.isInteger(quantidade)||quantidade<=0||!data)return alert('Preencha produto, quantidade inteira positiva e data.');
+  const bebida=products.find(p=>p.id===produto_id)?.categoria==='bebida';
+  const r=await sb.from('v2_producao').insert({produto_id,quantidade,data,observacao:bebida?'Entrada de bebidas no ADM':'Produção lançada no ADM V2'});
   if(r.error)return alert(r.error.message);$('prodQty').value='';await loadStock();
 }
 async function saveDiscard(){
@@ -1101,18 +1106,31 @@ async function saveDiscard(){
   const r=await sb.from('v2_movimentacoes_estoque').insert({produto_id,quantidade,data,tipo:'descarte',observacao:'Descarte lançado no ADM V2'});
   if(r.error)return alert(r.error.message);$('discardQty').value='';await loadStock();
 }
+function directSaleItems(){
+  return [...document.querySelectorAll('.sale-item-qty')].map(x=>({produto_id:x.dataset.product,quantidade:Number(x.value)||0})).filter(x=>x.quantidade!==0);
+}
+function updateSaleTotal(){
+  const selected=directSaleItems().map(i=>({...products.find(p=>p.id===i.produto_id),quantidade:i.quantidade}));
+  let pairs=selected.filter(p=>p.categoria==='pao').reduce((t,p)=>t+p.quantidade,0),total=0,discount=0;
+  selected.sort((a,b)=>a.nome.localeCompare(b.nome));
+  selected.forEach(p=>{total+=Math.round(p.preco*100)*p.quantidade;if(p.categoria==='bebida'&&p.preco_combo!=null){const n=Math.min(pairs,p.quantidade);pairs-=n;discount+=n*(Math.round(p.preco*100)-Math.round(p.preco_combo*100));}});
+  $('saleTotal').textContent='Total: '+brl((total-discount)/100);
+  $('saleDiscount').textContent=discount?'Promoção aplicada: economia de '+brl(discount/100):'';
+}
 async function saveDirectSale(){
-  const cliente=$('saleClient').value, guest=cliente==='avulso', nome=$('saleGuestName').value.trim();
+  const cliente=$('saleClient').value,guest=cliente==='avulso',nome=$('saleGuestName').value.trim();
   if(!cliente)return alert('Selecione o cliente.');
   if(guest&&!nome){$('saleGuestName').focus();return alert('Informe o nome do cliente avulso.');}
-  const p={p_produto_id:$('saleProduct').value,p_quantidade:Number($('saleQty').value),p_valor_pago:Number($('salePaid').value||0),p_data:$('saleDate').value};
-  if(!p.p_produto_id||!Number.isInteger(p.p_quantidade)||p.p_quantidade<1||!p.p_data)return alert('Preencha produto, quantidade e data.');
-  if(guest)p.p_cliente_nome=nome;else p.p_cliente_id=cliente;
+  const itens=directSaleItems(),paid=Number($('salePaid').value||0),data=$('saleDate').value;
+  if(!itens.length||itens.some(x=>!Number.isInteger(x.quantidade)||x.quantidade<1)||!data)return alert('Selecione produtos, quantidades inteiras positivas e data.');
+  if(!Number.isFinite(paid)||paid<0)return alert('Informe um pagamento válido.');
+  const p={p_itens:itens,p_cliente_id:guest?null:cliente,p_cliente_nome:guest?nome:null,p_valor_pago:paid,p_data:data};
   const btn=$('saveDirectSaleBtn');if(btn.disabled)return;btn.disabled=true;btn.textContent='Registrando...';
   try{
-    const r=await sb.rpc(guest?'v2_registrar_venda_avulsa':'v2_registrar_venda_direta',p);
+    const r=await sb.rpc('v2_registrar_venda_cardapio',p);
     if(r.error)throw r.error;
-    $('saleQty').value=1;$('salePaid').value=0;$('saleGuestName').value='';
+    document.querySelectorAll('.sale-item-qty').forEach(x=>x.value=0);updateSaleTotal();
+    $('salePaid').value=0;$('saleGuestName').value='';
     alert('Venda registrada.');await Promise.all([loadDashboard(),loadStock()]);
   }catch(e){alert(e?.message||'Não foi possível registrar a venda.');}
   finally{btn.disabled=false;btn.textContent='Registrar venda';}
@@ -1168,3 +1186,4 @@ const financeMonthEl=$('financeMonth');if(financeMonthEl)financeMonthEl.addEvent
 init();
 </script>
 </body></html>
+
