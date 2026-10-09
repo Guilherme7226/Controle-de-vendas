@@ -438,7 +438,7 @@ document.querySelectorAll('.nav').forEach(b=>b.onclick=async()=>{
 });
 async function loadBase(){
   const [c,p]=await Promise.all([
-    sb.from('v2_clientes').select('id,nome,telefone,ativo').eq('ativo',true).order('nome'),
+    sb.from('v2_clientes').select('id,nome,telefone,ativo,usuario_id').eq('ativo',true).order('nome'),
     sb.from('v2_produtos').select('id,nome,preco,ativo,categoria,custo_unitario,preco_combo').eq('ativo',true).order('nome')
   ]);
   if(c.error)throw c.error;if(p.error)throw p.error;
@@ -1005,10 +1005,11 @@ async function gerarAcessoCliente(clienteId,tipo){
 async function loadClients(){
   const [dash,base]=await Promise.all([
     sb.from('v2_dashboard_clientes').select('*').order('nome'),
-    sb.from('v2_clientes').select('id,nome,telefone,usuario_id').order('nome')
+    sb.from('v2_clientes').select('id,nome,telefone,usuario_id,ativo').order('nome')
   ]);
   if(dash.error)return msg(dash.error.message,'error');
   if(base.error)return msg(base.error.message,'error');
+  clients=(base.data||[]).filter(x=>x.ativo);
 
   const accessById={},clientById={};
   (base.data||[]).forEach(x=>{accessById[x.id]=!!x.usuario_id;clientById[x.id]=x});
@@ -1019,9 +1020,12 @@ async function loadClients(){
     const edit='<button class="secondary" onclick="openClientModal(\''+x.id+'\')">✏️ Editar</button>';
     const access=hasAccess
       ? '<button class="secondary" onclick="gerarAcessoCliente(\''+x.id+'\',\'reset\')">🔑 Resetar senha</button>'
-      : '<button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Criar/Enviar acesso</button>';
+      : x.telefone
+        ? '<button class="whatsapp-btn" onclick="gerarAcessoCliente(\''+x.id+'\',\'login\')">📲 Criar/Enviar acesso</button>'
+        : '<span class="muted">Adicione o telefone para criar acesso</span>';
     const action='<div class="action-group">'+edit+access+'</div>';
-    return '<tr><td>'+esc(x.nome)+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td>'+action+'</td></tr>';
+    const status='<span class="pill '+(hasAccess?'ok':'warn')+'">'+(hasAccess?'Com login':'Sem login')+'</span>';
+    return '<tr><td>'+esc(x.nome)+'<br>'+status+'</td><td>'+esc(x.telefone||'—')+'</td><td>'+x.paes+'</td><td>'+x.vendas+'</td><td>'+brl(x.total_comprado)+'</td><td>'+brl(x.divida)+'</td><td>'+action+'</td></tr>';
   }).join('')+'</tbody></table>';
   addClientOnlyFilter('clientsTable');
 }
@@ -1047,6 +1051,10 @@ async function saveClient(){
   if(!nome)return alert('Informe o nome do cliente.');
   let r;
   if(id){
+    const client=clients.find(x=>String(x.id)===String(id));
+    if(client && !client.usuario_id){
+      r=await sb.from('v2_clientes').update({nome,telefone}).eq('id',id);
+    }else{
     if(!telefone)return alert('Informe o telefone. O telefone é o login do cliente.');
     try{
       const resp=await fetch(LEGACY_API_URL,{
@@ -1059,6 +1067,7 @@ async function saveClient(){
       r={error:null};
     }catch(e){
       return alert(e?.message||'Não foi possível atualizar o cliente.');
+    }
     }
   }else{
     if(!telefone)return alert('Informe o telefone. O telefone será o login do cliente.');
@@ -1133,7 +1142,7 @@ async function saveDirectSale(){
     if(r.error)throw r.error;
     document.querySelectorAll('.sale-item-qty').forEach(x=>x.value=0);updateSaleTotal();
     $('salePaid').value=0;$('saleGuestName').value='';
-    alert('Venda registrada.');await Promise.all([loadDashboard(),loadStock()]);
+    alert('Venda registrada.');await Promise.all([loadDashboard(),loadStock(),loadBase(),loadClients()]);
   }catch(e){alert(e?.message||'Não foi possível registrar a venda.');}
   finally{btn.disabled=false;btn.textContent='Registrar venda';}
 }
@@ -1188,4 +1197,3 @@ const financeMonthEl=$('financeMonth');if(financeMonthEl)financeMonthEl.addEvent
 init();
 </script>
 </body></html>
-
