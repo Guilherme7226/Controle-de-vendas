@@ -179,8 +179,10 @@ input:focus{border-color:rgba(249,115,22,.55);box-shadow:0 0 0 4px rgba(249,115,
 </div>
 <div class="panel hidden" id="registerBox">
 <h2>Criar minha conta</h2>
-<div class="grid"><div class="field"><label>Nome</label><input id="rNome" autocomplete="name"></div><div class="field"><label>WhatsApp/telefone</label><input id="rTelefone" autocomplete="tel"></div><div class="field"><label>Senha</label><input id="rSenha" type="password" minlength="6" autocomplete="new-password"></div></div>
-<div class="tabs"><button id="registerBtn" class="primary">Criar conta</button><button id="showLogin" class="secondary">Voltar</button></div>
+<p style="color:var(--muted);margin:4px 0 14px">Preencha seus dados para solicitar acesso. Sua conta ficará aguardando a aprovação do administrador antes de você fazer pedidos.</p>
+<div class="grid"><div class="field"><label>Nome</label><input id="rNome" autocomplete="name" maxlength="120"></div><div class="field"><label>WhatsApp/telefone (com DDD)</label><input id="rTelefone" type="tel" inputmode="tel" autocomplete="tel"></div><div class="field"><label>Senha (mínimo de 8 caracteres)</label><input id="rSenha" type="password" minlength="8" maxlength="72" autocomplete="new-password"></div></div>
+<div style="position:absolute;left:-9999px" aria-hidden="true"><label for="rWebsite">Site</label><input id="rWebsite" tabindex="-1" autocomplete="off"></div>
+<div class="tabs"><button id="registerBtn" class="primary">Solicitar cadastro</button><button id="showLogin" class="secondary">Voltar</button></div>
 </div>
 </section>
 
@@ -258,10 +260,12 @@ async function api(action,data,opts={}){
       const user=sessionData.session?.user;
       if(!user)throw Error('Sessão expirada.');
       const {data:cliente,error}=await supabaseClient.from('v2_clientes')
-        .select('id,nome,telefone,email,primeira_senha,ativo,usuario_id')
+        .select('id,nome,telefone,email,primeira_senha,ativo,usuario_id,cadastro_status')
         .eq('usuario_id',user.id).maybeSingle();
       if(error)throw error;
       if(!cliente)throw Error('Cadastro do cliente não encontrado.');
+      if(cliente.cadastro_status==='pendente')throw Error('Seu cadastro está aguardando aprovação do administrador. Tente novamente após a aprovação.');
+      if(cliente.cadastro_status==='rejeitado')throw Error('Seu cadastro não foi aprovado. Entre em contato com o administrador.');
       if(cliente.ativo===false)throw Error('Este cadastro está inativo.');
       return cliente;
     };
@@ -273,7 +277,9 @@ async function api(action,data,opts={}){
       const email=login+'@clientes.paozinhos.local';
       const {data:authData,error}=await supabaseClient.auth.signInWithPassword({email,password:senha});
       if(error)throw error;
-      const cliente=await getClient();
+      let cliente;
+      try { cliente=await getClient(); }
+      catch(e) { await supabaseClient.auth.signOut(); throw e; }
       return {ok:true,data:{token:authData.session?.access_token||'',mustChangePassword:!!cliente.primeira_senha,cliente}};
     }
 
@@ -343,7 +349,22 @@ async function api(action,data,opts={}){
       return {ok:true,data:{token:authData.session?.access_token||'',mustChangePassword:false,cliente}};
     }
 
-    if(action==='cliente_cadastro')throw Error('Novos cadastros estão desativados nesta versão. O acesso é criado pelo administrador.');
+    if(action==='cliente_cadastro'){
+      const nome=String(data?.nome||'').trim();
+      const telefone=String(data?.telefone||'').replace(/\D/g,'');
+      const senha=String(data?.senha||'');
+      if(nome.length<2||nome.length>120)throw Error('Informe seu nome.');
+      if(!/^\d{10,13}$/.test(telefone))throw Error('Informe seu WhatsApp com DDD.');
+      if(senha.length<8||senha.length>72)throw Error('Use uma senha de 8 a 72 caracteres.');
+      const response=await fetch(SUPABASE_URL+'/functions/v1/client-register',{
+        method:'POST',
+        headers:{'content-type':'application/json','apikey':SUPABASE_PUBLISHABLE_KEY},
+        body:JSON.stringify({nome,telefone,senha,website:$('rWebsite')?.value||''})
+      });
+      const result=await response.json().catch(()=>({ok:false,error:'Resposta inválida do servidor.'}));
+      if(!response.ok||!result.ok)throw Error(result.error||'Não foi possível enviar o cadastro.');
+      return {ok:true,data:{pendente:true}};
+    }
 
     if(action==='estoque_atual'){
       const result=await boundedRequest(supabaseClient.rpc('v2_estoque_cliente'),opts.timeout||15000);
@@ -670,7 +691,25 @@ $('saveSettingsPassword').onclick=async()=>{
   showMsg('Senha alterada com sucesso.','success');
 };
 
-$('registerBtn').onclick=async()=>{const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,senha:$('rSenha').value});if(!j)return;saveSession(j.data);showMsg('Conta criada com sucesso.','success');await loadClient()};
+$('registerBtn').onclick=async()=>{
+  const btn=$('registerBtn');
+  if(btn.disabled)return;
+  btn.disabled=true;
+  btn.textContent='Enviando...';
+  try{
+    const j=await api('cliente_cadastro',{nome:$('rNome').value,telefone:$('rTelefone').value,senha:$('rSenha').value});
+    if(!j)return;
+    $('login').value=$('rTelefone').value;
+    $('rSenha').value='';
+    $('registerBox').classList.add('hidden');
+    $('loginBox').classList.remove('hidden');
+    showMsg('✅ Cadastro solicitado! Aguarde a aprovação do administrador. Depois, entre com seu telefone e a senha que escolheu.','success');
+    window.scrollTo({top:0,behavior:'smooth'});
+  }finally{
+    btn.disabled=false;
+    btn.textContent='Solicitar cadastro';
+  }
+};
 $('logout').onclick=()=>{clearSession();quantities={};showAuth();showMsg('Você saiu da sua conta.','success')};
 $('backTop').onclick=()=>{location.href='/'};function applyTheme(){const dark=document.documentElement.dataset.theme==='dark';$('themeToggle').textContent=dark?'☀️ Modo claro':'🌙 Modo escuro'}$('themeToggle').onclick=()=>{const next=document.documentElement.dataset.theme==='dark'?'light':'dark';document.documentElement.dataset.theme=next;localStorage.setItem('vendas_theme',next);applyTheme()};applyTheme();
 document.addEventListener('click',e=>{const r=e.target.dataset.r;if(!r)return;const x=stock.find(s=>s.recheio===r),max=stockLimit(x);if(e.target.classList.contains('plus'))quantities[r]=Math.min(max,(quantities[r]||0)+1);if(e.target.classList.contains('minus'))quantities[r]=Math.max(0,(quantities[r]||0)-1);renderStock(stock)});
