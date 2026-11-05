@@ -1057,8 +1057,9 @@ async function loadClients(){
   const accessById={},clientById={};
   (base.data||[]).forEach(x=>{accessById[x.id]=!!x.usuario_id;clientById[x.id]=x});
 
+  const indisponiveis=new Set((base.data||[]).filter(x=>x.cadastro_status!=='aprovado'||!x.ativo).map(x=>x.id));
   $('clientsTable').innerHTML='<table class="table"><thead><tr><th>Cliente</th><th>Telefone</th><th>Pães</th><th>Vendas</th><th>Total</th><th>Dívida</th><th>Ação</th></tr></thead><tbody>'+
-  (dash.data||[]).map(x=>{
+  (dash.data||[]).filter(x=>!indisponiveis.has(x.id)).map(x=>{
     const hasAccess=!!accessById[x.id];
     const edit='<button class="secondary" onclick="openClientModal(\''+x.id+'\')">✏️ Editar</button>';
     const access=hasAccess
