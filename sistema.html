@@ -193,7 +193,7 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
   <button class="nav" data-view="pedidos">🧾 <span>Pedidos</span></button>
   <button class="nav" data-view="vendas">💰 <span>Vendas</span></button>
   <button class="nav" data-view="nova">➕ <span>Nova venda</span></button>
-  <button class="nav" data-view="clientes">👥 <span>Clientes</span></button>
+  <button class="nav" data-view="clientes">👥 <span>Clientes</span> <small id="pendingClientBadge" class="pill warn hidden" style="margin-left:auto"></small></button>
   <button class="nav" data-view="estoque">📦 <span>Estoque</span></button>
   <button class="nav" data-view="financeiro">📈 <span>Financeiro</span></button>
   <button class="nav" data-view="custos">💸 <span>Custos</span></button>
@@ -257,7 +257,11 @@ main{padding:24px;max-width:1600px;width:100%;margin:0 auto}
 </section>
 
 <section id="clientes" class="section">
-  <div class="row"><div><h2>Clientes</h2><div class="muted">Clientes migrados e contas vinculadas</div></div><div class="actions"><button class="primary" onclick="openClientModal()">+ Criar cliente</button><button class="secondary" onclick="loadClients()">Atualizar</button></div></div>
+  <div class="row"><div><h2>Clientes</h2><div class="muted">Cadastros pendentes de aprovação e contas existentes</div></div><div class="actions"><button class="primary" onclick="openClientModal()">+ Criar cliente</button><button class="secondary" onclick="loadClients()">Atualizar</button></div></div>
+  <div class="card" style="margin-bottom:14px" id="pendingClientPanel">
+    <div class="row"><div><h3 style="margin:0">🕓 Cadastros aguardando aprovação <span id="pendingClientCount" class="pill warn">0</span></h3><div class="muted">Revise os dados e aprove ou recuse o acesso. Clientes pendentes não podem fazer pedidos.</div></div></div>
+    <div id="pendingClientTable" class="table-wrap"></div>
+  </div>
   <div class="card"><div id="clientsTable" class="table-wrap"></div></div>
 </section>
 
@@ -387,7 +391,7 @@ async function enterApp(){
   const chk=await sb.rpc('is_admin');
   if(chk.error||chk.data!==true){await sb.auth.signOut();showLogin();$('loginError').textContent='Este usuário não possui acesso administrativo.';return}
   $('loginView').classList.add('hidden');$('appView').classList.remove('hidden');
-  setDates(); await Promise.all([loadBase(),loadDashboard()]);
+  setDates(); await Promise.all([loadBase(),loadDashboard(),loadPendingClientCount()]);
   subscribe();
 }
 $('loginBtn').onclick=async()=>{
@@ -1002,14 +1006,53 @@ async function gerarAcessoCliente(clienteId,tipo){
   }
 }
 
+async function loadPendingClientCount(){
+  if(!sb)return;
+  const {count,error}=await sb.from('v2_clientes').select('id',{count:'exact',head:true}).eq('cadastro_status','pendente');
+  if(error){console.warn('Não foi possível consultar solicitações pendentes:',error.message);return;}
+  const badge=$('pendingClientBadge');
+  badge.textContent=String(count||0);
+  badge.classList.toggle('hidden',!(count>0));
+}
+
+async function revisarCadastroCliente(id,decisao){
+  if(!['aprovado','rejeitado'].includes(decisao))return;
+  const aceitar=decisao==='aprovado';
+  const texto=aceitar?'Aprovar este cadastro e liberar os pedidos?':'Recusar este cadastro? O cliente não poderá fazer pedidos.';
+  if(!confirm(texto))return;
+  const {data,error}=await sb.from('v2_clientes')
+    .update({cadastro_status:decisao,ativo:aceitar,updated_at:new Date().toISOString()})
+    .eq('id',id).eq('cadastro_status','pendente')
+    .select('id,nome').maybeSingle();
+  if(error){msg(error.message,'error');return;}
+  if(!data){msg('A solicitação já foi analisada. Atualize a lista.','error');await loadClients();return;}
+  msg((aceitar?'✅ Cadastro aprovado: ':'Cadastro recusado: ')+data.nome);
+  await Promise.all([loadClients(),loadBase(),loadDashboard()]);
+}
+
 async function loadClients(){
   const [dash,base]=await Promise.all([
     sb.from('v2_dashboard_clientes').select('*').order('nome'),
-    sb.from('v2_clientes').select('id,nome,telefone,usuario_id,ativo').order('nome')
+    sb.from('v2_clientes').select('id,nome,telefone,usuario_id,ativo,cadastro_status,created_at').order('nome')
   ]);
   if(dash.error)return msg(dash.error.message,'error');
   if(base.error)return msg(base.error.message,'error');
-  clients=(base.data||[]).filter(x=>x.ativo);
+  clients=(base.data||[]).filter(x=>x.ativo && x.cadastro_status==='aprovado');
+
+  const pendentes=(base.data||[]).filter(x=>x.cadastro_status==='pendente').sort((a,b)=>String(a.created_at||'').localeCompare(String(b.created_at||'')));
+  $('pendingClientCount').textContent=String(pendentes.length);
+  $('pendingClientTable').innerHTML=pendentes.length
+    ? '<table class="table"><thead><tr><th>Nome</th><th>WhatsApp</th><th>Solicitado em</th><th>Ações</th></tr></thead><tbody>'+
+        pendentes.map(x=>{
+          const id=String(x.id);
+          const when=x.created_at?new Date(x.created_at).toLocaleString('pt-BR'):'—';
+          return '<tr><td><strong>'+esc(x.nome)+'</strong><br><span class="pill warn">Aguardando aprovação</span></td><td>'+esc(x.telefone||'—')+'</td><td>'+esc(when)+'</td><td><div class="action-group">'+
+            '<button class="primary" type="button" onclick="revisarCadastroCliente(\''+id+'\',\'aprovado\')">✅ Aprovar</button>'+
+            '<button class="danger" type="button" onclick="revisarCadastroCliente(\''+id+'\',\'rejeitado\')">Recusar</button>'+
+            '</div></td></tr>';
+        }).join('')+'</tbody></table>'
+    : '<div class="muted" style="padding:12px">Nenhuma solicitação pendente.</div>';
+  await loadPendingClientCount();
 
   const accessById={},clientById={};
   (base.data||[]).forEach(x=>{accessById[x.id]=!!x.usuario_id;clientById[x.id]=x});
