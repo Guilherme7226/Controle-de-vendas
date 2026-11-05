@@ -271,7 +271,8 @@ async function api(action,data,opts={}){
     };
 
     if(action==='cliente_login'){
-      const login=String(data?.login||'').replace(/\D/g,'');
+      let login=String(data?.login||'').replace(/\D/g,'');
+      if(/^55\d{10,11}$/.test(login))login=login.slice(2);
       const senha=String(data?.senha||'');
       if(!login||!senha)throw Error('Informe telefone e senha.');
       const email=login+'@clientes.paozinhos.local';
